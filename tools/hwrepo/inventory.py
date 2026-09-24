@@ -39,10 +39,10 @@ def inventory(root: Path) -> TemplateInventoryReport:
             if product.id != entry.id:
                 raise ValueError(f"{entry.path}: product ID {product.id} differs from index ID {entry.id}")
             if len({name.casefold() for name in entry.project_ids}) != len(entry.project_ids):
-                raise ValueError(f"{entry.path}: duplicate project IDs in product index")
+                raise ValueError("catalog/products.json: duplicate project IDs in product index")
             unknown = sorted(set(entry.project_ids) - known_projects)
             if unknown:
-                raise ValueError(f"{entry.path}: unknown project IDs: {unknown}")
+                raise ValueError(f"catalog/products.json: unknown project IDs: {unknown}")
             product_rows.append(InventoryGroup(id=entry.id, project_ids=entry.project_ids))
             for project_id in entry.project_ids:
                 project_products[project_id].append(entry.id)

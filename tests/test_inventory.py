@@ -93,7 +93,7 @@ class InventoryTests(unittest.TestCase):
             report = inventory(root)
             self.assertEqual(report.status, "FAIL")
             self.assertIn("unknown-board", report.issues[0].message)
-            self.assertIn("product.json", report.issues[0].message)
+            self.assertIn("catalog/products.json", report.issues[0].message)
 
     def test_cli_keeps_json_structured_and_text_scannable(self) -> None:
         root = reference_root()
