@@ -321,6 +321,14 @@ class DiagnosticTests(unittest.TestCase):
         self.assertIn("--depth native", result.next_command)
         self.assertNotIn("--native-report", result.next_command)
 
+        summary_path = native / "summary.json"
+        summary = read_model(summary_path, ValidationSummary)
+        write_model(summary_path, summary.model_copy(update={"project_id": "another-board"}))
+        wrong_project = diagnose_project(repository, "controller", native_report=native)
+        self.assertIn("NATIVE_REPORT", {row.code for row in wrong_project.findings})
+        self.assertIn("--depth native", wrong_project.next_command)
+        self.assertNotIn("--native-report", wrong_project.next_command)
+
     def test_incomplete_backup_receives_specific_import_repair(self) -> None:
         source = self.root / "incomplete"
         source.mkdir()

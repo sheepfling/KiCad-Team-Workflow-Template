@@ -615,7 +615,7 @@ def diagnose_project(
         with journal.stage("bom") if journal is not None else nullcontext():
             findings.extend(bom_binding_findings(root, project_id, bom, native_report))
             findings.extend(bom_findings(root, bom))
-    if any(row.code == "STALE_NATIVE_REPORT" for row in findings):
+    if any(row.code in {"STALE_NATIVE_REPORT", "NATIVE_REPORT"} for row in findings):
         next_command = (
             f"python -B -m tools.verify --root {quote_argument(str(root))} "
             f"--project {quote_argument(project_id)} --depth native"
