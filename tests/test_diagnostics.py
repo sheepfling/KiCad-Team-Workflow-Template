@@ -25,6 +25,7 @@ from tools.hwrepo.diagnostics import (
     finding,
     format_text,
     native_findings,
+    quote_argument,
     report,
     repository_guidance,
 )
@@ -213,7 +214,7 @@ class DiagnosticTests(unittest.TestCase):
                                      capture_output=True, text=True, check=False)
         self.assertEqual(text_result.returncode, 1)
         self.assertIn("Fix: Find the intended sheet", text_result.stdout)
-        self.assertIn(str(text_log / "events.log"), text_result.stdout)
+        self.assertIn(str(text_log.resolve() / "events.log"), text_result.stdout)
         self.assertIn("import-preview done", text_result.stderr)
         self.assertIn("Missing schematic sheet", (text_log / "import-preview.json").read_text())
         self.assertEqual(json.loads((text_log / "run.json").read_text())["status"], "NEEDS_WORK")
@@ -278,6 +279,10 @@ class DiagnosticTests(unittest.TestCase):
         self.assertIn("... and 2 more in diagnosis.json", formatted)
         self.assertNotIn("board.kicad_pcb:4", formatted)
         self.assertEqual(len(result.findings), 5)
+
+    def test_next_command_quotes_powershell_apostrophes(self) -> None:
+        self.assertEqual(quote_argument("C:\\Users\\O'Connor\\board", windows=True),
+                         "'C:\\Users\\O''Connor\\board'")
 
     def test_incomplete_backup_receives_specific_import_repair(self) -> None:
         source = self.root / "incomplete"

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import csv
+import os
 import shlex
 import xml.etree.ElementTree as ET
 from collections import Counter
@@ -28,6 +29,14 @@ IMPORT_GUIDE = "docs/workflow/IMPORT_WORKFLOW.md"
 CHECKS_GUIDE = "docs/workflow/CHECKS_AND_CI.md"
 FIRST_BOARD_GUIDE = "docs/workflow/FIRST_BOARD.md"
 BOM_GUIDE = "docs/workflow/BOM_POLICY.md"
+
+
+def quote_argument(value: str, windows: bool | None = None) -> str:
+    """Use a copyable argument for the host shell (PowerShell or POSIX)."""
+    use_windows = os.name == "nt" if windows is None else windows
+    if use_windows:
+        return "'" + value.replace("'", "''") + "'"
+    return shlex.quote(value)
 
 
 def finding(
@@ -135,9 +144,9 @@ def diagnose_import(
     command = (
         "python -B -m tools.template "
         + ("diagnose" if preview.status == "FAIL" else "import-project")
-        + f" --root {shlex.quote(str(root))} --source {shlex.quote(str(source))} "
-        + f"--project-id {shlex.quote(project_id)} "
-        + f"--toolchain {shlex.quote(toolchain_id)}"
+        + f" --root {quote_argument(str(root))} --source {quote_argument(str(source))} "
+        + f"--project-id {quote_argument(project_id)} "
+        + f"--toolchain {quote_argument(toolchain_id)}"
     )
     return report(project_id, "import", findings, command)
 
@@ -586,17 +595,17 @@ def diagnose_project(
             findings.extend(bom_findings(root, bom))
     if any(row.severity == "BLOCKING" for row in findings):
         next_command = (
-            f"python -B -m tools.template diagnose --root {shlex.quote(str(root))} "
-            f"--project-id {shlex.quote(project_id)}"
+            f"python -B -m tools.template diagnose --root {quote_argument(str(root))} "
+            f"--project-id {quote_argument(project_id)}"
         )
         if native_report is not None:
-            next_command += f" --native-report {shlex.quote(str(native_report))}"
+            next_command += f" --native-report {quote_argument(str(native_report))}"
         if bom is not None:
-            next_command += f" --bom {shlex.quote(str(bom))}"
+            next_command += f" --bom {quote_argument(str(bom))}"
     else:
         next_command = (
-            f"python -B -m tools.ci --root {shlex.quote(str(root))} "
-            f"--project {shlex.quote(project_id)}"
+            f"python -B -m tools.ci --root {quote_argument(str(root))} "
+            f"--project {quote_argument(project_id)}"
         )
     return report(project_id, "project", findings, next_command)
 
@@ -630,6 +639,6 @@ def format_text(result: DiagnosticReport) -> str:
             "fresh output directory and replace --native-report/--bom paths above."
         )
     if result.run_directory is not None:
-        lines.append(f"Run log: {result.run_directory}/events.log")
-        lines.append(f"Full findings: {result.run_directory}/diagnosis.json")
+        lines.append(f"Run log: {Path(result.run_directory) / 'events.log'}")
+        lines.append(f"Full findings: {Path(result.run_directory) / 'diagnosis.json'}")
     return "\n".join(lines)
