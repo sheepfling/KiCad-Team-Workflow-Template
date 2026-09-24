@@ -45,14 +45,18 @@ This file is for coding agents and engineers using an agent. Start with the
    requirements to the responsible engineer. For CAD paths, follow the
    [shared-library policy](docs/workflow/LIBRARIES.md); never borrow an
    undeclared asset from another project's private directory.
-3. After each source fix, rerun diagnosis and `python -B -m tools.ci --project <id>`.
-   If related boards share a product, run `--product <id>`; for a named cohort,
-   use `--tag <tag>`. Multiple include selectors form a union, and
+3. After each source fix, run `python -B -m tools.verify --project <id>`.
+   Add `--depth native` after KiCad source changes. It chooses an exact local
+   CLI or the project's pinned Docker image and saves a new ignored receipt;
+   `--format json` is the agent interface and `--detail full` expands human
+   findings. Run `tools.template doctor --native --project-id <id>` if the
+   runner cannot start. For a product, use `tools.ci --product <id>`; for a
+   named cohort, use `tools.ci --tag <tag>`. Multiple include selectors form a union, and
    `--exclude-tag <tag>` removes projects afterward. Run the full
    `python -B -m tools.ci` gate after changing shared tools, catalogs or policy,
-   and for a deliberate repository-wide rehearsal. If native KiCad inputs changed,
-   rerun `--kicad --project <id>` with a fresh output directory and recheck
-   affected BOMs and exports. Run `python -B -m tools.impact --base <ref> --head <ref> --format json`
+   and for a deliberate repository-wide rehearsal. After native KiCad inputs
+   change, recheck affected BOMs and exports from the new receipt. Run
+   `python -B -m tools.impact --base <ref> --head <ref> --format json`
    to inspect planned PR scope in a script or agent.
    For a manual hosted lane, run **KiCad template acceptance** in Actions with
    `focus=project` and `value=<id>` (or select `product` or `tag`). The default

@@ -164,7 +164,7 @@ class ValidationTests(unittest.TestCase):
             )
 
         with (
-            patch("tools.validate.shutil.which", return_value="fake-kicad-cli"),
+            patch("tools.validate.cli_executable", return_value="fake-kicad-cli"),
             patch("tools.validate.execute", side_effect=run_kicad),
         ):
             result = validate(

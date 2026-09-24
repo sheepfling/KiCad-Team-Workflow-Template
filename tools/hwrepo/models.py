@@ -1289,3 +1289,24 @@ class ProjectStaticPipelineReport(StrictModel):
     product: ProductPolicyReport
     generation: GenerationReport
     project_tests: ProjectTestsReport
+
+
+class ProjectVerificationReport(StrictModel):
+    """One local project attempt with retained portable and optional native evidence."""
+
+    schema_version: Literal["1"] = "1"
+    lane: Literal["PROJECT_VERIFY"] = "PROJECT_VERIFY"
+    build_authorized: Literal[False] = False
+    project_id: Identifier
+    depth: Literal["portable", "native"]
+    runner: Literal["none", "local", "container"] = "none"
+    run_directory: NonEmptyText
+    portable: ProjectStaticPipelineReport | None = None
+    doctor: TemplateDoctorReport | None = None
+    dependency_command: CommandEvidence | None = None
+    native_command: CommandEvidence | None = None
+    native: CheckAllSummary | None = None
+    diagnosis: DiagnosticReport | None = None
+    status: Literal["PASS", "FAIL", "ERROR"]
+    next_actions: tuple[NonEmptyText, ...] = ()
+    error: str | None = None

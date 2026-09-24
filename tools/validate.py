@@ -6,7 +6,6 @@ import csv
 import hashlib
 import json
 import os
-import shutil
 import subprocess
 import sys
 import xml.etree.ElementTree as ET
@@ -15,7 +14,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal, cast
 
-from .check_toolchain import toolchain
+from .check_toolchain import cli_executable, toolchain
 from .hwrepo.contracts import repo_path, write_model
 from .hwrepo.discovery import load_config
 from .hwrepo.models import (
@@ -306,7 +305,7 @@ def validate(
             status="PASS",
             source_hashes=before,
         )
-        executable = shutil.which(cli)
+        executable = cli_executable(cli)
         if executable is None:
             raise ValueError("KiCad executable is missing")
         version = execute((executable, "version"), root, output, "version")
@@ -521,7 +520,10 @@ def main() -> int:
     parser: argparse.ArgumentParser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--cli", default="kicad-cli")
+    parser.add_argument(
+        "--cli", default="kicad-cli",
+        help="KiCad CLI command or path (relative paths use the caller's cwd)",
+    )
     parser.add_argument(
         "--config", type=Path, default=Path("examples/projects/controller/project.json")
     )

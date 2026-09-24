@@ -77,7 +77,9 @@ Discovery automatically adds each `projects/*/project.json` to CI.
 Keep projects directly under `projects/`; discovery does not recurse into a
 physical tree of nested projects. Use manifest tags for a flexible cohort and a
 registered product for a named group of related deliverables.
-Before native work, run `python -B -m tools.template doctor --native --toolchain kicad-10.0.5 --format text`.
+Before native work, run `python -B -m tools.template doctor --native --project-id battery-board --format text`.
+This checks the board's catalogued toolchain and the runner that `tools.verify`
+will use.
 
 For an existing design, use the [import workflow](docs/workflow/IMPORT_WORKFLOW.md).
 Exercise imports in a temporary copy and retain each run through its PR or CI artifacts.
@@ -85,8 +87,10 @@ Exercise imports in a temporary copy and retain each run through its PR or CI ar
 ## Checks
 
 ```sh
-# Selected board, its dependencies and applicable board/product tests
-python -B -m tools.ci --project battery-board --format text
+# One selected board with a fresh ignored receipt and repair guidance
+python -B -m tools.verify --project battery-board
+# Include exact native KiCad checks after source changes
+python -B -m tools.verify --project battery-board --depth native
 # Every project in a registered product, or every project carrying a tag
 # The names below refer to the uninitialized template rehearsal examples.
 python -B -m tools.ci --product status-indicator-system --format text
@@ -95,7 +99,7 @@ python -B -m tools.ci --tag status-led --format text
 python -B -m tools.ci --format text
 # Preview automatic native CI lanes
 python -B -m tools.ci --matrix --format text
-# Pinned native check; use a fresh output path each attempt
+# Lower-level pinned native check; supply a fresh output path yourself
 python -B -m tools.ci --kicad --project battery-board --output projects/battery-board/build/review-001 --format text
 # Shared tooling tests alone
 python -B -m unittest discover -s tests -v
@@ -115,6 +119,12 @@ with the default `full` focus for a complete rehearsal, or choose `project`,
 scope, while a release still has its own acceptance process.
 
 See [checks and CI](docs/workflow/CHECKS_AND_CI.md) and [extending tests](tests/README.md).
+`tools.verify` defaults to a short text result and writes the full typed JSON,
+stage log, portable result, and any native/diagnostic reports in a unique ignored
+`build/diagnostics/` directory. Use `--format json` for agents and scripts,
+`--detail full` for every repair finding, or `--runner local|container` to choose
+one exact native runner; `auto` prefers a matching local CLI and otherwise uses
+the project's digest-pinned Docker image.
 When a board fails, `python -B -m tools.template diagnose --project-id battery-board`
 shows the observed issue, a repair action and the relevant [diagnostic guide](docs/workflow/DIAGNOSTICS.md).
 If an unrelated malformed manifest blocks that command,

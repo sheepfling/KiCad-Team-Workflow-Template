@@ -73,7 +73,10 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--cli", default="kicad-cli")
+    parser.add_argument(
+        "--cli", default="kicad-cli",
+        help="KiCad CLI command or path (relative paths use the caller's cwd)",
+    )
     parser.add_argument("--project", action="append", dest="projects")
     parser.add_argument("--tag", action="append", dest="tags")
     parser.add_argument("--product", action="append", dest="products")

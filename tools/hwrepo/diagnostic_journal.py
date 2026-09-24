@@ -19,7 +19,10 @@ from pydantic import BaseModel
 class DiagnosticJournal:
     """Record stage progress and raw typed results without copying design sources."""
 
-    def __init__(self, root: Path, project_id: str, output: Path | None = None) -> None:
+    def __init__(
+        self, root: Path, project_id: str, output: Path | None = None,
+        label: str = "diagnose",
+    ) -> None:
         root = root.resolve()
         if output is None:
             parent = root / "build/diagnostics"
@@ -32,6 +35,7 @@ class DiagnosticJournal:
                 raise ValueError("In-repository diagnostic output must be under ignored build/")
             directory.mkdir(parents=True, exist_ok=False)
         self.directory = directory
+        self._label = label
         self._started = time.monotonic()
         self._metadata: dict[str, str | float] = {
             "schema_version": "1",
@@ -60,7 +64,7 @@ class DiagnosticJournal:
     def stage(self, name: str) -> Generator[None, None, None]:
         started = time.monotonic()
         self.event(name, "START", "running")
-        print(f"diagnose: {name}...", file=sys.stderr, flush=True)
+        print(f"{self._label}: {name}...", file=sys.stderr, flush=True)
         try:
             yield
         except BaseException as exc:
@@ -69,7 +73,7 @@ class DiagnosticJournal:
         else:
             elapsed = time.monotonic() - started
             self.event(name, "DONE", f"{elapsed:.2f}s")
-            print(f"diagnose: {name} done ({elapsed:.1f}s)", file=sys.stderr, flush=True)
+            print(f"{self._label}: {name} done ({elapsed:.1f}s)", file=sys.stderr, flush=True)
 
     def save_model(self, name: str, model: BaseModel) -> None:
         (self.directory / f"{name}.json").write_text(
@@ -78,12 +82,16 @@ class DiagnosticJournal:
         self.event(name, "SAVED", f"{name}.json")
 
     def finish(self, result: BaseModel, human_text: str, status: str) -> None:
-        self.save_model("diagnosis", result)
-        (self.directory / "diagnosis.txt").write_text(human_text + "\n", encoding="utf-8")
+        self.finish_named("diagnosis", result, human_text, status)
+
+    def finish_named(self, name: str, result: BaseModel, human_text: str, status: str) -> None:
+        """Close a diagnostic or verification run with a retained typed report."""
+        self.save_model(name, result)
+        (self.directory / f"{name}.txt").write_text(human_text + "\n", encoding="utf-8")
         self._metadata["status"] = status
         self._metadata["elapsed_seconds"] = round(time.monotonic() - self._started, 3)
         self._write_metadata()
-        self.event("run", "DONE", f"{status}; diagnosis.txt and diagnosis.json saved")
+        self.event("run", "DONE", f"{status}; {name}.txt and {name}.json saved")
 
     def fail(self, exc: BaseException) -> None:
         (self.directory / "error.txt").write_text(

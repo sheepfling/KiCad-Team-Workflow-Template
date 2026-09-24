@@ -20,8 +20,8 @@ to understand what belongs with each board and what is shared.
    It starts in `development`, visibly NOT FOR MANUFACTURE.
 4. Save its real source under `projects/<id>/kicad/`. Complete `project.json` and
    `tests/contract.json`; keep board requirements and decisions in its local docs.
-5. Use a short-lived branch and run `tools.ci --project <id>` while working on
-   the island. Run its native lane after KiCad source changes, then review source
+5. Use a short-lived branch and run `tools.verify --project <id>` while working on
+   the island. Add `--depth native` after KiCad source changes, then review source
    and exported evidence. Use the full gate when shared tooling or policy changes;
    PR CI chooses affected project lanes, and main receives full coverage. A new
    island's README is discovered automatically by docs policy.
@@ -59,8 +59,8 @@ and [release workflow](VERSIONING.md). Do not fill real-world approvals with tem
 placeholders. Development checks do not establish manufacturing readiness.
 
 Before native editing, run `python -m tools.check_toolchain --toolchain <toolchain-id>`.
-A cross-platform preflight for either Docker or an exact local KiCad CLI is
-`python -B -m tools.template doctor --native --toolchain <toolchain-id> --format text`.
+A project-specific preflight for either Docker or an exact local KiCad CLI is
+`python -B -m tools.template doctor --native --project-id <id> --format text`.
 A different installed version requires the approved build or a dedicated toolchain
 migration. The controller fixture uses 10.0.0; the other reference projects use 10.0.5.
 

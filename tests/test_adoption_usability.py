@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -54,7 +55,7 @@ class AdoptionUsabilityTests(unittest.TestCase):
             patch("tools.hwrepo.doctor.shutil.which", return_value="/tool"),
             patch("tools.hwrepo.doctor.command_output", side_effect=self.command_output),
         ):
-            docker_report = doctor(self.root, native=True)
+            docker_report = doctor(self.root, native=True, toolchain_id="kicad-10.0.5")
         self.assertEqual(docker_report.status, "PASS")
 
         def which(name: str) -> str | None:
@@ -77,7 +78,37 @@ class AdoptionUsabilityTests(unittest.TestCase):
             report = doctor(self.root, native=True)
         failures = {row.id for row in report.checks if row.status == "FAIL"}
         self.assertEqual(report.status, "FAIL")
-        self.assertEqual(failures, {"python", "git", "git-repository", "native-runner"})
+        self.assertEqual(failures, {
+            "python", "git", "git-repository", "native-target", "native-runner",
+        })
+
+    def test_explicit_runner_requires_native_doctor_mode(self) -> None:
+        for runner in ("local", "container"):
+            with self.subTest(runner=runner), self.assertRaisesRegex(ValueError, "requires native"):
+                doctor(self.root, runner=runner)
+        command = subprocess.run(
+            (sys.executable, "-B", "-m", "tools.template", "doctor", "--root", str(self.root),
+             "--runner", "local", "--format", "text"),
+            cwd=self.root, capture_output=True, text=True, check=False,
+        )
+        self.assertEqual(command.returncode, 2)
+        self.assertIn("--runner requires --native", command.stderr)
+
+    def test_native_doctor_rejects_a_toolchain_other_than_the_selected_project(self) -> None:
+        with (
+            patch("tools.hwrepo.doctor.sys.version_info", (3, 11, 1)),
+            patch("tools.hwrepo.doctor.shutil.which", return_value="/tool"),
+            patch("tools.hwrepo.doctor.command_output", side_effect=self.command_output),
+            patch("tools.hwrepo.doctor.observed_version", return_value="10.0.0"),
+        ):
+            report = doctor(
+                self.root, native=True, project_id="arduino-uno-status-led",
+                toolchain_id="kicad-10.0.0",
+            )
+        self.assertEqual(report.status, "FAIL")
+        failed = {check.id for check in report.checks if check.status == "FAIL"}
+        self.assertIn("project", failed)
+        self.assertIn("native-runner", failed)
 
     def test_adopt_initializes_once_and_runs_complete_portable_acceptance(self) -> None:
         with (
@@ -164,7 +195,9 @@ class AdoptionUsabilityTests(unittest.TestCase):
         ):
             report = doctor(self.root, native=True, toolchain_id="kicad-10.0.5")
         self.assertEqual(report.status, "FAIL")
-        self.assertIn("toolchain", {check.id for check in report.checks if check.status == "FAIL"})
+        failed = {check.id for check in report.checks if check.status == "FAIL"}
+        self.assertIn("native-runner", failed)
+        self.assertNotIn("toolchain", failed)
 
 
 if __name__ == "__main__":

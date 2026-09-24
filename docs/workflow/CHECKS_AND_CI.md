@@ -12,6 +12,8 @@ nonzero on a failed check in either format.
 
 | Check scope | What runs |
 | --- | --- |
+| `python -B -m tools.verify --project <id>` | Selected portable project checks; fresh ignored receipt and repair guidance |
+| `python -B -m tools.verify --project <id> --depth native` | Selected portable checks followed by native validation with an exact local CLI or the project's digest-pinned Docker image |
 | `python -B -m tools.ci` | Live discovery/registry, dependency/source hygiene, product policy, fresh generation, Markdown, Ruff, strict tool types, shared unit tests and every project/product Python suite |
 | `python -B -m tools.ci --project <id>` | Selected project inputs, shared dependency policy, products declaring that project, fresh applicable views and its project/dependent-product Python suites |
 | `python -B -m tools.ci --product <id>` | All projects registered as members of that product, plus their applicable product tests and policy checks |
@@ -27,6 +29,9 @@ or physical engineering tests.
 ## Daily commands
 
 ```sh
+python -B -m tools.verify --project raspberry-pi-status-led
+python -B -m tools.verify --project raspberry-pi-status-led --depth native
+python -B -m tools.verify --project raspberry-pi-status-led --depth native --runner container
 python -B -m tools.ci --project raspberry-pi-status-led --format text
 python -B -m tools.ci --product status-indicator-system --format text
 python -B -m tools.ci --tag status-led --format text
@@ -39,7 +44,7 @@ python -B -m tools.ci --matrix --product status-indicator-system --format text
 python -B -m tools.ci --kicad --project controller --output examples/projects/controller/build/review-001 --format text
 python -B -m tools.hardware generate --format text
 python -B -m tools.template doctor --format text
-python -B -m tools.template doctor --native --toolchain kicad-10.0.5 --format text
+python -B -m tools.template doctor --native --project-id raspberry-pi-status-led --format text
 python -B -m tools.template preflight --format text
 python -B -m tools.docs_policy
 ```
@@ -66,6 +71,15 @@ remain not for manufacture until an authoritative schematic makes full electrica
 validation possible. Schematic projects receive ERC and schematic SVG; wiring and
 harness views also receive their typed relationship coverage checks.
 All native kinds protect declared source hashes.
+`tools.verify` creates a fresh path under ignored
+`build/diagnostics/<project>-.../`. Its default terminal view is brief; use
+`--detail full` for every diagnosed finding or `--format json` for a typed agent
+result. The receipt contains `events.log`, `run.json`, `verification.json`,
+`portable.json`, optional `doctor.json`, and native reports and raw command
+stdout/stderr. Native failures also create `diagnosis.txt` and `diagnosis.json`
+when a project report is available. A runner or package-setup failure retains
+`dependency-command.json` or `native-command.json` with an actionable next step.
+An optional `--output build/<new-name>` chooses a fresh ignored receipt path.
 
 ## Adding and sharing projects
 
@@ -84,9 +98,20 @@ a product record for cross-board integration instead of a second directory level
 
 ## Which scope to run
 
-The quick local loop is `tools.ci --project <id>` for portable checks, followed
-by `tools.ci --kicad --project <id> --output <fresh-path>` when native inputs
-change. A tag or product selects a larger group without naming each member.
+The quick local loop is `tools.verify --project <id>`; add `--depth native`
+when native inputs change. `--runner auto` uses an installed exact-version CLI
+first, then the project's digest-pinned Docker image. `--runner local` or
+`--runner container` makes that choice explicit.
+`tools.template doctor --native --project-id <id> --runner <choice>` checks the
+same runner readiness. An explicit `--runner local|container` requires
+`--native`; portable doctor checks alone cannot establish native readiness.
+The lower-level `tools.ci --kicad` remains useful in CI
+or when you manage the
+evidence path yourself; it does not choose Docker automatically. A tag or
+product selects a larger group without naming each member.
+When passing `--cli ./path/to/kicad-cli`, the relative path is resolved from
+the directory where you invoke the command, even if `--root` points to another
+repository directory. An executable name without a slash is found on `PATH`.
 `tools.ci --matrix --project <id>` previews just the selected native job.
 Use `tools.ci` without a selector for a full portable rehearsal, especially
 after changing shared tooling, catalog policy, or release behavior.
@@ -170,6 +195,15 @@ and Actions logs. A missing `portable.json` means the gate did not finish; parti
 phase evidence is for diagnosis only, never release acceptance.
 
 ## Replaying a native CI lane locally
+
+The one-command route is
+`python -B -m tools.verify --project <id> --depth native --runner container`.
+It resolves the exact image from that project's
+catalog record, prepares container-compatible wheels, runs only that board, and
+retains the attempted commands in a fresh ignored receipt. Run `--runner local`
+when the exact declared KiCad CLI is installed. A failed doctor names a missing
+Docker daemon or version mismatch before native work starts. The manual commands
+below remain available for reproducing individual CI setup stages.
 
 The official pinned images do not include pip. `tools.native_deps` probes the image's
 Python version and uses host pip to prepare compatible Linux x86 wheels from

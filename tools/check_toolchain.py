@@ -8,14 +8,15 @@ import subprocess
 import sys
 from pathlib import Path
 
-from .hwrepo.contracts import read_model
+from .hwrepo.contracts import read_model, repo_path
+from .hwrepo.discovery import settings
 from .hwrepo.models import ToolchainAssessment, ToolchainRecord, ToolchainsCatalog
 
 MACOS_KICAD_CLI = Path("/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli")
 
 
 def toolchain(root: Path, identifier: str) -> ToolchainRecord:
-    catalog = read_model(root / "catalog/toolchains.json", ToolchainsCatalog)
+    catalog = read_model(repo_path(root, settings(root).catalogs.toolchains), ToolchainsCatalog)
     for record in catalog.toolchains:
         if record.id == identifier:
             return record
@@ -41,12 +42,17 @@ def assessment(
 
 
 def cli_executable(cli: str) -> str | None:
+    """Resolve a command or explicit path against the caller's current directory.
+
+    Native checks run subprocesses from the repository root, so never return a
+    relative executable path that would change meaning after that cwd switch.
+    """
     executable: str | None = shutil.which(cli)
     if executable is not None:
-        return executable
+        return str(Path(executable).resolve())
     explicit: Path = Path(cli)
     if explicit.is_file():
-        return str(explicit)
+        return str(explicit.resolve())
     if cli != "kicad-cli":
         return None
     if sys.platform == "darwin" and MACOS_KICAD_CLI.is_file():
@@ -60,7 +66,7 @@ def cli_executable(cli: str) -> str | None:
         candidate for root in roots if root.is_dir()
         for candidate in root.glob("*/bin/kicad-cli.exe") if candidate.is_file()
     ]
-    return str(candidates[0]) if len(candidates) == 1 else None
+    return str(candidates[0].resolve()) if len(candidates) == 1 else None
 
 
 def observed_version(cli: str) -> str | None:
@@ -80,7 +86,10 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
     parser.add_argument("--toolchain", default="kicad-10.0.0")
-    parser.add_argument("--cli", default="kicad-cli")
+    parser.add_argument(
+        "--cli", default="kicad-cli",
+        help="KiCad CLI command or path (relative paths use the caller's cwd)",
+    )
     args = parser.parse_args()
     result = assessment(toolchain(args.root.resolve(), args.toolchain), observed_version(args.cli))
     print(result.model_dump_json(indent=2))
