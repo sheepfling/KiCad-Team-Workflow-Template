@@ -9,6 +9,8 @@ This file is for coding agents and engineers using an agent. Start with the
 - Confirm the branch, checkout status and project ID before editing. Each
   `projects/<id>/` island owns its KiCad source, requirements, docs and tests.
   Shared policy and automation live under `tools/`, `catalog/` and `tests/`.
+  For shared tooling changes, use the [tool map](tools/README.md),
+  [test guide](tests/README.md) and [scripting standard](docs/workflow/SCRIPTING_STANDARD.md).
 - For an existing design, preview the import before copying it. Use
   `python -B -m tools.template diagnose --source <path-to-.kicad_pro> --project-id <id> --toolchain <id>`.
   Read the import inventory and repair missing sheets or nonportable paths in
@@ -16,8 +18,10 @@ This file is for coding agents and engineers using an agent. Start with the
 - For a registered board, run
   `python -B -m tools.template diagnose --project-id <id>` before changing
   policy or tests. The default output groups repeated causes; `--detail full`
-  prints every finding, while `--format json` gives complete structured output.
-  Each run also writes a fresh ignored `build/diagnostics/` receipt.
+  prints every finding. Agents and scripts should parse `--format json` stdout,
+  not the human text: the versioned report includes `status`, `findings`,
+  `next_command` and `run_directory`. Each run also writes a fresh ignored
+  `build/diagnostics/` receipt.
 
 ## Diagnose, repair, verify
 
@@ -30,10 +34,13 @@ This file is for coding agents and engineers using an agent. Start with the
    records, or independently reviewed test expectations. Do not edit an export
    or copy observed output into the contract just to pass a check. Do not
    invent nets, part identities or ERC/DRC waivers. Surface missing electrical
-   requirements to the responsible engineer.
-3. Rerun diagnosis, `python -B -m tools.ci --project <id>`, then
-   `python -B -m tools.ci`. If native KiCad inputs changed, rerun native checks
-   with a fresh output directory and recheck affected BOMs and exports.
+   requirements to the responsible engineer. For CAD paths, follow the
+   [shared-library policy](docs/workflow/LIBRARIES.md); never borrow an
+   undeclared asset from another project's private directory.
+3. After each source fix, rerun diagnosis and `python -B -m tools.ci --project <id>`.
+   Run `python -B -m tools.ci` before review. If native KiCad inputs changed,
+   rerun native checks with a fresh output directory and recheck affected BOMs
+   and exports.
 4. Report the project ID, branch and commit, changed source, commands and
    results, receipt path, and any unresolved engineering decision. Keep run
    evidence in ignored `build/`, CI artifacts, or the issue/PR. Keep durable

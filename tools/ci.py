@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from .ci_matrix import build_matrix
+from .hwrepo.cli_output import summary
 from .hwrepo.documentation import check as documentation_check
 from .hwrepo.evidence import source_state
 from .hwrepo.generation import check_generation
@@ -23,6 +24,7 @@ from .hwrepo.project_tests import run_tests
 from .hwrepo.repository import check_repository
 from .hwrepo.selection import ProjectSelector, resolve_project_ids
 from .lint_registry import lint
+from .metrics import format_metrics
 
 
 def run_command(root: Path, *argv: str) -> CommandEvidence:
@@ -191,6 +193,8 @@ def main() -> int:
     mode.add_argument("--release", action="store_true", help="Validate one typed release candidate.")
     mode.add_argument("--metrics", action="store_true", help="Report current policy and deviation metrics.")
     parser.add_argument("--cli", default="kicad-cli")
+    parser.add_argument("--format", choices=("json", "text"), default="json",
+                        help="Machine JSON (default) or a concise human summary")
     parser.add_argument("--output", type=Path, help="New evidence directory, required by KiCad modes.")
     parser.add_argument(
         "--manifest",
@@ -210,7 +214,12 @@ def main() -> int:
     if args.matrix:
         matrix = build_matrix(root, selected)
         # GitHub Actions consumes this mode through a one-line GITHUB_OUTPUT value.
-        print(matrix.model_dump_json())
+        if args.format == "text":
+            print("KiCad matrix: " + str(len(matrix.include)) + " project(s)")
+            for entry in matrix.include:
+                print(f"  {entry.project}: KiCad {entry.kicad_version}")
+        else:
+            print(matrix.model_dump_json())
         return 0
     if args.kicad:
         if args.output is None:
@@ -223,7 +232,10 @@ def main() -> int:
             args.cli,
             None if selected is None else list(selected),
         )
-        print(kicad.model_dump_json(indent=2))
+        print(
+            summary("Native KiCad check", kicad) + f"\nOutput: {args.output.resolve()}"
+            if args.format == "text" else kicad.model_dump_json(indent=2)
+        )
         return 0 if kicad.status == "PASS" else 1
     if args.fault_probes:
         if selected is not None:
@@ -233,7 +245,10 @@ def main() -> int:
         from .fault_probe import probe
 
         fault_probes = probe(root, args.output.resolve())
-        print(fault_probes.model_dump_json(indent=2))
+        print(
+            summary("KiCad fault probes", fault_probes) + f"\nOutput: {args.output.resolve()}"
+            if args.format == "text" else fault_probes.model_dump_json(indent=2)
+        )
         return 0 if fault_probes.status == "PASS" else 1
     if args.release:
         if selected is not None:
@@ -249,7 +264,8 @@ def main() -> int:
         except (OSError, ValueError) as exc:
             parser.error(str(exc))
         release = release_check(root, manifest)
-        print(release.model_dump_json(indent=2))
+        print(summary("Release check", release)
+              if args.format == "text" else release.model_dump_json(indent=2))
         return 0 if release.status == "PASS" else 1
     if args.metrics:
         if selected is not None:
@@ -267,7 +283,10 @@ def main() -> int:
         except (OSError, ValueError) as exc:
             parser.error(str(exc))
         metrics = collect(root, deviations)
-        print(metrics.model_dump_json(indent=2))
+        if args.format == "text":
+            print(format_metrics(metrics))
+        else:
+            print(metrics.model_dump_json(indent=2))
         return 0
     static = static_pipeline(root, None if selected is None else list(selected))
     if args.output is not None:
@@ -275,7 +294,8 @@ def main() -> int:
 
         args.output.mkdir(parents=True, exist_ok=False)
         write_model(args.output / "portable.json", static)
-    print(static.model_dump_json(indent=2))
+    print(summary("Portable check", static)
+          if args.format == "text" else static.model_dump_json(indent=2))
     return 0 if static.status == "PASS" else 1
 
 

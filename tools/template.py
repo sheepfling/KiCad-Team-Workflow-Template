@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 from .hwrepo.adoption import adopt
+from .hwrepo.cli_output import summary
 from .hwrepo.diagnostic_journal import DiagnosticJournal
 from .hwrepo.diagnostics import diagnose_import, diagnose_project, format_text
 from .hwrepo.doctor import doctor
@@ -41,7 +42,7 @@ def main() -> int:
     parser.add_argument("--native-report", type=Path, help="Project native summary.json to explain")
     parser.add_argument("--bom", type=Path, help="Native assembly/bom.csv to check for part identities")
     parser.add_argument("--format", choices=("text", "json"),
-                        help="Output format for diagnose (default: text)")
+                        help="Output format (default: text for diagnose, JSON for other commands)")
     parser.add_argument("--detail", choices=("brief", "full"),
                         help="Text detail for diagnose (default: brief; JSON is always full)")
     parser.add_argument("--log-dir", type=Path,
@@ -52,10 +53,9 @@ def main() -> int:
     if args.command != "import-project" and args.dry_run:
         parser.error("--dry-run options require import-project")
     if args.command != "diagnose" and (
-        args.native_report or args.bom or args.format is not None
-        or args.detail is not None or args.log_dir is not None
+        args.native_report or args.bom or args.detail is not None or args.log_dir is not None
     ):
-        parser.error("--native-report, --bom, --format, --detail and --log-dir require diagnose")
+        parser.error("--native-report, --bom, --detail and --log-dir require diagnose")
     if args.command != "doctor" and args.native:
         parser.error("--native requires doctor")
     if args.command == "doctor":
@@ -130,7 +130,8 @@ def main() -> int:
         if args.target_version is None:
             parser.error("upgrade-plan requires --target-version")
         result = plan_upgrade(args.root, args.target_version)
-    print(result.model_dump_json(indent=2))
+    print(summary(f"Template {args.command}", result)
+          if args.format == "text" else result.model_dump_json(indent=2))
     return 0 if result.status == "PASS" else 1
 
 

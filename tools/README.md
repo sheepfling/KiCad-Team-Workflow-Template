@@ -2,6 +2,20 @@
 
 Run every CLI from the repository root as `python -B -m tools.<command>`.
 `tools.ci` is the common local and hosted entry point. See the [command guide](../docs/workflow/CHECKS_AND_CI.md).
+The CLIs use `argparse`; a Typer dependency is not required for human output.
+Choose text for a concise terminal view and JSON for the complete typed result:
+
+| User-facing command | Human view | Agent/script view |
+| --- | --- | --- |
+| `tools.template diagnose` | Brief text by default; `--detail full` expands it | `--format json` |
+| Other `tools.template` commands; `tools.ci`, `tools.hardware`, `tools.sourcing`, `tools.metrics` | `--format text` | JSON by default |
+| `tools.release prepare` | Text by default | `--format json` or `--json` |
+| Other `tools.release` commands | `--format text` | JSON by default |
+
+The lower-level runner modules in the table below remain JSON-first adapters.
+Do not scrape human text in automation; check the exit status and parse stdout JSON.
+Agents with shell access can call these CLIs directly. An MCP server is optional
+integration work, not a prerequisite for repository policy.
 
 | Module | Responsibility |
 | --- | --- |

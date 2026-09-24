@@ -1,12 +1,23 @@
 """Current-state metrics tests; historical tracking remains an external system."""
 from __future__ import annotations
 
+import json
+import sys
 import unittest
 from datetime import date
+from io import StringIO
+from unittest.mock import patch
 
 from tests.support import reference_root
 from tools.hwrepo.metrics import collect, deviation_metrics
-from tools.hwrepo.models import DeviationStatus, ReleaseDeviation
+from tools.hwrepo.models import (
+    CheckMetric,
+    DeviationMetrics,
+    DeviationStatus,
+    ReleaseDeviation,
+    TemplateMetricsReport,
+)
+from tools.metrics import main as metrics_main
 
 ROOT = reference_root()
 
@@ -41,6 +52,36 @@ class TemplateMetricsTests(unittest.TestCase):
         )
         report = deviation_metrics(values, today=date(2026, 9, 7))
         self.assertEqual((report.total, report.approved, report.open, report.expired), (2, 1, 1, 1))
+
+    def test_cli_defaults_to_json_and_text_summarizes_current_findings(self) -> None:
+        report = TemplateMetricsReport(
+            checks=(
+                CheckMetric(name="registry", status="PASS", findings=0),
+                CheckMetric(name="repository", status="FAIL", findings=2),
+            ),
+            stale_evidence=1,
+            deviations=DeviationMetrics(total=2, approved=1, open=1, closed=0, expired=1),
+        )
+        with (
+            patch.object(sys, "argv", ["metrics.py"]),
+            patch("tools.metrics.collect", return_value=report),
+            patch("sys.stdout", new_callable=StringIO) as output,
+        ):
+            self.assertEqual(metrics_main(), 0)
+        self.assertEqual(json.loads(output.getvalue())["checks"][1]["findings"], 2)
+
+        with (
+            patch.object(sys, "argv", ["metrics.py", "--format", "text"]),
+            patch("tools.metrics.collect", return_value=report),
+            patch("sys.stdout", new_callable=StringIO) as output,
+        ):
+            self.assertEqual(metrics_main(), 0)
+        self.assertIn("Template metrics: 1/2 checks pass", output.getvalue())
+        self.assertIn("repository: FAIL (2 findings)", output.getvalue())
+        self.assertIn("Stale evidence: 1", output.getvalue())
+        self.assertIn("Deviations: 2 total; 1 open, 1 approved", output.getvalue())
+        self.assertIn("Next: run python -B -m tools.ci", output.getvalue())
+        self.assertIn("Build authorized: no", output.getvalue())
 
 
 if __name__ == "__main__":

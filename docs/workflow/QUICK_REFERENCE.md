@@ -22,8 +22,9 @@ Start with its short repair queue; use `--detail full` for every finding or
 receipt for stage logs and raw results. Follow [diagnose and repair](DIAGNOSTICS.md)
 before changing source or test expectations.
 
-Run `python -B -m tools.ci --project <project-id>` for the selected board's portable
-checks and `python -B -m tools.ci` for the full shared gate. With its exact catalogued
-KiCad installed, run `python -B -m tools.ci --kicad --project <project-id> --output build/review-001`
+Run `python -B -m tools.ci --project <project-id> --format text` for the selected
+board's portable checks and `python -B -m tools.ci --format text` for the full
+shared gate. Omit `--format text` for structured JSON in scripts. With its exact catalogued
+KiCad installed, run `python -B -m tools.ci --kicad --project <project-id> --output build/review-001 --format text`
 using a fresh output name each time. The template exercises KiCad 10.0.0 and 10.0.5.
 Use Python 3.11+ and preserve every declared local/shared library dependency.

@@ -3,6 +3,12 @@
 The same shared runner checks project islands locally and in hosted CI.
 If a selected project fails, use the [diagnostic command](DIAGNOSTICS.md) to pair
 portable, native and BOM findings with specific repair steps.
+Add `--format text` to `tools.ci` for a short terminal summary or keep its default
+JSON for complete structured results and CI. `tools.template diagnose` defaults
+to a short repair queue; `--detail full` expands it, and `--format json` emits
+the complete typed diagnostic report. Other `tools.template` commands default
+to JSON and accept `--format text` for a human summary. Exit status remains
+nonzero on a failed check in either format.
 
 | Check scope | What runs |
 | --- | --- |
@@ -17,16 +23,16 @@ before review. Native checks do not replace Python suites or physical engineerin
 ## Daily commands
 
 ```sh
-python -B -m tools.ci --project raspberry-pi-status-led
-python -B -m tools.ci --tag status-led
-python -B -m tools.ci --exclude-tag legacy
-python -B -m tools.ci
-python -B -m tools.ci --matrix
-python -B -m tools.ci --kicad --project controller --output examples/projects/controller/build/review-001
-python -B -m tools.hardware generate
-python -B -m tools.template doctor
-python -B -m tools.template doctor --native --toolchain kicad-10.0.5
-python -B -m tools.template preflight
+python -B -m tools.ci --project raspberry-pi-status-led --format text
+python -B -m tools.ci --tag status-led --format text
+python -B -m tools.ci --exclude-tag legacy --format text
+python -B -m tools.ci --format text
+python -B -m tools.ci --matrix --format text
+python -B -m tools.ci --kicad --project controller --output examples/projects/controller/build/review-001 --format text
+python -B -m tools.hardware generate --format text
+python -B -m tools.template doctor --format text
+python -B -m tools.template doctor --native --toolchain kicad-10.0.5 --format text
+python -B -m tools.template preflight --format text
 python -B -m tools.docs_policy
 ```
 

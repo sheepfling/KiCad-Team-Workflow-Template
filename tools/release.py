@@ -7,8 +7,55 @@ import zipfile
 from pathlib import Path
 
 from .hwrepo.contracts import read_model, repo_path
-from .hwrepo.models import ReleaseClass, ReleaseManifest, ReleaseVariant
+from .hwrepo.models import (
+    ReleaseClass,
+    ReleaseExportReport,
+    ReleaseManifest,
+    ReleasePackageReport,
+    ReleaseReadinessReport,
+    ReleaseVariant,
+)
 from .hwrepo.release import check
+
+
+def format_text(
+    command: str,
+    report: ReleaseReadinessReport | ReleaseExportReport | ReleasePackageReport,
+    output: Path | None = None,
+) -> str:
+    """Summarize release evidence without hiding the structured report."""
+    if isinstance(report, ReleaseReadinessReport):
+        lines = [
+            f"{report.status}: release readiness for {report.release_id} ({report.release_class.value})",
+            f"Issues: {len(report.issues)}. Build authorized: no.",
+        ]
+        for issue in report.issues[:5]:
+            lines.append(f"- {issue.code} at {issue.location}: {issue.message}")
+        if len(report.issues) > 5:
+            lines.append(f"...and {len(report.issues) - 5} more; use JSON for every issue.")
+        return "\n".join(lines)
+    if isinstance(report, ReleaseExportReport):
+        lines = [
+            f"{report.status}: release export for {report.project_id}",
+            f"Output: {output}",
+            f"Toolchain: {report.toolchain_id}; artifacts: {len(report.artifacts_sha256)}.",
+        ]
+        failed = [name for name, record in report.commands.items()
+                  if record.returncode != 0 or record.error is not None]
+        if failed:
+            lines.append(f"Failed commands: {', '.join(failed)}. Inspect their command.json files.")
+        elif report.status == "FAIL":
+            lines.append("Inspect exports.json and output files for missing or changed artifacts.")
+        return "\n".join(lines)
+    lines = [
+        f"{report.status}: release {command}",
+        f"Manifest: {report.manifest}; source commit: {report.source_commit}",
+        f"Package: {report.package}",
+        f"SHA-256: {report.package_sha256}",
+    ]
+    if command == "restore":
+        lines.append(f"Restored to: {output}")
+    return "\n".join(lines)
 
 
 def main() -> int:
@@ -27,7 +74,11 @@ def main() -> int:
     parser.add_argument("--archive", type=Path)
     parser.add_argument("--destination", type=Path)
     parser.add_argument("--json", action="store_true", help="Print the full candidate manifest when preparing")
+    parser.add_argument("--format", choices=("text", "json"),
+                        help="Output format (prepare defaults to text; other commands to JSON)")
     args = parser.parse_args()
+    if args.json and (args.command != "prepare" or args.format is not None):
+        parser.error("--json is only for prepare and cannot be combined with --format")
     root = args.root.resolve()
     try:
         if args.command == "prepare":
@@ -48,13 +99,13 @@ def main() -> int:
                                                   variant=variant.id, variant_revision=variant.revision))
             manifest = prepare(root, args.release_id, tuple(args.project), tuple(selections),
                                ReleaseClass(args.release_class), args.cli, args.portable)
-            if args.json:
+            if args.json or args.format == "json":
                 print(manifest.model_dump_json(indent=2))
             else:
                 print(f"Prepared {manifest.release_class.value} candidate {manifest.release_id}")
                 print(f"Source: {manifest.source_commit}; toolchain: {manifest.toolchain_id}")
                 print(f"Retained {len(manifest.artifacts)} artifacts. Review is required before manufacture.")
-            print(f"Candidate written to build/releases/{manifest.release_id}/manifest.json")
+                print(f"Candidate written to build/releases/{manifest.release_id}/manifest.json")
             return 0
         if args.command == "export":
             from .hwrepo.discovery import load_registry
@@ -88,7 +139,11 @@ def main() -> int:
             report = check(root, manifest)
     except (OSError, ValueError, StopIteration, subprocess.SubprocessError, zipfile.BadZipFile) as exc:
         parser.error(str(exc))
-    print(report.model_dump_json(indent=2))
+    if args.format == "text":
+        location = args.destination if args.command == "restore" else args.output
+        print(format_text(args.command, report, location))
+    else:
+        print(report.model_dump_json(indent=2))
     return 0 if report.status == "PASS" else 1
 
 
