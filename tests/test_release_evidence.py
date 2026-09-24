@@ -206,17 +206,15 @@ class ReleaseEvidenceTests(unittest.TestCase):
 
     def test_preparation_and_verification_ignore_unrelated_broken_island(self) -> None:
         unrelated = self.root / "examples/projects/controller/tests/test_legacy.py"
-        unrelated.write_text(
-            "import unittest\n\nclass LegacyFailure(unittest.TestCase):\n"
-            "    def test_legacy(self):\n        self.fail('unrelated legacy failure')\n",
-            encoding="utf-8",
+        unrelated.write_bytes(
+            b"import unittest\n\nclass LegacyFailure(unittest.TestCase):\n"
+            b"    def test_legacy(self):\n        self.fail('unrelated legacy failure')\n"
         )
         stray = self.root / "examples/projects/controller/undeclared.kicad_pro"
-        stray.write_text("{}\n", encoding="utf-8")
+        stray.write_bytes(b"{}\n")
         unrelated_library = self.root / "examples/libraries/status-led/PROVENANCE.md"
-        unrelated_library.write_text(
-            unrelated_library.read_text(encoding="utf-8") + "\nStale unused catalog evidence.\n",
-            encoding="utf-8",
+        unrelated_library.write_bytes(
+            unrelated_library.read_bytes() + b"\nStale unused catalog evidence.\n"
         )
         self.git("add", "--all")
         self.git("-c", "user.name=Scaffold test fixture", "-c", "user.email=fixture@example.invalid",

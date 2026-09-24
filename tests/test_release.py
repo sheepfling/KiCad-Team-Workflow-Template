@@ -20,6 +20,8 @@ from tools.hwrepo.models import (
     InterfacesCatalog,
     LibrariesCatalog,
     PolicyIssue,
+    ProductIndex,
+    ProductIndexEntry,
     ProductRecord,
     ProjectKind,
     ProjectManifest,
@@ -236,6 +238,34 @@ class ReleaseReadinessTests(unittest.TestCase):
         ):
             release_main()
         self.assertEqual(error.exception.code, 2)
+
+    def test_prepare_variant_lookup_skips_unrelated_product_and_names_bad_selection(self) -> None:
+        index_path = self.root / "catalog/products.json"
+        index = read_model(index_path, ProductIndex)
+        broken_path = self.root / "examples/products/broken-legacy/product.json"
+        broken_path.parent.mkdir(parents=True)
+        broken_path.write_bytes(b"{bad JSON")
+        write_model(index_path, index.model_copy(update={"products": (*index.products,
+            ProductIndexEntry(id="broken-legacy",
+                              path="examples/products/broken-legacy/product.json",
+                              project_ids=()),
+        )}))
+        argv = ["tools.release", "prepare", "--root", str(self.root),
+                "--release-id", "scoped-variant", "--variant", "status-indicator-system:STANDARD"]
+        with (patch("tools.hwrepo.releasing.prepare", return_value=self.manifest()) as prepared,
+              patch.object(sys, "argv", argv), redirect_stdout(StringIO())):
+            self.assertEqual(release_main(), 0)
+        self.assertEqual(prepared.call_args.args[3][0].product, "status-indicator-system")
+
+        for selection, expected in (("unknown:STANDARD", "Unknown release product"),
+                                    ("status-indicator-system:missing", "Unknown variant")):
+            with self.subTest(selection=selection):
+                error_text = StringIO()
+                with (patch.object(sys, "argv", [*argv[:-1], selection]),
+                      redirect_stderr(error_text), self.assertRaises(SystemExit) as error):
+                    release_main()
+                self.assertEqual(error.exception.code, 2)
+                self.assertIn(expected, error_text.getvalue())
 
     def test_release_check_text_shows_issues_and_default_remains_json(self) -> None:
         manifest = self.manifest()
