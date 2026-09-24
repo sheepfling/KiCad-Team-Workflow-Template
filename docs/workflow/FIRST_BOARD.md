@@ -25,8 +25,26 @@ This is the shortest path from a fresh fork to a checked project island. Use
    it is not an electrical or manufacturing approval.
 
 4. Create and save the design under `projects/battery-board/kicad/`. Complete its
-   `project.json`, `tests/contract.json` and design notes; the generated skeleton is
-   intentionally incomplete and fails until it describes the real board. Development
+   `project.json` and design notes. Before authoring electrical expectations, use
+   the exact catalogued KiCad toolchain to capture an **UNREVIEWED** netlist inventory:
+
+   ```sh
+   python -B -m tools.contract_coach --project-id battery-board --capture --format text
+   ```
+
+   The command creates a fresh ignored `build/contract-coach/` receipt. `--runner auto`
+   (the default) uses the exact local KiCad CLI when available, otherwise the
+   catalogued digest-pinned Docker image. Use `--runner local --cli /path/to/kicad-cli`
+   to insist on a local installation or `--runner container` to insist on Docker.
+   The receipt retains all version probes, the export command with stdout/stderr,
+   source hashes, netlist and full text/JSON inventory. The container mounts
+   authored source read-only and writes only the ignored receipt.
+   Compare observed components, pins, nets and `PART_ID` values with requirements
+   and the schematic. Then independently author `tests/contract.json`; the coach
+   never writes it. An empty authored contract does not block this capture.
+
+   The generated skeleton is intentionally incomplete and fails until it
+   describes the real board. Development
    and production contracts allow no ignored ERC or DRC checks. For a `pcb` project,
    KiCad 10.0.5 may initially ignore `single_global_label`, `four_way_junction`,
    `simulation_model_issue` and `footprint_filter`; enable them through Schematic
@@ -41,18 +59,31 @@ This is the shortest path from a fresh fork to a checked project island. Use
    or the import command. That is a not-for-manufacture capture lane with DRC/layout
    checks; add an authoritative schematic and migrate it to `pcb` before product or
    manufacturing work.
-5. Run the fast island check, then the pinned native check:
+5. Verify the board. Start with portable checks, then include the pinned native
+   checks after changing KiCad source:
 
    ```sh
-   python -B -m tools.template list --format text
-   python -B -m tools.ci --project battery-board --format text
-   python -B -m tools.ci --kicad --project battery-board --output projects/battery-board/build/review-001 --format text
+   python -B -m tools.verify --project battery-board
+   python -B -m tools.verify --project battery-board --depth native
    ```
 
-   If a check fails, run `python -B -m tools.template diagnose --project-id battery-board`
-   and follow [the repair guide](DIAGNOSTICS.md). Add the native
-   project's `summary.json` with `--native-report` to explain ERC, DRC and contract
-   failures.
+   Each attempt writes a fresh ignored receipt and prints its path. The native
+   receipt keeps `native/battery-board/summary.json`, ERC/DRC output and command
+   evidence. A failed verification shows repair findings; use `--detail full` or
+   `--format json` and follow [the repair guide](DIAGNOSTICS.md). If the native
+   runner cannot start, use `tools.template doctor --native --project-id battery-board`
+   to diagnose local KiCad or Docker readiness. To compare the
+   native netlist with the authored contract, use the summary in that receipt:
+
+   ```sh
+   python -B -m tools.contract_coach --project-id battery-board --native-summary "PASTE_RECEIPT_PATH/native/battery-board/summary.json" --format text
+   ```
+
+   That command verifies the selected project, netlist artifact and current design
+   hashes before showing differences. Add `--detail full`, `--format json`, or a
+   new `--output build/contract-coach/review-001` receipt when more detail is needed.
+   `tools.ci --kicad --project battery-board` remains available when you need
+   direct control of the lower-level native lane.
 
 6. Commit only authored source, push a short-lived branch and open a pull request.
    Review the exact Actions commit and retained evidence before merging.

@@ -68,13 +68,14 @@ inside the new island.
 
 ```sh
 python -B -m tools.template diagnose --project-id battery-board
-python -B -m tools.ci --project battery-board --format text
+python -B -m tools.verify --project battery-board
 ```
 
 `diagnose` runs the selected portable policy and project test lane. Its `NEEDS_WORK`
 result names the failed input and next action. A `PASS` means only that this local
 diagnostic scope has no blockers; it does not replace the full CI gate or native
-KiCad. Use `--format json` when a script needs stable fields.
+KiCad. Add `--depth native` to `tools.verify` after KiCad source changes. Use
+`--format json` when a script needs stable fields.
 
 If an unrelated malformed project manifest prevents normal discovery, use the
 local rescue command to inspect one direct island while repairing the registry:
@@ -113,7 +114,7 @@ portable lane passes, but they must be resolved before the activity they name
 | `CAD_PATH` missing, embedded or case-mismatched target | Correct exact spelling/case or add the intended asset and verify it opens in KiCad. Do not add a dummy file. |
 | `TRACKED_GENERATED_OUTPUT`, `TRACKED_LOCAL_STATE`, `TRACKED_UNMANAGED_ARTIFACT` | Keep generated exports and local state under ignored `build/`; remove already tracked copies from the Git index with `git rm --cached -- <path>` after confirming their source of truth. Review any authored document or image placement before moving it. |
 | `UNREGISTERED_DESIGN` | Give a separate native design its own registered island; do not hide it in another project's input inventory. |
-| `EMPTY_COMPONENT_CONTRACT` | Write independently reviewed expected components and nets in `tests/contract.json`; compare with the native export without treating the export as authority. |
+| `EMPTY_COMPONENT_CONTRACT` | Run `tools.contract_coach --project-id <id> --capture` to inventory UNREVIEWED components and nets with exact local KiCad or the catalogued digest-pinned Docker image. Compare them with requirements, then write independent expectations in `tests/contract.json`. |
 | `EMPTY_NET_CONTRACT` | Review the empty net expectation; author real expected connectivity or record that the design is intentionally net-free. |
 | `PROJECT_TEST` | Read the failing assertion and requirement, repair the design or test fixture, then rerun the selected lane. |
 | `PART_ID_SCOPE` or `EXPORT_SETTINGS` | Complete these reviewed records before purchasing or manufacturing work; a portable pass does not imply release readiness. |
@@ -187,8 +188,24 @@ disabled-check inventory changed, enable the named checks in KiCad's Schematic
 Setup or Board Setup and resolve the new findings. Do not copy disabled defaults into
 a development contract to obtain a pass. A netlist mismatch requires a reviewed
 decision about the circuit and the independent contract; neither should be changed
-automatically to match the other. See [checks and CI](CHECKS_AND_CI.md) and
+automatically to match the other. `tools.contract_coach --project-id <id>
+--native-summary <project-summary.json> --detail full` verifies the native netlist
+hash and current declared design hashes, then shows every observed component and
+net beside a concise difference list. JSON output retains both full inventories
+for agents. A failed native contract comparison may still provide usable
+UNREVIEWED observations when the KiCad export itself succeeded; it does not turn
+the failed validation green. See [checks and CI](CHECKS_AND_CI.md) and
 [test authority](../../tests/README.md).
+
+For an empty electrical contract, `tools.contract_coach --project-id <id> --capture`
+exports an observed netlist before native validation can pass. The default
+`--runner auto` tries an exact local KiCad CLI, then the digest-pinned Docker
+image. `--runner local --cli <path>` and `--runner container` select one path.
+If capture fails, open `version.command.json` or `netlist.command.json` in the
+reported ignored receipt; an auto fallback also retains `local_version.command.json`
+and `container_version.command.json`. The `--format json` report records the
+selected runner and every command, including stdout, stderr, return code and
+launch error. The coach never writes or approves `tests/contract.json`.
 
 ## Before a purchasing BOM or release export
 

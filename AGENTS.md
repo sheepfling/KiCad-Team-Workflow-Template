@@ -10,7 +10,8 @@ This file is for coding agents and engineers using an agent. Start with the
   `projects/<id>/` island owns its KiCad source, requirements, docs and tests.
   Run `python -B -m tools.template list --format json` to discover registered
   project, product, tag and toolchain IDs. Its input-presence state is not a
-  validation result; use the selected CI command shown in the inventory.
+  validation result; run `python -B -m tools.verify --project <id>` for the
+  selected board.
   Shared policy and automation live under `tools/`, `catalog/` and `tests/`.
   For shared tooling changes, use the [tool map](tools/README.md),
   [test guide](tests/README.md) and [scripting standard](docs/workflow/SCRIPTING_STANDARD.md).
@@ -34,6 +35,14 @@ This file is for coding agents and engineers using an agent. Start with the
   repair view. It always reports `UNVERIFIED_GLOBAL` and exits nonzero, even if
   the selected island looks clear. Never cite it as CI or release evidence;
   repair global discovery and rerun normal diagnosis and the full gate.
+- For a new schematic-backed board with an empty component/net contract, run
+  `python -B -m tools.contract_coach --project-id <id> --capture --format json`
+  with the exact local KiCad CLI or the digest-pinned Docker image (`--runner auto`
+  selects one). For an existing native report, use
+  `--native-summary <project-summary.json>` instead. This read-only coach checks
+  project identity, source hashes and netlist artifact evidence; its components
+  and nets are explicitly `UNREVIEWED`. It never edits `tests/contract.json` or
+  establishes electrical coverage. Keep optional receipts under ignored `build/`.
 
 ## Diagnose, repair, verify
 

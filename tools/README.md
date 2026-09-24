@@ -1,13 +1,16 @@
 # Repository tools
 
 Run every CLI from the repository root as `python -B -m tools.<command>`.
-`tools.ci` is the common local and hosted entry point. See the [command guide](../docs/workflow/CHECKS_AND_CI.md).
+For one board, start with `tools.verify --project <id>`; add `--depth native`
+after editing KiCad source. `tools.ci` runs the shared or hosted gate and exposes
+lower-level selected lanes. See the [command guide](../docs/workflow/CHECKS_AND_CI.md).
 Use `python -B -m tools.template list --format text` to find registered project,
 product, tag and toolchain IDs before selecting a lane. Its `readiness` field only
 reports whether declared inputs are present; run checks to validate a design.
 For one engineer's board, `tools.verify --project <id>` runs the selected
 portable lane and keeps a fresh ignored receipt; add `--depth native` to choose
 the exact local KiCad CLI or the project's pinned Docker image automatically.
+Use `tools.ci --kicad` when direct native-lane control is needed.
 Use `--project <id>` for one island, `--product <id>` for a registered product's
 members, or `--tag <tag>` for a manifest cohort. These include selectors form
 a union; `--exclude-tag <tag>` removes matches. The selected portable lane
@@ -32,6 +35,7 @@ Choose text for a concise terminal view and JSON for the complete typed result:
 | `tools.template list` | `--format text` shows selections and next commands | JSON by default; typed inventory |
 | `tools.template rescue --project-id <id>` | Brief local repair view, always unverified; `--detail full` expands it | `--format json` with `UNVERIFIED_GLOBAL` and no CI/release eligibility |
 | `tools.governance_audit` | `--format text` shows observed GitHub controls and next actions | JSON by default; `UNKNOWN` stays explicit |
+| `tools.contract_coach` | Short UNREVIEWED contract comparison; `--detail full` expands it | `--format json` |
 | Other `tools.template` commands; `tools.ci`, `tools.hardware`, `tools.sourcing`, `tools.metrics` | `--format text` | JSON by default |
 | `tools.release prepare` | Text by default | `--format json` or `--json` |
 | Other `tools.release` commands | `--format text` | JSON by default |
@@ -48,6 +52,7 @@ integration work, not a prerequisite for repository policy.
 | `impact`, `hwrepo/impact.py` | Plan affected PR project lanes from changed paths; broaden ambiguous/shared-tool changes to full scope |
 | `native_deps` | Prepare Linux wheels for the pinned container's Python, without requiring pip inside the image |
 | `validate`, `check_toolchain`, `fault_probe` | Adapt the pinned KiCad CLI, preserve source hashes and test deliberate native defects |
+| `contract_coach`, `hwrepo/contract_coach.py` | Capture or inspect a source-bound netlist using exact local KiCad or the digest-pinned Docker image, compare it with independently authored expectations and retain ignored review evidence |
 | `lint_registry`, `docs_policy` | Expose registry and Markdown policy |
 | `hardware` | Check products, generate ignored review views/schemas, create and verify snapshots |
 | `template`, `release`, `sourcing`, `metrics` | Expose environment and project diagnostics, adoption, release readiness, supplier snapshots and current policy metrics |
