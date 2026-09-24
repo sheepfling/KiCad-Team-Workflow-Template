@@ -117,6 +117,11 @@ scope, while a release still has its own acceptance process.
 See [checks and CI](docs/workflow/CHECKS_AND_CI.md) and [extending tests](tests/README.md).
 When a board fails, `python -B -m tools.template diagnose --project-id battery-board`
 shows the observed issue, a repair action and the relevant [diagnostic guide](docs/workflow/DIAGNOSTICS.md).
+If an unrelated malformed manifest blocks that command,
+`tools.template rescue --project-id battery-board` provides a local read-only
+repair view. It always
+reports `UNVERIFIED_GLOBAL` and exits nonzero; repair discovery and rerun the
+normal gates before relying on any result.
 Use `--detail full` for every finding or `--format json` for scripts; each run
 saves a logged receipt under ignored `build/diagnostics/`. Coding agents can
 start with [AGENTS.md](AGENTS.md) or [CLAUDE.md](CLAUDE.md).

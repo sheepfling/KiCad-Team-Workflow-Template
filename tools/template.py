@@ -14,6 +14,7 @@ from .hwrepo.importing import import_project
 from .hwrepo.initialization import initialize
 from .hwrepo.inventory import format_inventory, inventory
 from .hwrepo.models import ProjectKind
+from .hwrepo.rescue import format_rescue, rescue_project
 from .hwrepo.scaffold import new_project
 from .hwrepo.template import bootstrap, plan_upgrade, preflight
 
@@ -24,7 +25,7 @@ def main() -> int:
         "command",
         choices=(
             "doctor", "adopt", "init", "preflight", "bootstrap", "upgrade-plan",
-            "new-project", "import-project", "diagnose", "list",
+            "new-project", "import-project", "diagnose", "rescue", "list",
         ),
     )
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
@@ -43,24 +44,53 @@ def main() -> int:
     parser.add_argument("--native-report", type=Path, help="Project native summary.json to explain")
     parser.add_argument("--bom", type=Path, help="Native assembly/bom.csv to check for part identities")
     parser.add_argument("--format", choices=("text", "json"),
-                        help="Output format (default: text for diagnose, JSON for other commands)")
+                        help="Output format (default: text for diagnose/rescue, JSON otherwise)")
     parser.add_argument("--detail", choices=("brief", "full"),
-                        help="Text detail for diagnose (default: brief; JSON is always full)")
+                        help="Text detail for diagnose/rescue (default: brief; JSON is always full)")
     parser.add_argument("--log-dir", type=Path,
-                        help="New diagnostic receipt directory (default: ignored build/diagnostics)")
+                        help="New diagnose/rescue receipt directory (default: ignored build/diagnostics)")
     args = parser.parse_args()
     if args.command not in {"import-project", "diagnose"} and args.source is not None:
         parser.error("--source requires import-project or diagnose")
     if args.command != "import-project" and args.dry_run:
         parser.error("--dry-run options require import-project")
-    if args.command != "diagnose" and (
-        args.native_report or args.bom or args.detail is not None or args.log_dir is not None
+    if args.command != "diagnose" and (args.native_report or args.bom):
+        parser.error("--native-report and --bom require diagnose")
+    if args.command not in {"diagnose", "rescue"} and (
+        args.detail is not None or args.log_dir is not None
     ):
-        parser.error("--native-report, --bom, --detail and --log-dir require diagnose")
+        parser.error("--detail and --log-dir require diagnose or rescue")
     if args.command != "doctor" and args.native:
         parser.error("--native requires doctor")
     if args.command == "doctor":
         result = doctor(args.root, args.native, args.toolchain, args.cli)
+    elif args.command == "rescue":
+        if args.project_id is None:
+            parser.error("rescue requires --project-id")
+        if args.toolchain is not None:
+            parser.error("rescue reads the selected project's declared toolchain")
+        if args.format == "json" and args.detail is not None:
+            parser.error("--detail is for text; JSON already includes every finding")
+        try:
+            journal = DiagnosticJournal(args.root, args.project_id, args.log_dir)
+        except (OSError, ValueError) as exc:
+            print(f"Cannot create rescue log: {exc}", file=sys.stderr)
+            return 2
+        try:
+            result = rescue_project(args.root, args.project_id, journal)
+            human_text = format_rescue(result, args.detail or "brief")
+            journal.finish(result, human_text, result.status)
+        except Exception as exc:  # noqa: BLE001 - retain unexpected tool errors in receipt
+            journal.fail(exc)
+            print(f"Rescue stopped: {type(exc).__name__}: {exc}\n"
+                  f"Full traceback: {journal.directory / 'error.txt'}", file=sys.stderr)
+            return 2
+        except KeyboardInterrupt as exc:
+            journal.fail(exc)
+            print(f"Rescue interrupted; run log: {journal.directory}", file=sys.stderr)
+            return 130
+        print(result.model_dump_json(indent=2) if args.format == "json" else human_text)
+        return 1  # A local rescue is never a CI or release acceptance result.
     elif args.command == "adopt":
         if args.project_id is None:
             parser.error("adopt requires --project-id (the repository identity)")
