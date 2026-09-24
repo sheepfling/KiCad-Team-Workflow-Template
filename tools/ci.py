@@ -4,8 +4,10 @@ from __future__ import annotations
 import argparse
 import subprocess
 import sys
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import TypeVar
 
 from .ci_matrix import build_matrix
 from .hwrepo.cli_output import summary
@@ -19,12 +21,20 @@ from .hwrepo.models import (
     ProjectTestsReport,
     StaticPipelineReport,
 )
+from .hwrepo.pipeline_journal import PipelineJournal
 from .hwrepo.product import check as product_check
 from .hwrepo.project_tests import run_tests
 from .hwrepo.repository import check_repository
 from .hwrepo.selection import ProjectSelector, resolve_project_ids
 from .lint_registry import lint
 from .metrics import format_metrics
+
+_Result = TypeVar("_Result")
+
+
+def phase(journal: PipelineJournal | None, name: str,
+          action: Callable[[], _Result]) -> _Result:
+    return action() if journal is None else journal.stage(name, action)
 
 
 def run_command(root: Path, *argv: str) -> CommandEvidence:
@@ -54,22 +64,25 @@ def run_command(root: Path, *argv: str) -> CommandEvidence:
         )
 
 
-def project_static_pipeline(
-    root: Path, selected: tuple[str, ...]
-) -> ProjectStaticPipelineReport:
-    """Run the fast local policy lane for selected projects and dependent products."""
-    registry = lint(root, list(selected))
-    repository = check_repository(root, selected)
-    product = product_check(root, selected_project_ids=selected)
+def generation_report(root: Path, selected: tuple[str, ...] | None = None) -> GenerationReport:
     try:
         errors = check_generation(root, selected)
-        generation = GenerationReport(
-            status="FAIL" if errors else "PASS",
-            issues=errors,
-        )
+        return GenerationReport(status="FAIL" if errors else "PASS", issues=errors)
     except (OSError, ValueError) as exc:
-        generation = GenerationReport(status="FAIL", issues=(str(exc),))
-    project_tests = checked_project_tests(root, selected)
+        return GenerationReport(status="FAIL", issues=(str(exc),))
+
+
+def project_static_pipeline(
+    root: Path, selected: tuple[str, ...], workers: int = 1,
+    journal: PipelineJournal | None = None,
+) -> ProjectStaticPipelineReport:
+    """Run the fast local policy lane for selected projects and dependent products."""
+    registry = phase(journal, "registry", lambda: lint(root, list(selected)))
+    repository = phase(journal, "repository", lambda: check_repository(root, selected))
+    product = phase(journal, "product", lambda: product_check(root, selected_project_ids=selected))
+    generation = phase(journal, "generation", lambda: generation_report(root, selected))
+    project_tests = phase(journal, "project-tests",
+                          lambda: checked_project_tests(root, selected, workers))
     passed = (
         registry.status == "PASS"
         and repository.status == "PASS"
@@ -89,38 +102,26 @@ def project_static_pipeline(
 
 
 def static_pipeline(
-    root: Path, selected: list[str] | None
+    root: Path, selected: list[str] | None, workers: int = 1,
+    journal: PipelineJournal | None = None,
 ) -> StaticPipelineReport | ProjectStaticPipelineReport:
     """Run the full shared gate or the fast local lane for selected projects."""
     if selected is not None:
-        return project_static_pipeline(root, tuple(selected))
-    before = source_state(root)
-    registry = lint(root)
-    repository = check_repository(root)
-    documentation = documentation_check(root)
-    product = product_check(root)
-    try:
-        errors = check_generation(root)
-        generation = GenerationReport(
-            status="FAIL" if errors else "PASS",
-            issues=errors,
-        )
-    except (OSError, ValueError) as exc:
-        generation = GenerationReport(status="FAIL", issues=(str(exc),))
-    ruff = run_command(root, sys.executable, "-m", "ruff", "check", "--no-cache", "tools", "tests")
-    pyright = run_command(root, sys.executable, "-m", "pyright", "--pythonpath", sys.executable, "tools")
-    unit_tests = run_command(
-        root,
-        sys.executable,
-        "-B",
-        "-m",
-        "unittest",
-        "discover",
-        "-s",
-        "tests",
-        "-v",
-    )
-    project_tests = checked_project_tests(root)
+        return project_static_pipeline(root, tuple(selected), workers, journal)
+    before = phase(journal, "source-before", lambda: source_state(root))
+    registry = phase(journal, "registry", lambda: lint(root))
+    repository = phase(journal, "repository", lambda: check_repository(root))
+    documentation = phase(journal, "documentation", lambda: documentation_check(root))
+    product = phase(journal, "product", lambda: product_check(root))
+    generation = phase(journal, "generation", lambda: generation_report(root))
+    ruff = phase(journal, "ruff", lambda: run_command(
+        root, sys.executable, "-m", "ruff", "check", "--no-cache", "tools", "tests"))
+    pyright = phase(journal, "pyright", lambda: run_command(
+        root, sys.executable, "-m", "pyright", "--pythonpath", sys.executable, "tools"))
+    unit_tests = phase(journal, "unit-tests", lambda: run_command(
+        root, sys.executable, "-B", "-m", "unittest", "discover", "-s", "tests", "-v"))
+    project_tests = phase(journal, "project-tests",
+                          lambda: checked_project_tests(root, workers=workers))
     passed = (
         registry.status == "PASS"
         and repository.status == "PASS"
@@ -132,9 +133,10 @@ def static_pipeline(
         and unit_tests.returncode == 0
         and project_tests.status == "PASS"
     )
+    after = phase(journal, "source-after", lambda: source_state(root))
     return StaticPipelineReport(
         status="PASS" if passed else "FAIL",
-        source=before.model_copy(update={"clean": before.clean and source_state(root) == before}),
+        source=before.model_copy(update={"clean": before.clean and after == before}),
         registry=registry,
         repository=repository,
         documentation=documentation,
@@ -147,15 +149,26 @@ def static_pipeline(
     )
 
 
-def checked_project_tests(root: Path, selected: tuple[str, ...] | None = None) -> ProjectTestsReport:
+def checked_project_tests(root: Path, selected: tuple[str, ...] | None = None,
+                          workers: int = 1) -> ProjectTestsReport:
     """Keep malformed discovery records as a typed failure in the portable report."""
     try:
-        return run_tests(root, selected)
+        return run_tests(root, selected, max_workers=workers)
     except (OSError, ValueError) as exc:
         return ProjectTestsReport(status="FAIL", commands={
             "discovery": CommandEvidence(argv=("project-test-discovery",),
                 started_utc=datetime.now(UTC).isoformat(), returncode=1, error=str(exc)),
         })
+
+
+def positive_worker_count(value: str) -> int:
+    try:
+        workers = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("--jobs must be a positive integer") from exc
+    if not 1 <= workers <= 32:
+        raise argparse.ArgumentTypeError("--jobs must be between 1 and 32")
+    return workers
 
 
 def main() -> int:
@@ -199,6 +212,8 @@ def main() -> int:
     mode.add_argument("--release", action="store_true", help="Validate one typed release candidate.")
     mode.add_argument("--metrics", action="store_true", help="Report current policy and deviation metrics.")
     parser.add_argument("--cli", default="kicad-cli")
+    parser.add_argument("--jobs", type=positive_worker_count, default=1,
+                        help="Maximum concurrent project/product Python suites (default: 1)")
     parser.add_argument("--format", choices=("json", "text"), default="json",
                         help="Machine JSON (default) or a concise human summary")
     parser.add_argument("--output", type=Path, help="New evidence directory, required by KiCad modes.")
@@ -295,12 +310,19 @@ def main() -> int:
         else:
             print(metrics.model_dump_json(indent=2))
         return 0
-    static = static_pipeline(root, None if selected is None else list(selected))
-    if args.output is not None:
-        from .hwrepo.contracts import write_model
+    journal = PipelineJournal(args.output, "full" if selected is None else "focused",
+                              () if selected is None else selected, args.jobs)
+    try:
+        static = static_pipeline(root, None if selected is None else list(selected),
+                                 workers=args.jobs, journal=journal)
+        if args.output is not None:
+            from .hwrepo.contracts import write_model
 
-        args.output.mkdir(parents=True, exist_ok=False)
-        write_model(args.output / "portable.json", static)
+            write_model(args.output / "portable.json", static)
+        journal.finish(static.status)
+    except BaseException:
+        journal.finish("ERROR")
+        raise
     print(summary("Portable check", static)
           if args.format == "text" else static.model_dump_json(indent=2))
     return 0 if static.status == "PASS" else 1

@@ -5,10 +5,12 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 import textwrap
 import unittest
 from datetime import UTC, datetime
 from io import StringIO
+from pathlib import Path
 from unittest.mock import patch
 
 from tests.support import reference_root
@@ -97,6 +99,25 @@ class CiDriverTests(unittest.TestCase):
             "python -B -m tools.template diagnose --project-id controller",
             output.getvalue(),
         )
+
+    def test_portable_journal_retains_completed_phases_after_crash(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="portable-journal-") as temporary:
+            output = Path(temporary) / "run"
+            with (
+                patch.object(sys, "argv", ["ci.py", "--root", str(ROOT), "--project", "controller",
+                                         "--output", str(output)]),
+                patch("tools.ci.check_repository", side_effect=RuntimeError("unexpected failure")),
+                patch("sys.stdout", new_callable=StringIO),
+                patch("sys.stderr", new_callable=StringIO),
+                self.assertRaisesRegex(RuntimeError, "unexpected failure"),
+            ):
+                main()
+            self.assertEqual(json.loads((output / "run.json").read_text())["status"], "ERROR")
+            self.assertTrue((output / "registry.json").is_file())
+            self.assertFalse((output / "portable.json").exists())
+            events = [json.loads(line) for line in (output / "events.jsonl").read_text().splitlines()]
+            self.assertTrue(any(event["stage"] == "repository" and event["status"] == "ERROR"
+                                for event in events))
 
     def test_module_entrypoint_selects_projects_by_metadata_tag(self) -> None:
         result = subprocess.run(
@@ -291,7 +312,10 @@ class CiDriverTests(unittest.TestCase):
         self.assertIn('tools.ci --matrix "${args[@]}"', matrix)
         self.assertIn('fromJSON(needs.scope.outputs.portable-matrix)', portable)
         self.assertIn('python -B -m tools.docs_policy', portable)
-        self.assertIn('python -B -m tools.ci "${args[@]}" --output build/portable', portable)
+        self.assertIn('python -B -m tools.ci "${args[@]}" --jobs 4 --output build/portable', portable)
+        self.assertIn('python -B -m tools.ci --jobs 4 --output build/portable', portable)
+        self.assertIn('timeout-minutes: 13', portable)
+        self.assertIn('cache-dependency-path: pyproject.toml', portable)
         self.assertIn('if [ "$DOCS_CHANGED" = true ]; then python -B -m tools.docs_policy; fi', portable)
         self.assertIn("if: needs.scope.outputs.scope == 'full'", portable)
         self.assertIn("if: needs.scope.outputs.scope == 'full' && needs.kicad.result == 'success'", release)

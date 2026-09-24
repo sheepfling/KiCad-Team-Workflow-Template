@@ -42,6 +42,8 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: '3.11'
+          cache: pip
+          cache-dependency-path: pyproject.toml
       - name: Install typed policy dependency
         run: python -m pip install --disable-pip-version-check .
       - id: plan
@@ -99,6 +101,8 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: '3.11'
+          cache: pip
+          cache-dependency-path: pyproject.toml
       - name: Install the typed policy dependency
         run: python -m pip install --disable-pip-version-check .
       - id: matrix
@@ -123,7 +127,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.scope.outputs.portable-matrix) }}
-    timeout-minutes: 10
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -131,6 +135,8 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
       - name: Install policy dependencies
         shell: bash
         env:
@@ -143,6 +149,7 @@ jobs:
           fi
       - name: Run the planned portable policy pipeline
         shell: bash
+        timeout-minutes: 13
         env:
           CHECK_SCOPE: ${{ needs.scope.outputs.scope }}
           CI_PROJECTS: ${{ needs.scope.outputs.projects }}
@@ -155,11 +162,11 @@ jobs:
             read -r -a projects <<< "$CI_PROJECTS"
             test "${#projects[@]}" -gt 0
             for project in "${projects[@]}"; do args+=(--project "$project"); done
-            python -B -m tools.ci "${args[@]}" --output build/portable
+            python -B -m tools.ci "${args[@]}" --jobs 4 --output build/portable
             if [ "$DOCS_CHANGED" = true ]; then python -B -m tools.docs_policy; fi
           else
             test "$CHECK_SCOPE" = full
-            python -B -m tools.ci --output build/portable
+            python -B -m tools.ci --jobs 4 --output build/portable
           fi
       - name: Export reproducible review views and schemas
         if: needs.scope.outputs.scope == 'full'
@@ -209,6 +216,8 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: '3.11'
+          cache: pip
+          cache-dependency-path: pyproject.toml
       - name: Prepare dependencies for the container Python
         run: |
           python -m pip install --disable-pip-version-check .
@@ -259,6 +268,8 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: '3.11'
+          cache: pip
+          cache-dependency-path: pyproject.toml
       - name: Install quality tools
         run: python -m pip install --disable-pip-version-check '.[dev]'
       - name: Restore independent reference catalogs for this rehearsal
