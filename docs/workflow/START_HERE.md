@@ -16,8 +16,11 @@ to understand what belongs with each board and what is shared.
    Check Git status before and after opening it in the exact catalogued KiCad version.
 3. Run `python -B -m tools.template list --format text` to see valid project IDs,
    products, tags and toolchains. An adopted repository initially lists no projects.
-   Create one with `tools.template new-project`, choosing its ID, kind and toolchain.
-   It starts in `development`, visibly NOT FOR MANUFACTURE.
+   For a new design, follow [First board](FIRST_BOARD.md) and create an island
+   with `tools.template new-project`, choosing its ID, kind and toolchain. For an
+   existing design or an archive of boards, follow the [import workflow](IMPORT_WORKFLOW.md),
+   starting with its read-only inventory when there are multiple candidates.
+   Each new or imported island starts in `development`, visibly NOT FOR MANUFACTURE.
 4. Save its real source under `projects/<id>/kicad/`. Complete `project.json` and
    `tests/contract.json`; keep board requirements and decisions in its local docs.
 5. Use a short-lived branch and run `tools.verify --project <id>` while working on
@@ -57,6 +60,8 @@ Record actual decisions and evidence before changing a project to `production`:
 Use the [production profile](ASSURANCE_PROFILES.md), [GitHub governance](GITHUB_GOVERNANCE.md)
 and [release workflow](VERSIONING.md). Do not fill real-world approvals with template
 placeholders. Development checks do not establish manufacturing readiness.
+Use `python -B -m tools.governance_audit --format text` to inspect actual hosted
+controls before the team permission and desktop rehearsals.
 
 Before native editing, run `python -m tools.check_toolchain --toolchain <toolchain-id>`.
 A project-specific preflight for either Docker or an exact local KiCad CLI is

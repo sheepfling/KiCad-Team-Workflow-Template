@@ -8,6 +8,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 JSON_ADAPTERS = {
     "tools/hwrepo/contracts.py",
+    # GitHub API JSON is validated into narrow Pydantic response models at this boundary.
+    "tools/hwrepo/hosted_governance.py",
     "tools/validate.py",
     "tools/fault_probe.py",
 }

@@ -31,6 +31,7 @@ Choose text for a concise terminal view and JSON for the complete typed result:
 | `tools.template diagnose` | Brief text by default; `--detail full` expands it | `--format json` |
 | `tools.template list` | `--format text` shows selections and next commands | JSON by default; typed inventory |
 | `tools.template rescue --project-id <id>` | Brief local repair view, always unverified; `--detail full` expands it | `--format json` with `UNVERIFIED_GLOBAL` and no CI/release eligibility |
+| `tools.governance_audit` | `--format text` shows observed GitHub controls and next actions | JSON by default; `UNKNOWN` stays explicit |
 | Other `tools.template` commands; `tools.ci`, `tools.hardware`, `tools.sourcing`, `tools.metrics` | `--format text` | JSON by default |
 | `tools.release prepare` | Text by default | `--format json` or `--json` |
 | Other `tools.release` commands | `--format text` | JSON by default |
@@ -50,6 +51,7 @@ integration work, not a prerequisite for repository policy.
 | `lint_registry`, `docs_policy` | Expose registry and Markdown policy |
 | `hardware` | Check products, generate ignored review views/schemas, create and verify snapshots |
 | `template`, `release`, `sourcing`, `metrics` | Expose environment and project diagnostics, adoption, release readiness, supplier snapshots and current policy metrics |
+| `governance_audit`, `hwrepo/hosted_governance.py` | Read GitHub branch controls and CODEOWNERS without changing hosted settings |
 | `hwrepo/models.py`, `hwrepo/contracts.py` | Own typed serialized contracts and file/path adapters |
 | `hwrepo/discovery.py`, `hwrepo/project_tests.py`, `hwrepo/scaffold.py`, `hwrepo/importing.py` | Resolve local manifests, run isolated island test suites and create or import project islands |
 | `hwrepo/doctor.py`, `hwrepo/adoption.py` | Check local prerequisites and run one-command fresh-fork adoption |
