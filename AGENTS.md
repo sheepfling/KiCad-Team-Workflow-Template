@@ -38,9 +38,18 @@ This file is for coding agents and engineers using an agent. Start with the
    [shared-library policy](docs/workflow/LIBRARIES.md); never borrow an
    undeclared asset from another project's private directory.
 3. After each source fix, rerun diagnosis and `python -B -m tools.ci --project <id>`.
-   Run `python -B -m tools.ci` before review. If native KiCad inputs changed,
-   rerun native checks with a fresh output directory and recheck affected BOMs
-   and exports.
+   If related boards share a product, run `--product <id>`; for a named cohort,
+   use `--tag <tag>`. Multiple include selectors form a union, and
+   `--exclude-tag <tag>` removes projects afterward. Run the full
+   `python -B -m tools.ci` gate after changing shared tools, catalogs or policy,
+   and for a deliberate repository-wide rehearsal. If native KiCad inputs changed,
+   rerun `--kicad --project <id>` with a fresh output directory and recheck
+   affected BOMs and exports. Run `python -B -m tools.impact --base <ref> --head <ref> --format json`
+   to inspect planned PR scope in a script or agent.
+   For a manual hosted lane, run **KiCad template acceptance** in Actions with
+   `focus=project` and `value=<id>` (or select `product` or `tag`). The default
+   `focus=full` rehearses every lane; an optional `exclude_tag` narrows only a
+   focused run. Preview the manual scope with `tools.impact --select-project <id>`.
 4. Report the project ID, branch and commit, changed source, commands and
    results, receipt path, and any unresolved engineering decision. Keep run
    evidence in ignored `build/`, CI artifacts, or the issue/PR. Keep durable
@@ -50,3 +59,6 @@ Never commit imported practice projects, local KiCad state or generated working
 outputs. Follow the [source and output policy](docs/workflow/REPOSITORY_HYGIENE.md)
 and [BOM policy](docs/workflow/BOM_POLICY.md). A passing check verifies its
 declared scope; it does not approve an electrical design or manufacturing release.
+Project discovery is one level below each configured root, such as
+`projects/<id>/`; nested project folders are not discovered. Use tags or
+registered products to group independent islands.

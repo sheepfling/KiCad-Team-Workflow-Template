@@ -18,8 +18,11 @@ to understand what belongs with each board and what is shared.
    and toolchain. It starts in `development`, visibly NOT FOR MANUFACTURE.
 4. Save its real source under `projects/<id>/kicad/`. Complete `project.json` and
    `tests/contract.json`; keep board requirements and decisions in its local docs.
-5. Use a short-lived branch, run the selected and full gates, and review source and
-   exported evidence. A new island's README is discovered automatically by docs policy.
+5. Use a short-lived branch and run `tools.ci --project <id>` while working on
+   the island. Run its native lane after KiCad source changes, then review source
+   and exported evidence. Use the full gate when shared tooling or policy changes;
+   PR CI chooses affected project lanes, and main receives full coverage. A new
+   island's README is discovered automatically by docs policy.
 
 When an import or check fails, follow [diagnose and repair](DIAGNOSTICS.md) for a
 project-local finding, concrete next action and the relevant source of authority.

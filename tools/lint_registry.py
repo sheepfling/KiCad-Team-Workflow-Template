@@ -435,6 +435,7 @@ def main() -> int:
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
     parser.add_argument("--project", action="append", dest="projects")
     parser.add_argument("--tag", action="append", dest="tags")
+    parser.add_argument("--product", action="append", dest="products")
     parser.add_argument("--exclude-tag", action="append", dest="excluded_tags")
     parser.add_argument("--all", action="store_true", help="Lint every declared project (the default).")
     parser.add_argument("--output", type=Path)
@@ -445,6 +446,7 @@ def main() -> int:
         project_ids=tuple(args.projects or ()),
         tags=tuple(args.tags or ()),
         excluded_tags=tuple(args.excluded_tags or ()),
+        product_ids=tuple(args.products or ()),
     )
     if args.all and selector.active:
         parser.error("--all cannot be combined with project selectors")

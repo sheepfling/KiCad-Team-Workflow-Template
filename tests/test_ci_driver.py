@@ -13,7 +13,7 @@ from unittest.mock import patch
 
 from tests.support import reference_root
 from tools.ci import main, project_static_pipeline, run_command, static_pipeline
-from tools.hwrepo.models import CommandEvidence
+from tools.hwrepo.models import CommandEvidence, StaticPipelineReport
 
 ROOT = reference_root()
 
@@ -35,6 +35,8 @@ class CiDriverTests(unittest.TestCase):
     def test_static_pipeline_requires_every_quality_command(self) -> None:
         with patch("tools.ci.run_command", side_effect=(evidence(0), evidence(0), evidence(1))):
             result = static_pipeline(ROOT, None)
+        if not isinstance(result, StaticPipelineReport):
+            self.fail("The unselected CI lane must return the full static report")
         self.assertEqual(result.registry.status, "PASS")
         self.assertEqual(result.documentation.status, "PASS")
         self.assertEqual(result.unit_tests.returncode, 1)
@@ -104,6 +106,109 @@ class CiDriverTests(unittest.TestCase):
             ['arduino-uno-status-led', 'raspberry-pi-status-led', 'status-indicator-harness-interface', 'status-indicator-wiring'],
         )
 
+    def test_module_entrypoint_selects_an_indexed_product(self) -> None:
+        result = subprocess.run(
+            [sys.executable, "-B", "-m", "tools.ci", "--product", "status-indicator-system"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        report = json.loads(result.stdout)
+        self.assertEqual(report["scope"], "project_static")
+        self.assertEqual(
+            report["projects"],
+            [
+                "arduino-uno-status-led",
+                "raspberry-pi-status-led",
+                "status-indicator-harness-interface",
+                "status-indicator-wiring",
+            ],
+        )
+
+    def test_unknown_product_is_an_explicit_selection_error(self) -> None:
+        result = subprocess.run(
+            [sys.executable, "-B", "-m", "tools.ci", "--product", "unknown-product"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("unknown-product", result.stderr)
+
+    def test_native_matrix_honors_product_and_excluded_tag(self) -> None:
+        result = subprocess.run(
+            [
+                sys.executable, "-B", "-m", "tools.ci", "--matrix",
+                "--product", "status-indicator-system", "--exclude-tag", "arduino",
+            ],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            {entry["project"] for entry in json.loads(result.stdout)["include"]},
+            {
+                "raspberry-pi-status-led",
+                "status-indicator-harness-interface",
+                "status-indicator-wiring",
+            },
+        )
+
+    def test_manual_impact_selectors_plan_only_requested_project_lanes(self) -> None:
+        cases = (
+            (("--select-project", "controller"), ["controller"]),
+            (("--select-product", "status-indicator-system"), [
+                "arduino-uno-status-led",
+                "raspberry-pi-status-led",
+                "status-indicator-harness-interface",
+                "status-indicator-wiring",
+            ]),
+            (("--select-tag", "status-led", "--exclude-tag", "arduino"), [
+                "raspberry-pi-status-led",
+                "status-indicator-harness-interface",
+                "status-indicator-wiring",
+            ]),
+        )
+        for arguments, expected in cases:
+            with self.subTest(arguments=arguments):
+                result = subprocess.run(
+                    [sys.executable, "-B", "-m", "tools.impact", *arguments],
+                    cwd=ROOT,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                plan = json.loads(result.stdout)
+                self.assertEqual(plan["scope"], "focused")
+                self.assertEqual(plan["projects"], expected)
+                self.assertEqual(plan["changed_paths"], [])
+
+    def test_manual_impact_selection_rejects_missing_or_empty_scope(self) -> None:
+        cases = (
+            ("--select-project", "unknown-board"),
+            ("--select-product", "unknown-product"),
+            ("--select-tag", "unknown-tag"),
+            ("--select-project", "controller", "--exclude-tag", "legacy"),
+            ("--full", "--exclude-tag", "reference"),
+        )
+        for arguments in cases:
+            with self.subTest(arguments=arguments):
+                result = subprocess.run(
+                    [sys.executable, "-B", "-m", "tools.impact", *arguments],
+                    cwd=ROOT,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                self.assertEqual(result.returncode, 2)
+                self.assertTrue(result.stderr.strip())
+
     def test_matrix_mode_is_one_json_line_for_github_output(self) -> None:
         with (
             patch.object(sys, "argv", ["ci.py", "--matrix"]),
@@ -150,16 +255,57 @@ class CiDriverTests(unittest.TestCase):
         self.assertIn('tools.native_deps --image "$KICAD_IMAGE"', workflow)
         self.assertNotIn("pydantic==", workflow)
         self.assertNotIn("ruff==", workflow)
-        self.assertIn("needs: [project-matrix, python-tests, kicad, release-rehearsal]", workflow)
+        self.assertIn("needs: [scope, project-matrix, python-tests, kicad, release-rehearsal]", workflow)
 
     def test_hosted_native_and_release_work_do_not_wait_for_windows(self) -> None:
         workflow = (ROOT / ".github/workflows/kicad-template.yml").read_text(encoding="utf-8")
         native = workflow.split("  kicad:\n", 1)[1].split("  release-rehearsal:\n", 1)[0]
         release = workflow.split("  release-rehearsal:\n", 1)[1].split("  engineering-gate:\n", 1)[0]
-        self.assertIn("needs: [project-matrix]", native)
-        self.assertIn("needs: [kicad]", release)
+        self.assertIn("needs: [scope, project-matrix]", native)
+        self.assertIn("needs: [scope, kicad]", release)
         self.assertNotIn("python-tests", native)
         self.assertNotIn("python-tests", release)
+
+    def test_hosted_scope_runs_focused_prs_and_full_main_or_manual_checks(self) -> None:
+        workflow = (ROOT / ".github/workflows/kicad-template.yml").read_text(encoding="utf-8")
+        scope = workflow.split("  scope:\n", 1)[1].split("  project-matrix:\n", 1)[0]
+        matrix = workflow.split("  project-matrix:\n", 1)[1].split("  python-tests:\n", 1)[0]
+        portable = workflow.split("  python-tests:\n", 1)[1].split("  kicad:\n", 1)[0]
+        release = workflow.split("  release-rehearsal:\n", 1)[1].split("  engineering-gate:\n", 1)[0]
+
+        self.assertIn("fetch-depth: 0", scope)
+        self.assertIn('if [ "$EVENT_NAME" = pull_request ]; then', scope)
+        self.assertIn('tools.impact --base "$BASE_SHA" --head HEAD', scope)
+        self.assertIn("tools.impact --full", scope)
+        self.assertIn('["ubuntu-24.04", "windows-2022", "macos-14"]', scope)
+        self.assertIn('if plan["scope"] == "full" else ["ubuntu-24.04"]', scope)
+        self.assertIn("needs.scope.outputs.scope != 'docs'", matrix)
+        self.assertIn('args+=(--project "$project")', matrix)
+        self.assertIn('tools.ci --matrix "${args[@]}"', matrix)
+        self.assertIn('fromJSON(needs.scope.outputs.portable-matrix)', portable)
+        self.assertIn('python -B -m tools.docs_policy', portable)
+        self.assertIn('python -B -m tools.ci "${args[@]}" --output build/portable', portable)
+        self.assertIn('if [ "$DOCS_CHANGED" = true ]; then python -B -m tools.docs_policy; fi', portable)
+        self.assertIn("if: needs.scope.outputs.scope == 'full'", portable)
+        self.assertIn("if: needs.scope.outputs.scope == 'full' && needs.kicad.result == 'success'", release)
+
+    def test_manual_dispatch_wires_typed_focus_inputs_into_the_planner(self) -> None:
+        workflow = (ROOT / ".github/workflows/kicad-template.yml").read_text(encoding="utf-8")
+        dispatch = workflow.split("  workflow_dispatch:\n", 1)[1].split("  push:\n", 1)[0]
+        scope = workflow.split("  scope:\n", 1)[1].split("  project-matrix:\n", 1)[0]
+        self.assertIn("options: [full, project, product, tag]", dispatch)
+        for field in ("focus", "value", "exclude_tag"):
+            self.assertIn(f"      {field}:\n", dispatch)
+        self.assertIn("DISPATCH_FOCUS: ${{ inputs.focus || 'full' }}", scope)
+        self.assertIn("DISPATCH_VALUE: ${{ inputs.value || '' }}", scope)
+        self.assertIn("DISPATCH_EXCLUDE_TAG: ${{ inputs.exclude_tag || '' }}", scope)
+        self.assertIn('test -n "$DISPATCH_VALUE"', scope)
+        for selector in ("project", "product", "tag"):
+            self.assertIn(
+                f'tools.impact --select-{selector} "$DISPATCH_VALUE" "${{args[@]}}"',
+                scope,
+            )
+        self.assertIn('args+=(--exclude-tag "$DISPATCH_EXCLUDE_TAG")', scope)
 
     def test_workflow_delegates_policy_work_to_the_driver(self) -> None:
         workflow = (ROOT / ".github/workflows/kicad-template.yml").read_text(
@@ -189,18 +335,27 @@ class CiDriverTests(unittest.TestCase):
         )
         gate = workflow.split("  engineering-gate:\n", 1)[1]
         script = textwrap.dedent(gate.split("        run: |\n", 1)[1])
-        populated = {
-            "UNIT_RESULT": "success", "MATRIX_RESULT": "success",
-            "KICAD_RESULT": "success", "RELEASE_RESULT": "success",
-            "HAS_PROJECTS": "true",
-        }
-        empty = {**populated, "HAS_PROJECTS": "false", "KICAD_RESULT": "skipped",
-                 "RELEASE_RESULT": "skipped"}
-        for baseline in (populated, empty):
+        common = {"SCOPE_RESULT": "success", "UNIT_RESULT": "success"}
+        baselines = (
+            {**common, "CHECK_SCOPE": "docs", "MATRIX_RESULT": "skipped",
+             "KICAD_RESULT": "skipped", "RELEASE_RESULT": "skipped", "HAS_PROJECTS": ""},
+            {**common, "CHECK_SCOPE": "focused", "MATRIX_RESULT": "success",
+             "KICAD_RESULT": "success", "RELEASE_RESULT": "skipped", "HAS_PROJECTS": "true"},
+            {**common, "CHECK_SCOPE": "full", "MATRIX_RESULT": "success",
+             "KICAD_RESULT": "success", "RELEASE_RESULT": "success", "HAS_PROJECTS": "true"},
+            {**common, "CHECK_SCOPE": "full", "MATRIX_RESULT": "success",
+             "KICAD_RESULT": "skipped", "RELEASE_RESULT": "skipped", "HAS_PROJECTS": "false"},
+        )
+        for baseline in baselines:
             cases = [(baseline, True)]
-            for field in baseline:
-                values = (("", "unknown") if field == "HAS_PROJECTS" else
-                          ("success", "failure", "skipped", "cancelled", ""))
+            required = ("SCOPE_RESULT", "UNIT_RESULT", "CHECK_SCOPE", "MATRIX_RESULT",
+                        "KICAD_RESULT", "RELEASE_RESULT")
+            if baseline["CHECK_SCOPE"] != "docs":
+                required += ("HAS_PROJECTS",)
+            for field in required:
+                values = (("", "unknown", "true", "false") if field == "HAS_PROJECTS" else
+                          ("success", "failure", "skipped", "cancelled", "") if field != "CHECK_SCOPE" else
+                          ("docs", "focused", "full", "unknown", ""))
                 cases.extend(({**baseline, field: value}, False)
                              for value in values if value != baseline[field])
             for results, expected in cases:

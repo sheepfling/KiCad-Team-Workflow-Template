@@ -23,8 +23,18 @@ receipt for stage logs and raw results. Follow [diagnose and repair](DIAGNOSTICS
 before changing source or test expectations.
 
 Run `python -B -m tools.ci --project <project-id> --format text` for the selected
-board's portable checks and `python -B -m tools.ci --format text` for the full
-shared gate. Omit `--format text` for structured JSON in scripts. With its exact catalogued
+board's portable checks. Use `--product <product-id>` for all members of a
+registered product or `--tag <tag>` for a manifest-tagged cohort;
+`--exclude-tag <tag>` removes matching boards. These selectors can be repeated
+and combined. Use `python -B -m tools.ci --format text` for the full shared gate
+after common tooling or policy changes. PR CI scopes project changes to affected
+boards; main pushes run full checks. In GitHub Actions, **KiCad template acceptance**
+defaults to `full` when manually run; choose `project`, `product` or `tag` and
+enter its ID or tag to run only that group's hosted portable/native lanes.
+Omit `--format text`
+for structured JSON in scripts. With its exact catalogued
 KiCad installed, run `python -B -m tools.ci --kicad --project <project-id> --output build/review-001 --format text`
 using a fresh output name each time. The template exercises KiCad 10.0.0 and 10.0.5.
+Preview changed-file scope with `python -B -m tools.impact --base <ref> --head <ref> --format text`.
+Keep each island at `projects/<id>/`: nested project directories are not discovered.
 Use Python 3.11+ and preserve every declared local/shared library dependency.

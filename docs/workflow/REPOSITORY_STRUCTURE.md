@@ -102,6 +102,8 @@ check includes that board and products whose index lists its ID. Each custom sui
 runs in a separate process, so identical test module names in two boards do not collide.
 
 Two engineers can work on different islands on separate branches. Changes to a shared
-library require checking every consumer; the full CI gate checks all projects.
+library require checking every declared consumer; the PR impact planner selects
+those consumers. Main pushes and default manual CI run the full gate across all
+projects; manual dispatch can select a focused project, product or tag.
 Coordinate edits to the same native schematic or board through the
 [project workflow](PROJECT_WORKFLOW.md). A shared repository does not provide a CAD lock.

@@ -11,14 +11,16 @@ from tests.support import reference_root
 from tools.check_toolchain import assessment, cli_executable, toolchain
 from tools.ci_matrix import build_matrix
 from tools.hwrepo.contracts import read_model, write_model
+from tools.hwrepo.discovery import load_registry
 from tools.hwrepo.models import (
     ComponentIdentity,
     GovernanceRecord,
     PartsCatalog,
+    ProductIndex,
     ProjectManifest,
     TeamPolicy,
 )
-from tools.hwrepo.selection import ProjectSelector, resolve_project_ids
+from tools.hwrepo.selection import ProjectSelector, resolve_project_ids, select_projects
 from tools.lint_registry import lint, lint_governance_record
 
 ROOT: Path = reference_root()
@@ -73,8 +75,89 @@ class GovernanceLintTests(unittest.TestCase):
             resolve_project_ids(ROOT, ProjectSelector(excluded_tags=("legacy",))),
             ('arduino-uno-status-led', 'passive-signal-reference', 'raspberry-pi-status-led', 'status-indicator-harness-interface', 'status-indicator-wiring'),
         )
-        with self.assertRaisesRegex(ValueError, "No projects matched"):
+        with self.assertRaisesRegex(ValueError, "Unknown included tags"):
             resolve_project_ids(ROOT, ProjectSelector(tags=("absent",)))
+        with self.assertRaisesRegex(ValueError, "Unknown included tags"):
+            resolve_project_ids(ROOT, ProjectSelector(project_ids=("controller",), tags=("absent",)))
+        with self.assertRaisesRegex(ValueError, "Unknown excluded tags"):
+            resolve_project_ids(ROOT, ProjectSelector(excluded_tags=("absent",)))
+
+    def test_product_selector_expands_members_and_combines_with_ids_and_tags(self) -> None:
+        members = (
+            "arduino-uno-status-led",
+            "raspberry-pi-status-led",
+            "status-indicator-harness-interface",
+            "status-indicator-wiring",
+        )
+        self.assertEqual(
+            resolve_project_ids(
+                ROOT, ProjectSelector(product_ids=("status-indicator-system",))
+            ),
+            members,
+        )
+        self.assertEqual(
+            resolve_project_ids(
+                ROOT,
+                ProjectSelector(
+                    project_ids=("controller",),
+                    tags=("reference",),
+                    excluded_tags=("legacy",),
+                    product_ids=("status-indicator-system",),
+                ),
+            ),
+            (
+                "arduino-uno-status-led",
+                "passive-signal-reference",
+                "raspberry-pi-status-led",
+                "status-indicator-harness-interface",
+                "status-indicator-wiring",
+            ),
+        )
+
+    def test_product_selector_fails_closed_on_unknown_or_duplicate_product(self) -> None:
+        with self.assertRaisesRegex(ValueError, "Unknown product IDs"):
+            resolve_project_ids(ROOT, ProjectSelector(product_ids=("missing-product",)))
+        with self.assertRaisesRegex(ValueError, "Duplicate product IDs"):
+            resolve_project_ids(
+                ROOT,
+                ProjectSelector(
+                    product_ids=("status-indicator-system", "STATUS-INDICATOR-SYSTEM")
+                ),
+            )
+
+        registry = load_registry(ROOT)
+        index = read_model(ROOT / "catalog/products.json", ProductIndex)
+        duplicate = index.products[0].model_copy(update={"id": "STATUS-INDICATOR-SYSTEM"})
+        with self.assertRaisesRegex(ValueError, "Duplicate product IDs in catalog/products.json"):
+            ProductIndex(schema_version="1", products=(*index.products, duplicate))
+        malformed = index.model_copy(update={"products": (*index.products, duplicate)})
+        with self.assertRaisesRegex(ValueError, "Duplicate product ID in index"):
+            select_projects(
+                registry, ProjectSelector(product_ids=("status-indicator-system",)), malformed
+            )
+
+    def test_product_selector_rejects_missing_or_duplicate_project_member(self) -> None:
+        registry = load_registry(ROOT)
+        index = read_model(ROOT / "catalog/products.json", ProductIndex)
+        entry = index.products[0]
+        missing = entry.model_copy(
+            update={"project_ids": (*entry.project_ids, "missing-project")}
+        )
+        with self.assertRaisesRegex(ValueError, "references unknown project IDs"):
+            select_projects(
+                registry,
+                ProjectSelector(product_ids=(entry.id,)),
+                index.model_copy(update={"products": (missing,)}),
+            )
+        duplicate = entry.model_copy(
+            update={"project_ids": (*entry.project_ids, entry.project_ids[0])}
+        )
+        with self.assertRaisesRegex(ValueError, "Duplicate project IDs for product"):
+            select_projects(
+                registry,
+                ProjectSelector(product_ids=(entry.id,)),
+                index.model_copy(update={"products": (duplicate,)}),
+            )
 
     def test_ci_matrix_can_be_limited_to_a_tag_selected_project(self) -> None:
         matrix = build_matrix(ROOT, ("controller",))

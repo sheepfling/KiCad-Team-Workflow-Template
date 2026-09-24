@@ -175,6 +175,12 @@ def main() -> int:
         help="Select projects with any matching metadata tag; may be repeated",
     )
     parser.add_argument(
+        "--product",
+        action="append",
+        dest="products",
+        help="Select every project in an indexed product; may be repeated",
+    )
+    parser.add_argument(
         "--exclude-tag",
         action="append",
         dest="excluded_tags",
@@ -206,6 +212,7 @@ def main() -> int:
         project_ids=tuple(args.project or ()),
         tags=tuple(args.tags or ()),
         excluded_tags=tuple(args.excluded_tags or ()),
+        product_ids=tuple(args.products or ()),
     )
     try:
         selected = resolve_project_ids(root, selector) if selector.active else None

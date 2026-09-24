@@ -122,9 +122,10 @@ source location and the corresponding file path. Do not suppress the policy chec
    them with requirements and ask the responsible engineer when evidence is
    missing; an agent must not invent an electrical expectation or waive a
    check to obtain a green result.
-5. Rerun diagnosis and the selected CI lane after each source fix. Run the full
-   CI gate before review. After KiCad source changes, regenerate native results
-   in a fresh output directory and recheck any derived BOM or export.
+5. Rerun diagnosis and the selected CI lane after each source fix. Use the full
+   CI gate after shared tooling or policy changes; PR CI also checks the affected
+   scope. After KiCad source changes, regenerate native results in a fresh output
+   directory and recheck any derived BOM or export.
 
 For handoff, report the project ID, branch/commit, command, receipt directory,
 finding code and source location, repair made, checks rerun, and any unresolved

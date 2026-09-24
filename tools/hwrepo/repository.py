@@ -270,11 +270,16 @@ def check_repository(
     try:
         registry = load_registry(root)
         inventories: set[str] = set()
+        selected_roots: set[Path] = set()
+        available_ids = {project.id for project in registry.projects}
+        if selected is not None and (unknown := selected - available_ids):
+            issues.append(f"PROJECT_SELECTION: unknown project IDs: {sorted(unknown)}")
         for project in registry.projects:
             if selected is not None and project.id not in selected:
                 continue
             config = load_config(root, project.config)
             directory = repo_path(root, project.project).parent
+            selected_roots.add(repo_path(root, project.config).parent)
             inventories.update(config.required_inputs)
             inventoried_inputs = frozenset(config.required_inputs)
             source_roots = frozenset(config.source_roots)
@@ -291,16 +296,19 @@ def check_repository(
                             source_roots,
                         )
                     )
-        if selected is None:
-            found = {
-                path.relative_to(root).as_posix()
-                for directory in settings(root).project_roots
-                for path in (root / directory).rglob("*")
-                if (root / directory).is_dir()
-                and path.suffix in {".kicad_pro", ".kicad_sch", ".kicad_pcb"}
-                and not ephemeral(path.relative_to(root).as_posix())
-            }
-            issues.extend(f"UNREGISTERED_DESIGN: {name}" for name in sorted(found - inventories))
+        scan_roots = (
+            tuple(root / directory for directory in settings(root).project_roots)
+            if selected is None else tuple(selected_roots)
+        )
+        found = {
+            path.relative_to(root).as_posix()
+            for directory in scan_roots
+            if directory.is_dir()
+            for path in directory.rglob("*")
+            if path.suffix in {".kicad_pro", ".kicad_sch", ".kicad_pcb"}
+            and not ephemeral(path.relative_to(root).as_posix())
+        }
+        issues.extend(f"UNREGISTERED_DESIGN: {name}" for name in sorted(found - inventories))
         result = subprocess.run(["git", "-c", f"safe.directory={root.as_posix()}", "-C", str(root), "ls-files", "-z"], capture_output=True, text=True, check=True)
         for name in result.stdout.split("\0"):
             if name and generated_artifact(name) and (root / name).exists():

@@ -108,6 +108,18 @@ class ForkWorkflowTests(unittest.TestCase):
         self.assertEqual(report.status, "FAIL")
         self.assertTrue(any("not in this project's required_inputs" in issue for issue in report.issues))
 
+    def test_focused_repository_check_rejects_undeclared_cad_in_selected_island(self) -> None:
+        unselected = self.root / "examples/projects/arduino-uno-status-led/kicad/rogue.kicad_sch"
+        unselected.write_text("(kicad_sch)", encoding="utf-8")
+        self.assertEqual(check_repository(self.root, ("controller",)).status, "PASS")
+        selected = self.root / "examples/projects/controller/kicad/rogue.kicad_pcb"
+        selected.write_text("(kicad_pcb)", encoding="utf-8")
+        report = check_repository(self.root, ("controller",))
+        self.assertIn(
+            "UNREGISTERED_DESIGN: examples/projects/controller/kicad/rogue.kicad_pcb",
+            report.issues,
+        )
+
     def test_shared_source_roots_must_match_registered_library_paths(self) -> None:
         path = self.root / "examples/projects/arduino-uno-status-led/project.json"
         manifest = read_model(path, ProjectManifest)

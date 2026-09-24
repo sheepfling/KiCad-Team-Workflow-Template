@@ -454,10 +454,39 @@ def load_repository(
         parts = index_by_id(parts_catalog.parts, "parts", issues)
         interfaces = index_by_id(interfaces_catalog.interfaces, "interfaces", issues)
         projects = index_by_id(registry.projects, "projects", issues)
+        if selected is not None and (unknown := selected - projects.keys()):
+            issues.append(
+                PolicyIssue(
+                    code="PROJECT_SELECTION",
+                    location="catalog/projects.json",
+                    message=f"Unknown selected project IDs: {sorted(unknown)}",
+                )
+            )
+        relevant_entries = (
+            index.products if selected is None else tuple(
+                entry for entry in index.products
+                if not selected.isdisjoint(entry.project_ids)
+            )
+        )
+        relevant_project_ids = (
+            None if selected is None else selected | {
+                project_id
+                for entry in relevant_entries
+                for project_id in entry.project_ids
+            }
+        )
         product_view_projects_by_product: dict[
             str, list[tuple[str, ProductTraceabilityValidationContract]]
         ] = {}
         for project in registry.projects:
+            # A selected lane needs view contracts from its dependent products,
+            # but must not load contracts belonging to unrelated project islands.
+            # Its own board contract is checked by the selected registry lane.
+            if relevant_project_ids is not None and (
+                project.id not in relevant_project_ids
+                or project.kind not in {ProjectKind.SYSTEM_WIRING, ProjectKind.HARNESS_INTERFACE}
+            ):
+                continue
             config = load_config(root, project.config)
             if isinstance(
                 config.validation,

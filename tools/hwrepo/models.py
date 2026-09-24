@@ -405,6 +405,13 @@ class ProductIndex(StrictModel):
     schema_version: Literal["1"]
     products: tuple[ProductIndexEntry, ...]
 
+    @model_validator(mode="after")
+    def unique_product_ids(self) -> ProductIndex:
+        ids = [product.id.casefold() for product in self.products]
+        if len(ids) != len(set(ids)):
+            raise ValueError("Duplicate product IDs in catalog/products.json")
+        return self
+
 
 class AssemblyKind(str, Enum):
     PURCHASED = "purchased"
@@ -836,6 +843,17 @@ class MatrixEntry(StrictModel):
 
 class CiMatrix(StrictModel):
     include: tuple[MatrixEntry, ...]
+
+
+class ImpactPlan(StrictModel):
+    """Fail-closed scope for a changed-path development check."""
+
+    schema_version: Literal["1"] = "1"
+    scope: Literal["docs", "focused", "full"]
+    projects: tuple[Identifier, ...]
+    changed_paths: tuple[str, ...]
+    reasons: tuple[NonEmptyText, ...]
+    docs_changed: bool = False
 
 
 class CommandEvidence(StrictModel):

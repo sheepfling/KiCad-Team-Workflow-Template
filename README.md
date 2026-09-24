@@ -73,6 +73,9 @@ and save the actual KiCad design in its `kicad/` folder, then complete its sourc
 inventory and electrical expectations. An incomplete scaffold intentionally fails
 checks. It never copies a training circuit into your design or overwrites a project.
 Discovery automatically adds each `projects/*/project.json` to CI.
+Keep projects directly under `projects/`; discovery does not recurse into a
+physical tree of nested projects. Use manifest tags for a flexible cohort and a
+registered product for a named group of related deliverables.
 Before native work, run `python -B -m tools.template doctor --native --toolchain kicad-10.0.5`.
 
 For an existing design, use the [import workflow](docs/workflow/IMPORT_WORKFLOW.md).
@@ -83,6 +86,10 @@ Exercise imports in a temporary copy and retain each run through its PR or CI ar
 ```sh
 # Selected board, its dependencies and applicable board/product tests
 python -B -m tools.ci --project battery-board --format text
+# Every project in a registered product, or every project carrying a tag
+# The names below refer to the uninitialized template rehearsal examples.
+python -B -m tools.ci --product status-indicator-system --format text
+python -B -m tools.ci --tag status-led --format text
 # Shared policy and tools, every project, all unit and project tests
 python -B -m tools.ci --format text
 # Preview automatic native CI lanes
@@ -92,6 +99,19 @@ python -B -m tools.ci --kicad --project battery-board --output projects/battery-
 # Shared tooling tests alone
 python -B -m unittest discover -s tests -v
 ```
+
+Use selected checks while developing a board. `--project`, `--product` and
+`--tag` can be repeated and include the union of their matches; `--exclude-tag`
+then removes matching projects. With only `--exclude-tag`, the starting set is
+all discovered projects. The full command is appropriate for changes to shared
+policy, tools or catalogs and for a deliberate repository-wide rehearsal.
+Pull requests use changed paths to run affected project and native lanes;
+changes to shared tooling or an unrecognized path trigger the full gate. Main
+pushes exercise the full gate. From GitHub Actions, run **KiCad template acceptance**
+with the default `full` focus for a complete rehearsal, or choose `project`,
+`product` or `tag` and supply its ID or tag to check just that group. An optional
+`exclude_tag` narrows a focused manual run. A focused pass covers its declared
+scope, while a release still has its own acceptance process.
 
 See [checks and CI](docs/workflow/CHECKS_AND_CI.md) and [extending tests](tests/README.md).
 When a board fails, `python -B -m tools.template diagnose --project-id battery-board`
