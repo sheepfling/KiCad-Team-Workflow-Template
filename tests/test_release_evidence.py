@@ -12,17 +12,26 @@ import unittest
 import zipfile
 from datetime import date
 from pathlib import Path
+from unittest.mock import patch
 
 from tests.support import initialize_git, reference_root
+from tools.ci import static_pipeline
 from tools.hwrepo.contracts import read_model, write_model
 from tools.hwrepo.discovery import load_config
 from tools.hwrepo.documentation import check as check_docs
-from tools.hwrepo.evidence import digest, source_state, verify_native
+from tools.hwrepo.evidence import (
+    digest,
+    source_state,
+    verify_native,
+    verify_portable,
+    verify_release_portable,
+)
 from tools.hwrepo.models import (
     CheckEvidence,
     CommandEvidence,
     DeviationStatus,
     GenerationReport,
+    ProjectStaticPipelineReport,
     ProjectTestsReport,
     ReleaseArtifact,
     ReleaseArtifactKind,
@@ -31,13 +40,14 @@ from tools.hwrepo.models import (
     ReleaseEvidence,
     ReleaseManifest,
     ReleaseStatus,
+    ScopedReleasePortableReport,
     StaticPipelineReport,
     ValidationSummary,
 )
 from tools.hwrepo.packaging import package, restore, verify
 from tools.hwrepo.product import check as check_product
 from tools.hwrepo.release import check
-from tools.hwrepo.releasing import reference
+from tools.hwrepo.releasing import prepare, reference
 from tools.hwrepo.repository import check_repository
 from tools.lint_registry import lint
 
@@ -157,6 +167,91 @@ class ReleaseEvidenceTests(unittest.TestCase):
                 bad = manifest.model_copy(update={"deviations": (
                     deviation.model_copy(update={field: value}),)})
                 self.assertIn(code, {issue.code for issue in check(self.root, bad).issues})
+
+    def test_release_portable_scope_is_exact_and_cannot_claim_full_coverage(self) -> None:
+        selected = (self.project_id,)
+        self.assertIsInstance(
+            verify_release_portable(
+                self.root, reference(self.root, self.directory / "portable.json"),
+                self.source, selected,
+            ),
+            StaticPipelineReport,
+        )
+        checks = static_pipeline(self.root, list(selected))
+        self.assertIsInstance(checks, ProjectStaticPipelineReport)
+        self.assertEqual(checks.status, "PASS")
+        scoped = ScopedReleasePortableReport(source=self.source, projects=selected, checks=checks)
+        path = self.directory / "selected-portable.json"
+        write_model(path, scoped)
+        retained = reference(self.root, path)
+        self.assertEqual(
+            verify_release_portable(self.root, retained, self.source, selected), scoped,
+        )
+        with self.assertRaisesRegex(ValueError, "scope differs"):
+            verify_release_portable(self.root, retained, self.source, ("controller",))
+        with self.assertRaises(ValueError):
+            verify_portable(self.root, retained, self.source)
+
+        # The bare focused CI result has neither the release scope nor commit
+        # binding, even when every visible check says PASS.
+        write_model(path, checks)
+        with self.assertRaises(ValueError):
+            verify_release_portable(self.root, reference(self.root, path), self.source, selected)
+
+        failing = checks.model_copy(update={"project_tests": checks.project_tests.model_copy(
+            update={"status": "FAIL"})})
+        write_model(path, scoped.model_copy(update={"checks": failing}))
+        with self.assertRaisesRegex(ValueError, "failed or missing"):
+            verify_release_portable(self.root, reference(self.root, path), self.source, selected)
+
+    def test_preparation_and_verification_ignore_unrelated_broken_island(self) -> None:
+        unrelated = self.root / "examples/projects/controller/tests/test_legacy.py"
+        unrelated.write_bytes(
+            b"import unittest\n\nclass LegacyFailure(unittest.TestCase):\n"
+            b"    def test_legacy(self):\n        self.fail('unrelated legacy failure')\n"
+        )
+        stray = self.root / "examples/projects/controller/undeclared.kicad_pro"
+        stray.write_bytes(b"{}\n")
+        unrelated_library = self.root / "examples/libraries/status-led/PROVENANCE.md"
+        unrelated_library.write_bytes(
+            unrelated_library.read_bytes() + b"\nStale unused catalog evidence.\n"
+        )
+        self.git("add", "--all")
+        self.git("-c", "user.name=Scaffold test fixture", "-c", "user.email=fixture@example.invalid",
+                 "commit", "-qm", "Unrelated legacy island is broken")
+        self.source = source_state(self.root)
+        self.assertTrue(self.source.clean)
+        full_lint = lint(self.root)
+        self.assertEqual(full_lint.status, "FAIL")
+        self.assertTrue(any("provenance record hash" in issue for issue in full_lint.issues))
+        selected_lint = lint(self.root, [self.project_id])
+        self.assertEqual(selected_lint.status, "PASS", selected_lint.issues)
+
+        native = read_model(self.native_path, ValidationSummary)
+        write_model(self.native_path, native.model_copy(update={
+            "source": self.source, "checked_commit": self.source.commit,
+        }))
+
+        def copy_native(_root: Path, _project: object, output: Path, _cli: str | None,
+                        _dependencies: Path | None, export_only: bool = False) -> None:
+            self.assertFalse(export_only)
+            shutil.copytree(self.native_path.parent, output)
+
+        with patch("tools.hwrepo.releasing.run_native", side_effect=copy_native):
+            prepared = prepare(self.root, "selected", (self.project_id,), cli="kicad-cli")
+        self.assertEqual(prepared.evidence.portable.path, "build/releases/selected/portable.json")
+        self.assertEqual(check(self.root, prepared).status, "PASS")
+        portable = read_model(
+            self.root / prepared.evidence.portable.path, ScopedReleasePortableReport,
+        )
+        self.assertEqual(portable.projects, (self.project_id,))
+        self.assertEqual(portable.source, self.source)
+        archive = self.parent / "selected.zip"
+        self.assertEqual(
+            package(self.root, "build/releases/selected/manifest.json", archive).status,
+            "PASS",
+        )
+        self.assertEqual(verify(archive).status, "PASS")
 
     def test_stale_source_and_missing_reports_fail_even_with_pass_labels(self) -> None:
         path = self.root / self.config.required_inputs[0]

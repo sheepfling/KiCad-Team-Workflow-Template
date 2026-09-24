@@ -66,9 +66,10 @@ def probe(root: Path, output: Path) -> FaultProbeReport:
             elif name == "missing_tool":
                 cli = "intentionally-missing-kicad-executable"
             else:
-                (copy / "examples/projects/unregistered").mkdir()
-                (copy / "examples/projects/unregistered/ghost.kicad_pro").write_text("{}\n")
-                (copy / "examples/projects/unregistered/ghost.kicad_pcb").write_text("undeclared board\n")
+                # Selected checks reject undeclared sources inside their own
+                # island; unrelated islands are intentionally outside scope.
+                (copy / "examples/projects/controller/kicad/ghost.kicad_pro").write_text("{}\n")
+                (copy / "examples/projects/controller/kicad/ghost.kicad_pcb").write_text("undeclared board\n")
             report = validate(copy, output / name, cli)
             observed = report.checks.get(expected)
             passed = report.status == "FAIL" and observed is not None and observed.status == "FAIL"

@@ -32,6 +32,7 @@ from tools.hwrepo.generation import (
     verify_snapshot,
 )
 from tools.hwrepo.models import (
+    LibrariesCatalog,
     PartsCatalog,
     ProductRecord,
     ProjectManifest,
@@ -398,10 +399,24 @@ class ProductTests(unittest.TestCase):
         index_path.write_text(json.dumps(index), encoding="utf-8")
         self.assertIn("PRODUCT_PROJECTS", {issue.code for issue in check(root).issues})
 
-    def test_unregistered_project_discovered_even_in_selected_check(self):
+    def test_selected_discovery_checks_its_island_and_full_discovers_unrelated_files(self):
         root = self.stage()
         (root / "examples/projects/forgotten.kicad_pro").write_text("{}", encoding="utf-8")
+        self.assertTrue(any("project discovery" in issue for issue in lint(root).issues))
+        self.assertFalse(any("project discovery" in issue for issue in lint(root, ["controller"]).issues))
+        (root / "examples/projects/controller/kicad/forgotten.kicad_pro").write_text(
+            "{}", encoding="utf-8",
+        )
         self.assertTrue(any("project discovery" in issue for issue in lint(root, ["controller"]).issues))
+
+    def test_selected_lint_retains_global_catalog_path_safety(self):
+        root = self.stage()
+        path = root / "catalog/libraries.json"
+        catalog = read_model(path, LibrariesCatalog)
+        bad = catalog.libraries[0].model_copy(update={"provenance_path": "../outside.md"})
+        write_model(path, catalog.model_copy(update={"libraries": (bad,)}))
+        issues = lint(root, ["controller"]).issues
+        self.assertTrue(any("unsafe provenance" in issue for issue in issues), issues)
 
     def test_native_netlist_identity_adapter(self):
         root = ET.Element("export")

@@ -8,6 +8,8 @@ from pathlib import Path
 
 from .hwrepo.contracts import read_model, repo_path
 from .hwrepo.models import (
+    ProductIndex,
+    ProductRecord,
     ReleaseClass,
     ReleaseExportReport,
     ReleaseManifest,
@@ -69,7 +71,8 @@ def main() -> int:
     parser.add_argument("--release-id")
     parser.add_argument("--release-class", choices=[value.value for value in ReleaseClass], default="engineering_review")
     parser.add_argument("--cli", help="Use an installed pinned KiCad CLI; default uses Docker")
-    parser.add_argument("--portable", type=Path, help="Reuse a full portable report from this exact clean source")
+    parser.add_argument("--portable", type=Path,
+                        help="Reuse a full or exact-project release portable report from this clean source")
     parser.add_argument("--output", type=Path)
     parser.add_argument("--archive", type=Path)
     parser.add_argument("--destination", type=Path)
@@ -82,19 +85,30 @@ def main() -> int:
     root = args.root.resolve()
     try:
         if args.command == "prepare":
-            from .hwrepo.product import load_repository
             from .hwrepo.releasing import prepare
 
             if args.release_id is None:
                 parser.error("prepare requires --release-id and --project or --variant")
-            repository = load_repository(root)
             selections: list[ReleaseVariant] = []
+            indexed = {}
+            if args.variant:
+                index = read_model(repo_path(root, "catalog/products.json"), ProductIndex)
+                indexed = {entry.id: entry for entry in index.products}
+                if len(indexed) != len(index.products):
+                    raise ValueError("catalog/products.json has duplicate product IDs")
             for value in args.variant:
                 product_id, separator, variant_id = value.partition(":")
                 if not separator:
                     raise ValueError("--variant uses PRODUCT:VARIANT")
-                product = next(product for product in repository.products if product.id == product_id)
-                variant = next(variant for variant in product.variants if variant.id == variant_id)
+                entry = indexed.get(product_id)
+                if entry is None:
+                    raise ValueError(f"Unknown release product {product_id!r} in catalog/products.json")
+                product = read_model(repo_path(root, entry.path), ProductRecord)
+                if product.id != product_id:
+                    raise ValueError(f"{entry.path}: product ID differs from catalog/products.json")
+                variant = next((item for item in product.variants if item.id == variant_id), None)
+                if variant is None:
+                    raise ValueError(f"Unknown variant {variant_id!r} for product {product_id!r}")
                 selections.append(ReleaseVariant(product=product.id, product_revision=product.revision,
                                                   variant=variant.id, variant_revision=variant.revision))
             manifest = prepare(root, args.release_id, tuple(args.project), tuple(selections),
@@ -137,7 +151,8 @@ def main() -> int:
                 parser.error("check requires --manifest")
             manifest = read_model(repo_path(root, args.manifest), ReleaseManifest)
             report = check(root, manifest)
-    except (OSError, ValueError, StopIteration, subprocess.SubprocessError, zipfile.BadZipFile) as exc:
+    except (OSError, TypeError, ValueError, StopIteration,
+            subprocess.SubprocessError, zipfile.BadZipFile) as exc:
         parser.error(str(exc))
     if args.format == "text":
         location = args.destination if args.command == "restore" else args.output

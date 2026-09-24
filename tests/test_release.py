@@ -20,6 +20,8 @@ from tools.hwrepo.models import (
     InterfacesCatalog,
     LibrariesCatalog,
     PolicyIssue,
+    ProductIndex,
+    ProductIndexEntry,
     ProductRecord,
     ProjectKind,
     ProjectManifest,
@@ -37,8 +39,7 @@ from tools.hwrepo.models import (
     ReleaseVariant,
     SourceState,
 )
-from tools.hwrepo.product import load_repository
-from tools.hwrepo.release import check, selected_project_records
+from tools.hwrepo.release import check, load_release_repository, selected_project_records
 from tools.hwrepo.scaffold import new_project
 from tools.release import main as release_main
 
@@ -176,7 +177,7 @@ class ReleaseReadinessTests(unittest.TestCase):
         self.assertIn("RELEASE_PROJECT_KIND", {finding.code for finding in report.issues})
 
     def test_variant_release_includes_every_declared_product_project(self) -> None:
-        repository = load_repository(self.root)
+        repository = load_release_repository(self.root, self.manifest())
         selected = selected_project_records(repository, repository.products)
         self.assertEqual(
             {project.id for project in selected},
@@ -187,6 +188,24 @@ class ReleaseReadinessTests(unittest.TestCase):
                 "status-indicator-harness-interface",
             },
         )
+
+    def test_variant_release_rejects_product_view_omitted_from_index(self) -> None:
+        index_path = self.root / "catalog/products.json"
+        index = read_model(index_path, ProductIndex)
+        entry = next(item for item in index.products if item.id == "status-indicator-system")
+        shortened = entry.model_copy(update={
+            "project_ids": tuple(name for name in entry.project_ids
+                                 if name != "status-indicator-wiring"),
+        })
+        write_model(index_path, index.model_copy(update={
+            "products": tuple(shortened if item.id == entry.id else item
+                              for item in index.products),
+        }))
+        with self.assertRaisesRegex(ValueError, "omits product-view project status-indicator-wiring"):
+            load_release_repository(self.root, self.manifest())
+        self.assertIn("RELEASE_DEPENDENCY", {
+            finding.code for finding in check(self.root, self.manifest()).issues
+        })
 
     def test_revision_and_library_binding_cannot_be_stale(self) -> None:
         base = self.manifest()
@@ -237,6 +256,34 @@ class ReleaseReadinessTests(unittest.TestCase):
         ):
             release_main()
         self.assertEqual(error.exception.code, 2)
+
+    def test_prepare_variant_lookup_skips_unrelated_product_and_names_bad_selection(self) -> None:
+        index_path = self.root / "catalog/products.json"
+        index = read_model(index_path, ProductIndex)
+        broken_path = self.root / "examples/products/broken-legacy/product.json"
+        broken_path.parent.mkdir(parents=True)
+        broken_path.write_bytes(b"{bad JSON")
+        write_model(index_path, index.model_copy(update={"products": (*index.products,
+            ProductIndexEntry(id="broken-legacy",
+                              path="examples/products/broken-legacy/product.json",
+                              project_ids=()),
+        )}))
+        argv = ["tools.release", "prepare", "--root", str(self.root),
+                "--release-id", "scoped-variant", "--variant", "status-indicator-system:STANDARD"]
+        with (patch("tools.hwrepo.releasing.prepare", return_value=self.manifest()) as prepared,
+              patch.object(sys, "argv", argv), redirect_stdout(StringIO())):
+            self.assertEqual(release_main(), 0)
+        self.assertEqual(prepared.call_args.args[3][0].product, "status-indicator-system")
+
+        for selection, expected in (("unknown:STANDARD", "Unknown release product"),
+                                    ("status-indicator-system:missing", "Unknown variant")):
+            with self.subTest(selection=selection):
+                error_text = StringIO()
+                with (patch.object(sys, "argv", [*argv[:-1], selection]),
+                      redirect_stderr(error_text), self.assertRaises(SystemExit) as error):
+                    release_main()
+                self.assertEqual(error.exception.code, 2)
+                self.assertIn(expected, error_text.getvalue())
 
     def test_release_check_text_shows_issues_and_default_remains_json(self) -> None:
         manifest = self.manifest()

@@ -9,14 +9,16 @@ from pathlib import Path
 
 from .contracts import read_model, repo_path
 from .discovery import load_config, load_registry
-from .evidence import source_state, verify_native, verify_portable
+from .evidence import source_state, verify_native, verify_release_portable
 from .models import (
     Assurance,
     DeviationStatus,
     GovernanceRecord,
+    HarnessInterfaceValidationContract,
     InterfacesCatalog,
     LibrariesCatalog,
     PolicyIssue,
+    ProductIndex,
     ProductRecord,
     ProjectKind,
     ProjectRecord,
@@ -27,6 +29,7 @@ from .models import (
     ReleasePoliciesCatalog,
     ReleaseReadinessReport,
     ReleaseStatus,
+    SystemWiringValidationContract,
     TeamPolicy,
     ToolchainsCatalog,
 )
@@ -99,6 +102,47 @@ def git(root: Path, *args: str) -> str:
 def issue(code: str, location: str, message: str) -> PolicyIssue:
     """Create a concise, typed release-readiness finding."""
     return PolicyIssue(code=code, location=location, message=message)
+
+
+def load_release_repository(root: Path, manifest: ReleaseManifest) -> ProductRepository:
+    """Load only projects selected explicitly or through release variants.
+
+    Relevant product records and their board/view contracts are still loaded by
+    the scoped product repository. An unrelated legacy island is not a release
+    dependency merely because it appears in the project registry.
+    """
+    index = read_model(repo_path(root, "catalog/products.json"), ProductIndex)
+    indexed = {product.id: product for product in index.products}
+    if len(indexed) != len(index.products):
+        raise ValueError("Product index has duplicate IDs")
+    selected = set(manifest.projects)
+    for variant in manifest.variants:
+        product = indexed.get(variant.product)
+        if product is not None:
+            selected.update(product.project_ids)
+    relevant_products = {
+        entry.id for entry in index.products
+        if not selected.isdisjoint(entry.project_ids)
+    } | {variant.product for variant in manifest.variants}
+    # Product-view projects name their product in the authored test contract.
+    # Read that metadata before narrowing to indexed IDs: otherwise a missing
+    # index membership would silently omit its view from release evidence.
+    for project in load_registry(root).projects:
+        if project.kind not in {ProjectKind.SYSTEM_WIRING, ProjectKind.HARNESS_INTERFACE}:
+            continue
+        validation = load_config(root, project.config).validation
+        if not isinstance(validation, (SystemWiringValidationContract,
+                                       HarnessInterfaceValidationContract)):
+            raise TypeError(f"{project.config}: product-view validation contract is missing")
+        entry = indexed.get(validation.product_id)
+        if validation.product_id in relevant_products and (
+            entry is None or project.id not in entry.project_ids
+        ):
+            raise ValueError(
+                f"catalog/products.json: product {validation.product_id} omits "
+                f"product-view project {project.id} declared by {project.config}"
+            )
+    return load_repository(root, tuple(sorted(selected)))
 
 
 def selected_products(
@@ -289,7 +333,11 @@ def check(root: Path, manifest: ReleaseManifest, today: date | None = None) -> R
     """Validate candidate release closure without authorizing build, tag or publication."""
     resolved_root = root.resolve()
     findings: list[PolicyIssue] = []
-    repository = load_repository(resolved_root)
+    try:
+        repository = load_release_repository(resolved_root, manifest)
+    except (OSError, TypeError, ValueError) as exc:
+        findings.append(issue("RELEASE_DEPENDENCY", "products", str(exc)))
+        repository = load_repository(resolved_root, ())
     findings.extend(repository.issues)
     products = selected_products(repository, manifest, findings)
     try:
@@ -360,7 +408,10 @@ def check(root: Path, manifest: ReleaseManifest, today: date | None = None) -> R
         source = source_state(resolved_root)
         if source.commit != manifest.source_commit or not source.clean:
             raise ValueError("Release evidence requires the clean source commit checked out")
-        verify_portable(resolved_root, manifest.evidence.portable, source)
+        verify_release_portable(
+            resolved_root, manifest.evidence.portable, source,
+            tuple(project.id for project in projects),
+        )
         if set(manifest.evidence.native) != {project.id for project in projects}:
             raise ValueError("Native evidence must cover exactly the selected projects")
         for project in projects:
