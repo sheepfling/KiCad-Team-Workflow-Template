@@ -5,12 +5,26 @@ separate temporary copy of the candidate repository; keep the external designs
 untracked there. Run the commands from the candidate repository with its Python
 development environment installed.
 
+For a directory containing several designs, first inventory it without copying:
+
 ```sh
-python -B -m tools.template diagnose --source "/path/to/Old board.kicad_pro" --project-id battery-board --toolchain kicad-10.0.5
-python -B -m tools.template import-project --source "/path/to/Old board.kicad_pro" --project-id battery-board --toolchain kicad-10.0.5
+python -B -m tools.template scan-imports --source-dir "/path/to/old boards" --toolchain kicad-10.0.5 --format text
+```
+
+The text view lists each `.kicad_pro`, suggested island ID, project kind, copied
+and excluded counts, and its next import command. Use `--format json` for every
+file hash, exclusion reason and failure. The scanner previews each design through
+the normal one-project importer, skips local-state directories and leaves both
+source and repository untouched. Review suggested IDs, collisions and exclusions;
+run each accepted import separately. A clean inventory does not prove an archive
+is complete or a circuit is correct.
+
+```sh
+python -B -m tools.template diagnose --source "/path/to/Old board.kicad_pro" --project-id battery-board --toolchain kicad-10.0.5 --format text
+python -B -m tools.template import-project --source "/path/to/Old board.kicad_pro" --project-id battery-board --toolchain kicad-10.0.5 --format text
 python -B -m tools.template diagnose --project-id battery-board
-python -B -m tools.ci --project battery-board
-python -B -m tools.ci --matrix
+python -B -m tools.ci --project battery-board --format text
+python -B -m tools.ci --matrix --format text
 ```
 
 `--root` selects a different candidate repository. The source argument names the

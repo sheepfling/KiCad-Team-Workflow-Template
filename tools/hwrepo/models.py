@@ -395,6 +395,33 @@ class ProjectImportReport(StrictModel):
     next_step: str = "Review dependencies, populate independent test expectations, then run tools.ci. Import does not approve the design."
 
 
+class ImportInventoryCandidate(StrictModel):
+    """One suggested island and its unchanged-source import preview."""
+
+    source_project: NonEmptyText
+    suggested_project_id: Identifier
+    kind: ProjectKind | None
+    preview: ProjectImportReport
+    next_command: NonEmptyText
+
+
+class ImportInventoryReport(StrictModel):
+    """Read-only bulk intake plan; candidates still require individual review."""
+
+    schema_version: Literal["1"] = "1"
+    lane: Literal["IMPORT_INVENTORY"] = "IMPORT_INVENTORY"
+    source_directory: NonEmptyText
+    status: Literal["PASS", "NEEDS_WORK"]
+    copied: bool = False
+    candidates: tuple[ImportInventoryCandidate, ...] = ()
+    skipped_local_state: tuple[NonEmptyText, ...] = ()
+    issues: tuple[NonEmptyText, ...] = ()
+    next_step: NonEmptyText = (
+        "Review each candidate and its exclusions; run one import-project command per accepted design. "
+        "An import preview is not electrical validation."
+    )
+
+
 class ProductIndexEntry(StrictModel):
     id: Identifier
     path: RepositoryPath
