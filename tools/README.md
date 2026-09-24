@@ -2,6 +2,9 @@
 
 Run every CLI from the repository root as `python -B -m tools.<command>`.
 `tools.ci` is the common local and hosted entry point. See the [command guide](../docs/workflow/CHECKS_AND_CI.md).
+Use `python -B -m tools.template list --format text` to find registered project,
+product, tag and toolchain IDs before selecting a lane. Its `readiness` field only
+reports whether declared inputs are present; run checks to validate a design.
 Use `--project <id>` for one island, `--product <id>` for a registered product's
 members, or `--tag <tag>` for a manifest cohort. These include selectors form
 a union; `--exclude-tag <tag>` removes matches. The selected portable lane
@@ -19,6 +22,7 @@ Choose text for a concise terminal view and JSON for the complete typed result:
 | User-facing command | Human view | Agent/script view |
 | --- | --- | --- |
 | `tools.template diagnose` | Brief text by default; `--detail full` expands it | `--format json` |
+| `tools.template list` | `--format text` shows selections and next commands | JSON by default; typed inventory |
 | Other `tools.template` commands; `tools.ci`, `tools.hardware`, `tools.sourcing`, `tools.metrics` | `--format text` | JSON by default |
 | `tools.release prepare` | Text by default | `--format json` or `--json` |
 | Other `tools.release` commands | `--format text` | JSON by default |

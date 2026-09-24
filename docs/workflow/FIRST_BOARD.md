@@ -8,16 +8,21 @@ This is the shortest path from a fresh fork to a checked project island. Use
 2. Check the workstation and initialize the fresh repository:
 
    ```sh
-   python -B -m tools.template doctor
-   python -B -m tools.template adopt --project-id my-hardware
+   python -B -m tools.template doctor --format text
+   python -B -m tools.template adopt --project-id my-hardware --format text
    ```
 
 3. Create the first standalone board and check native-runner availability:
 
    ```sh
-   python -B -m tools.template new-project --project-id battery-board --kind pcb --toolchain kicad-10.0.5
-   python -B -m tools.template doctor --native --toolchain kicad-10.0.5
+   python -B -m tools.template list --format text
+   python -B -m tools.template new-project --project-id battery-board --kind pcb --toolchain kicad-10.0.5 --format text
+   python -B -m tools.template doctor --native --toolchain kicad-10.0.5 --format text
    ```
+
+   `list` reports the available toolchain IDs before creation. After saving the
+   board, its `INPUTS_PRESENT` state means only that declared files were found;
+   it is not an electrical or manufacturing approval.
 
 4. Create and save the design under `projects/battery-board/kicad/`. Complete its
    `project.json`, `tests/contract.json` and design notes; the generated skeleton is
@@ -39,8 +44,9 @@ This is the shortest path from a fresh fork to a checked project island. Use
 5. Run the fast island check, then the pinned native check:
 
    ```sh
-   python -B -m tools.ci --project battery-board
-   python -B -m tools.ci --kicad --project battery-board --output projects/battery-board/build/review-001
+   python -B -m tools.template list --format text
+   python -B -m tools.ci --project battery-board --format text
+   python -B -m tools.ci --kicad --project battery-board --output projects/battery-board/build/review-001 --format text
    ```
 
    If a check fails, run `python -B -m tools.template diagnose --project-id battery-board`

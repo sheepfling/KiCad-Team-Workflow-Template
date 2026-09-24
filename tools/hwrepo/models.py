@@ -1003,6 +1003,50 @@ class TemplateDoctorReport(StrictModel):
     next_actions: tuple[NonEmptyText, ...] = ()
 
 
+class InventoryProject(StrictModel):
+    """Declared island and whether its authored inputs are present for a check."""
+
+    id: Identifier
+    kind: ProjectKind
+    status: Literal["training_fixture", "engineering", "release_candidate"]
+    assurance_profile: Literal["training", "development", "production"]
+    manifest: RepositoryPath
+    project: RepositoryPath
+    toolchain_id: Identifier
+    tags: tuple[Identifier, ...]
+    products: tuple[Identifier, ...]
+    readiness: Literal["INPUTS_PRESENT", "NEEDS_INPUTS"]
+    missing_inputs: tuple[RepositoryPath, ...] = ()
+    next_command: NonEmptyText
+
+
+class InventoryGroup(StrictModel):
+    """One product or tag and its selected project IDs."""
+
+    id: Identifier
+    project_ids: tuple[Identifier, ...]
+
+
+class InventoryToolchain(StrictModel):
+    id: Identifier
+    kicad_version: NonEmptyText
+
+
+class TemplateInventoryReport(StrictModel):
+    """Read-only discovery; input presence is not validation or release approval."""
+
+    schema_version: Literal["1"] = "1"
+    lane: Literal["TEMPLATE_INVENTORY"] = "TEMPLATE_INVENTORY"
+    build_authorized: Literal[False] = False
+    status: Literal["PASS", "FAIL"]
+    projects: tuple[InventoryProject, ...] = ()
+    products: tuple[InventoryGroup, ...] = ()
+    tags: tuple[InventoryGroup, ...] = ()
+    toolchains: tuple[InventoryToolchain, ...] = ()
+    issues: tuple[PolicyIssue, ...] = ()
+    next_actions: tuple[NonEmptyText, ...] = ()
+
+
 class DiagnosticFinding(StrictModel):
     """One observed failure or review task with a concrete repair path."""
 

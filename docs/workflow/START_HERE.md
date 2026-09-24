@@ -14,8 +14,10 @@ to understand what belongs with each board and what is shared.
 2. For an optional [reference-project rehearsal](../../examples/README.md), use a separate
    uninitialized template checkout: initialization disables live example discovery.
    Check Git status before and after opening it in the exact catalogued KiCad version.
-3. Create an adopted project with `tools.template new-project`, choosing its ID, kind
-   and toolchain. It starts in `development`, visibly NOT FOR MANUFACTURE.
+3. Run `python -B -m tools.template list --format text` to see valid project IDs,
+   products, tags and toolchains. An adopted repository initially lists no projects.
+   Create one with `tools.template new-project`, choosing its ID, kind and toolchain.
+   It starts in `development`, visibly NOT FOR MANUFACTURE.
 4. Save its real source under `projects/<id>/kicad/`. Complete `project.json` and
    `tests/contract.json`; keep board requirements and decisions in its local docs.
 5. Use a short-lived branch and run `tools.ci --project <id>` while working on
@@ -58,7 +60,7 @@ placeholders. Development checks do not establish manufacturing readiness.
 
 Before native editing, run `python -m tools.check_toolchain --toolchain <toolchain-id>`.
 A cross-platform preflight for either Docker or an exact local KiCad CLI is
-`python -B -m tools.template doctor --native --toolchain <toolchain-id>`.
+`python -B -m tools.template doctor --native --toolchain <toolchain-id> --format text`.
 A different installed version requires the approved build or a dedicated toolchain
 migration. The controller fixture uses 10.0.0; the other reference projects use 10.0.5.
 

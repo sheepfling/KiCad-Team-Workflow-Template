@@ -48,6 +48,7 @@ python -m pip install -e '.[dev]'
 # Once in your fork, before adding designs:
 python -B -m tools.template doctor --format text
 python -B -m tools.template adopt --project-id my-hardware --format text
+python -B -m tools.template list --format text
 ```
 
 If activation is unavailable, invoke `.venv/bin/python` or
@@ -76,7 +77,7 @@ Discovery automatically adds each `projects/*/project.json` to CI.
 Keep projects directly under `projects/`; discovery does not recurse into a
 physical tree of nested projects. Use manifest tags for a flexible cohort and a
 registered product for a named group of related deliverables.
-Before native work, run `python -B -m tools.template doctor --native --toolchain kicad-10.0.5`.
+Before native work, run `python -B -m tools.template doctor --native --toolchain kicad-10.0.5 --format text`.
 
 For an existing design, use the [import workflow](docs/workflow/IMPORT_WORKFLOW.md).
 Exercise imports in a temporary copy and retain each run through its PR or CI artifacts.

@@ -5,8 +5,8 @@
 - [ ] Reference example
 - [ ] Adopted engineering project
 
-Project kind (`pcb`, `schematic`, `system_wiring`, or `harness_interface`):
-Assurance profile (`training` or `production`):
+Project kind (`pcb`, `pcb_only`, `schematic`, `system_wiring`, or `harness_interface`):
+Assurance profile (`training`, `development`, or `production`):
 
 Assignment / issue:
 Intended change:
