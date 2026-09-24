@@ -122,6 +122,8 @@ run uses Ubuntu portable checks and selected native lanes; a full manual run
 uses all three portable operating systems, every native lane and the release
 rehearsal. The controller's native fault probes run only for its known reference
 path when that project is in scope.
+Manual runs use distinct concurrency groups, so starting a focused check cannot
+cancel a main-branch full acceptance run or another engineer's manual check.
 The template pins its direct runtime and development-tool dependencies in
 `pyproject.toml`; each direct dependency selects its published compatible transitive
 requirements. Update direct pins as a reviewed change and rerun the portable/native
