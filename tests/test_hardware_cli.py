@@ -5,6 +5,7 @@ import json
 import sys
 import unittest
 from io import StringIO
+from pathlib import Path
 from unittest.mock import patch
 
 from tools.hardware import main
@@ -103,7 +104,7 @@ class HardwareCliTests(unittest.TestCase):
             self.assertEqual(main(), 0)
         text = output.getvalue()
         self.assertIn("Hardware snapshot: PASS", text)
-        self.assertIn("Output: build/review-1", text)
+        self.assertIn(f"Output: {Path('build/review-1')}", text)
         self.assertIn("Working tree clean: False", text)
         self.assertIn("kicad: NOT_RUN", text)
         self.assertIn("Build authorized: no", text)

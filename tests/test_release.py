@@ -301,7 +301,7 @@ class ReleaseReadinessTests(unittest.TestCase):
                 self.assertIn(f"PASS: release {command}", captured.getvalue())
                 self.assertIn("SHA-256: " + package_report.package_sha256, captured.getvalue())
                 if command == "restore":
-                    self.assertIn("Restored to: /tmp/restored", captured.getvalue())
+                    self.assertIn(f"Restored to: {Path('/tmp/restored')}", captured.getvalue())
 
 
 if __name__ == "__main__":
