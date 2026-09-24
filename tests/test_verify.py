@@ -16,6 +16,7 @@ from unittest.mock import patch
 
 from tests.support import initialize_git, reference_root
 from tools.check_toolchain import cli_executable
+from tools.ci import project_static_pipeline
 from tools.hwrepo.contracts import write_model
 from tools.hwrepo.models import (
     CheckAllSummary,
@@ -106,6 +107,34 @@ class VerifyTests(unittest.TestCase):
         assert result.diagnosis is not None
         self.assertEqual(result.diagnosis.findings[0].code, "DISCOVERY")
         self.assertTrue((Path(result.run_directory) / "diagnosis.txt").is_file())
+
+    def test_failed_portable_diagnosis_reuses_the_captured_report(self) -> None:
+        baseline = project_static_pipeline(self.root, ("controller",))
+        failed = baseline.model_copy(update={
+            "status": "FAIL",
+            "registry": baseline.registry.model_copy(update={
+                "status": "FAIL", "issues": ("Deliberate captured registry finding",),
+            }),
+        })
+        with (
+            patch("tools.verify.project_static_pipeline", return_value=failed) as first_run,
+            patch("tools.ci.project_static_pipeline", side_effect=AssertionError("portable rerun"))
+            as rerun,
+        ):
+            result = verify(self.root, "controller")
+        self.assertEqual(result.status, "FAIL", result.error)
+        first_run.assert_called_once_with(self.root, ("controller",))
+        rerun.assert_not_called()
+        self.assertEqual(
+            json.loads((Path(result.run_directory) / "portable.json").read_text()),
+            failed.model_dump(mode="json"),
+        )
+        self.assertIsNotNone(result.diagnosis)
+        assert result.diagnosis is not None
+        self.assertIn(
+            "Deliberate captured registry finding",
+            {item.observed for item in result.diagnosis.findings},
+        )
 
     def test_local_runner_uses_the_selected_project_and_exact_version(self) -> None:
         with (

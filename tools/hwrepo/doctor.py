@@ -65,6 +65,8 @@ def doctor(
     checks: list[EnvironmentCheck] = []
     if runner not in {"auto", "local", "container"}:
         raise ValueError(f"Unknown native runner: {runner}")
+    if not native and runner != "auto":
+        raise ValueError("--runner requires native doctor checks")
 
     python_version = ".".join(str(value) for value in sys.version_info[:3])
     python_ok = sys.version_info[:2] >= MINIMUM_PYTHON

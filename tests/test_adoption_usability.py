@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -80,6 +81,18 @@ class AdoptionUsabilityTests(unittest.TestCase):
         self.assertEqual(failures, {
             "python", "git", "git-repository", "native-target", "native-runner",
         })
+
+    def test_explicit_runner_requires_native_doctor_mode(self) -> None:
+        for runner in ("local", "container"):
+            with self.subTest(runner=runner), self.assertRaisesRegex(ValueError, "requires native"):
+                doctor(self.root, runner=runner)
+        command = subprocess.run(
+            (sys.executable, "-B", "-m", "tools.template", "doctor", "--root", str(self.root),
+             "--runner", "local", "--format", "text"),
+            cwd=self.root, capture_output=True, text=True, check=False,
+        )
+        self.assertEqual(command.returncode, 2)
+        self.assertIn("--runner requires --native", command.stderr)
 
     def test_native_doctor_rejects_a_toolchain_other_than_the_selected_project(self) -> None:
         with (

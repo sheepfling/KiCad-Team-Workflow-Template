@@ -103,7 +103,9 @@ when native inputs change. `--runner auto` uses an installed exact-version CLI
 first, then the project's digest-pinned Docker image. `--runner local` or
 `--runner container` makes that choice explicit.
 `tools.template doctor --native --project-id <id> --runner <choice>` checks the
-same runner readiness. The lower-level `tools.ci --kicad` remains useful in CI
+same runner readiness. An explicit `--runner local|container` requires
+`--native`; portable doctor checks alone cannot establish native readiness.
+The lower-level `tools.ci --kicad` remains useful in CI
 or when you manage the
 evidence path yourself; it does not choose Docker automatically. A tag or
 product selects a larger group without naming each member.

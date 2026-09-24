@@ -22,6 +22,7 @@ from .models import (
     PcbValidationContract,
     ProjectKind,
     ProjectManifest,
+    ProjectStaticPipelineReport,
     ValidationSummary,
 )
 from .selection import ProjectSelector, resolve_project_ids
@@ -236,14 +237,20 @@ def repository_guidance(issue: str, kicad_major: str | None = None) -> Diagnosti
 
 
 def portable_findings(
-    root: Path, project_id: str, journal: DiagnosticJournal | None = None
+    root: Path, project_id: str, journal: DiagnosticJournal | None = None,
+    portable_report: ProjectStaticPipelineReport | None = None,
 ) -> list[DiagnosticFinding]:
-    """Run the same selected portable lane as CI, then explain its constituent failures."""
-    from ..ci import project_static_pipeline
+    """Explain captured portable evidence, or run a fresh lane for standalone diagnosis."""
+    if portable_report is None:
+        from ..ci import project_static_pipeline
 
-    result = project_static_pipeline(root, (project_id,))
-    if journal is not None:
-        journal.save_model("portable", result)
+        result = project_static_pipeline(root, (project_id,))
+        if journal is not None:
+            journal.save_model("portable", result)
+    else:
+        if portable_report.projects != (project_id,):
+            raise ValueError("Captured portable report does not match the diagnosed project")
+        result = portable_report
     registry = load_registry(root)
     project = next(item for item in registry.projects if item.id == project_id)
     manifest_path = repo_path(root, project.config)
@@ -581,14 +588,18 @@ def diagnose_project(
     root: Path, project_id: str, native_report: Path | None = None,
     bom: Path | None = None,
     journal: DiagnosticJournal | None = None,
+    portable_report: ProjectStaticPipelineReport | None = None,
 ) -> DiagnosticReport:
     """Give one project a portable check and optional native/BOM follow-up."""
     root = root.resolve()
     try:
         with journal.stage("project-selection") if journal is not None else nullcontext():
-            selected = resolve_project_ids(root, ProjectSelector(project_ids=(project_id,)))
+            selected = (
+                resolve_project_ids(root, ProjectSelector(project_ids=(project_id,)))
+                if portable_report is None else (project_id,)
+            )
         with journal.stage("portable") if journal is not None else nullcontext():
-            findings = portable_findings(root, selected[0], journal)
+            findings = portable_findings(root, selected[0], journal, portable_report)
     except (OSError, ValueError, TypeError) as exc:
         if journal is not None:
             journal.event("discovery", "HANDLED", f"{type(exc).__name__}: {exc}")

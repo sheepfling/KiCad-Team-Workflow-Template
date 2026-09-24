@@ -21,6 +21,7 @@ from .hwrepo.models import (
     CheckAllSummary,
     CommandEvidence,
     DiagnosticReport,
+    ProjectStaticPipelineReport,
     ProjectVerificationReport,
 )
 from .hwrepo.selection import ProjectSelector, resolve_project_ids
@@ -112,7 +113,7 @@ def verify(
         if not output.is_relative_to(root / "build"):
             raise ValueError("Verification output must be under this repository's ignored build/")
     journal = DiagnosticJournal(root, project_id, output, label="verify")
-    portable = None
+    portable: ProjectStaticPipelineReport | None = None
     native_doctor = None
     dependency_command = None
     native_command = None
@@ -124,7 +125,9 @@ def verify(
     status: Literal["PASS", "FAIL", "ERROR"] = "FAIL"
 
     def diagnose(native_report: Path | None = None) -> DiagnosticReport:
-        result = diagnose_project(root, project_id, native_report, journal=journal)
+        result = diagnose_project(
+            root, project_id, native_report, journal=journal, portable_report=portable,
+        )
         result = result.model_copy(update={"run_directory": str(journal.directory)})
         journal.save_model("diagnosis", result)
         (journal.directory / "diagnosis.txt").write_text(

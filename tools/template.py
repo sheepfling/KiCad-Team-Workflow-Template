@@ -44,7 +44,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--runner", choices=("auto", "local", "container"), default="auto",
-        help="Doctor native runner; auto prefers an exact local CLI, then Docker",
+        help="Doctor native runner; requires --native; auto prefers an exact local CLI, then Docker",
     )
     parser.add_argument("--source", type=Path, help="Existing .kicad_pro file to import")
     parser.add_argument("--dry-run", action="store_true", help="Preview an import without writing files")
@@ -71,6 +71,8 @@ def main() -> int:
         parser.error("--native requires doctor")
     if args.command != "doctor" and args.runner != "auto":
         parser.error("--runner requires doctor")
+    if args.command == "doctor" and not args.native and args.runner != "auto":
+        parser.error("--runner requires --native")
     if args.command == "doctor":
         result = doctor(
             args.root, args.native, args.toolchain, args.cli,
