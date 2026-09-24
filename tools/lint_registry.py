@@ -19,6 +19,7 @@ from .hwrepo.models import (
     PartStatus,
     PcbValidationContract,
     ProjectKind,
+    ProjectManifest,
     ReleaseClass,
     ReleasePoliciesCatalog,
     SchematicValidationContract,
@@ -179,6 +180,15 @@ def lint(
                 )
     for library in libraries.values():
         try:
+            library_parts = Path(library.path).parts
+            if not (
+                (len(library_parts) == 2 and library_parts[0] == "libraries")
+                or (len(library_parts) == 3 and library_parts[:2] == ("examples", "libraries"))
+            ):
+                issues.append(
+                    f"library {library.id}: path must be a named directory under libraries/ "
+                    "or examples/libraries/"
+                )
             if not repo_path(root, library.path).is_dir():
                 issues.append(
                     f"library {library.id}: declared path is missing: {library.path}"
@@ -229,6 +239,7 @@ def lint(
             if not project_file.is_file():
                 issues.append(f"project {identifier}: project file is missing")
             config = load_config(root, project.config)
+            manifest = read_model(repo_path(root, project.config), ProjectManifest)
         except (OSError, ValueError) as exc:
             issues.append(f"project {identifier}: invalid project/configuration: {exc}")
             continue
@@ -402,6 +413,15 @@ def lint(
                 issues.append(
                     f"project {identifier}: production library {library_id} must have status approved"
                 )
+        expected_shared_roots = {
+            libraries[library_id].path
+            for library_id in project.library_ids if library_id in libraries
+        }
+        if set(manifest.shared_source_roots) != expected_shared_roots:
+            issues.append(
+                f"project {identifier}: shared_source_roots must match library_ids catalog paths: "
+                f"{sorted(set(manifest.shared_source_roots) ^ expected_shared_roots)}"
+            )
 
     return GovernanceLintReport(
         projects=project_ids,

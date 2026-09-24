@@ -196,6 +196,16 @@ def repository_guidance(issue: str, kicad_major: str | None = None) -> Diagnosti
                 "Find and include the intended asset or correct the reference. Do not create "
                 "a placeholder model solely to satisfy this check."
             )
+        elif any(marker in observed for marker in (
+            "not in this project's required_inputs", "no inventoried inputs",
+            "outside this project's source_roots", "exposes unlisted files",
+        )):
+            action = (
+                "If this is board-local, add the asset under this project's source_roots and "
+                "required_inputs. If multiple boards use it, move it into a registered "
+                "libraries/<id>/ directory, declare its catalog ID and complete shared "
+                "inventory in each board's project.json, then update the KiCad table."
+            )
         else:
             action = "Correct the named KiCad dependency and rerun the selected portable check."
         return finding("BLOCKING", "CAD_PATH", location or "KiCad source",

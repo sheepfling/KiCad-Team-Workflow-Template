@@ -60,8 +60,10 @@ Local library tables sit beside the KiCad project; board-local assets belong the
 toolchain, source inventory, reusable dependency IDs and the test-contract path.
 Its `project`, `source_roots`, `required_inputs`, `checks`, `mechanical_handoff` and
 `governance_record` paths are relative to its own directory. `shared_source_roots`
-and `shared_inputs` are explicitly repository-relative. Absolute paths, parent
-traversal and symlink dependencies fail validation.
+and `shared_inputs` are explicitly repository-relative and must match registered
+library IDs. Manifest paths reject absolute paths, parent traversal and symlinks.
+KiCad library tables may use `${KIPRJMOD}/../` to reach an inventoried shared
+library inside this repository; see the [library policy](LIBRARIES.md).
 
 `tests/contract.json` owns independent expected nets/components or view traceability.
 The native validator compares the actual design against it. Optional `test_*.py` files

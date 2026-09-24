@@ -192,7 +192,11 @@ def unmanaged_artifact(name: str) -> bool:
     return path.suffix.casefold() in UNMANAGED_ARTIFACT_SUFFIXES
 
 
-def cad_dependencies(root: Path, file: Path, project_dir: Path, major: str) -> list[str]:
+def cad_dependencies(
+    root: Path, file: Path, project_dir: Path, major: str,
+    inventoried_inputs: frozenset[str],
+    source_roots: frozenset[str],
+) -> list[str]:
     issues: list[str] = []
     text = file.read_text(encoding="utf-8")
     embedded = set(re.findall(
@@ -230,8 +234,27 @@ def cad_dependencies(root: Path, file: Path, project_dir: Path, major: str) -> l
             # Collapse relative .. only after anchoring at the project directory.
             normalized = Path(os.path.abspath(target))
             relative = normalized.relative_to(root).as_posix()
-            if not repo_path(root, relative).exists():
+            dependency = repo_path(root, relative)
+            if not dependency.exists():
                 raise ValueError("missing dependency")
+            if dependency.is_file() and relative not in inventoried_inputs:
+                raise ValueError("dependency is not in this project's required_inputs")
+            if dependency.is_dir():
+                if not any(
+                    relative == source or relative.startswith(f"{source}/")
+                    for source in source_roots
+                ):
+                    raise ValueError("library directory is outside this project's source_roots")
+                exposed = {
+                    child.relative_to(root).as_posix()
+                    for child in dependency.rglob("*")
+                    if child.is_file() and child.suffix != ".kicad_prl"
+                    and child.name != "fp-info-cache"
+                }
+                if not exposed:
+                    raise ValueError("library directory has no inventoried inputs for this project")
+                if unlisted := exposed - inventoried_inputs:
+                    raise ValueError(f"library directory exposes unlisted files: {sorted(unlisted)}")
         except ValueError as exc:
             issues.append(f"CAD_PATH: {label}: {value!r}: {exc}")
     return issues
@@ -253,6 +276,8 @@ def check_repository(
             config = load_config(root, project.config)
             directory = repo_path(root, project.project).parent
             inventories.update(config.required_inputs)
+            inventoried_inputs = frozenset(config.required_inputs)
+            source_roots = frozenset(config.source_roots)
             for name in config.required_inputs:
                 path = repo_path(root, name)
                 if path.suffix in {".kicad_pcb", ".kicad_mod"} or path.name in {"sym-lib-table", "fp-lib-table"}:
@@ -262,6 +287,8 @@ def check_repository(
                             path,
                             directory,
                             config.kicad_version.split(".")[0],
+                            inventoried_inputs,
+                            source_roots,
                         )
                     )
         if selected is None:

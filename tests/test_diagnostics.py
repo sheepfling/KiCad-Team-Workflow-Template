@@ -339,6 +339,10 @@ class DiagnosticTests(unittest.TestCase):
             ("missing dependency model.step", "intended asset"),
             ("missing embedded model kicad-embed://model.step", "intended asset"),
             ("invalid versioned KiCad library path", "pinned KiCad"),
+            ("dependency is not in this project's required_inputs", "registered libraries/<id>/"),
+            ("library directory has no inventoried inputs for this project", "registered libraries/<id>/"),
+            ("library directory is outside this project's source_roots", "registered libraries/<id>/"),
+            ("library directory exposes unlisted files", "registered libraries/<id>/"),
         )
         for observed, repair in cases:
             with self.subTest(observed=observed):

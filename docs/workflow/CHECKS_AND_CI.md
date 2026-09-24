@@ -69,6 +69,13 @@ The final acceptance check requires the matrix, portable jobs, native jobs and a
 standalone release/restore rehearsal to pass. The rehearsal commits a disposable
 reference checkout, exports using pinned KiCad, prepares an engineering-review
 manifest, packages it and verifies an actual restore. It does not approve hardware.
+Native jobs start after project discovery and run alongside the portable OS jobs;
+the release rehearsal starts after native jobs, without waiting for Windows. This
+shortens PR turnaround while the final acceptance check still waits for all jobs.
+Adding projects increases portable inventory and project-test work, and adds one
+native job per project. Native jobs can run concurrently subject to hosted runner
+capacity, so elapsed time need not grow one-for-one with project count; total CI
+compute and any runner queue can still grow.
 
 An initialized fork with no projects emits an empty matrix. Only that explicit
 condition allows native/release jobs to be skipped; the final check still requires

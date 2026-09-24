@@ -115,6 +115,15 @@ class CiDriverTests(unittest.TestCase):
         self.assertNotIn("ruff==", workflow)
         self.assertIn("needs: [project-matrix, python-tests, kicad, release-rehearsal]", workflow)
 
+    def test_hosted_native_and_release_work_do_not_wait_for_windows(self) -> None:
+        workflow = (ROOT / ".github/workflows/kicad-template.yml").read_text(encoding="utf-8")
+        native = workflow.split("  kicad:\n", 1)[1].split("  release-rehearsal:\n", 1)[0]
+        release = workflow.split("  release-rehearsal:\n", 1)[1].split("  engineering-gate:\n", 1)[0]
+        self.assertIn("needs: [project-matrix]", native)
+        self.assertIn("needs: [kicad]", release)
+        self.assertNotIn("python-tests", native)
+        self.assertNotIn("python-tests", release)
+
     def test_workflow_delegates_policy_work_to_the_driver(self) -> None:
         workflow = (ROOT / ".github/workflows/kicad-template.yml").read_text(
             encoding="utf-8"
