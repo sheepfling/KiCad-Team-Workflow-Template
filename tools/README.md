@@ -19,6 +19,9 @@ PR scope and why projects were chosen. For a manual hosted run, use
 `tools.impact --select-project <id>`, `--select-product <id>` or
 `--select-tag <tag>` to preview one focused selection; `--full` previews the
 default full run.
+For a legacy directory with several projects, `tools.template scan-imports`
+previews each candidate without copying it. JSON retains per-file hashes and
+exclusion reasons; import one accepted project at a time.
 The CLIs use `argparse`; a Typer dependency is not required for human output.
 Choose text for a concise terminal view and JSON for the complete typed result:
 

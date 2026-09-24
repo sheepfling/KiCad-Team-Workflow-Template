@@ -18,6 +18,10 @@ This file is for coding agents and engineers using an agent. Start with the
   `python -B -m tools.template diagnose --source <path-to-.kicad_pro> --project-id <id> --toolchain <id>`.
   Read the import inventory and repair missing sheets or nonportable paths in
   the original source. Then follow the [import workflow](docs/workflow/IMPORT_WORKFLOW.md).
+  For a directory with several candidates, first run
+  `python -B -m tools.template scan-imports --source-dir <directory> --toolchain <id> --format json`.
+  Review suggested IDs and every exclusion; the command is read-only and does
+  not establish design completeness or electrical correctness.
 - For a registered board, run
   `python -B -m tools.template diagnose --project-id <id>` before changing
   policy or tests. The default output groups repeated causes; `--detail full`

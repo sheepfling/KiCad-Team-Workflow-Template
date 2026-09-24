@@ -83,6 +83,9 @@ will use.
 
 For an existing design, use the [import workflow](docs/workflow/IMPORT_WORKFLOW.md).
 Exercise imports in a temporary copy and retain each run through its PR or CI artifacts.
+For a directory of candidate designs, `tools.template scan-imports` previews
+every project without copying it; inspect the full JSON before importing each
+accepted island.
 
 ## Checks
 

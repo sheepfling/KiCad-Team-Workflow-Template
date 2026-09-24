@@ -10,6 +10,7 @@ from .hwrepo.cli_output import summary
 from .hwrepo.diagnostic_journal import DiagnosticJournal
 from .hwrepo.diagnostics import diagnose_import, diagnose_project, format_text
 from .hwrepo.doctor import doctor
+from .hwrepo.import_inventory import format_import_inventory, scan_imports
 from .hwrepo.importing import import_project
 from .hwrepo.initialization import initialize
 from .hwrepo.inventory import format_inventory, inventory
@@ -25,7 +26,7 @@ def main() -> int:
         "command",
         choices=(
             "doctor", "adopt", "init", "preflight", "bootstrap", "upgrade-plan",
-            "new-project", "import-project", "diagnose", "rescue", "list",
+            "new-project", "import-project", "scan-imports", "diagnose", "rescue", "list",
         ),
     )
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
@@ -47,6 +48,8 @@ def main() -> int:
         help="Doctor native runner; requires --native; auto prefers an exact local CLI, then Docker",
     )
     parser.add_argument("--source", type=Path, help="Existing .kicad_pro file to import")
+    parser.add_argument("--source-dir", type=Path,
+                        help="Directory of candidate .kicad_pro files to inventory without copying")
     parser.add_argument("--dry-run", action="store_true", help="Preview an import without writing files")
     parser.add_argument("--native-report", type=Path, help="Project native summary.json to explain")
     parser.add_argument("--bom", type=Path, help="Native assembly/bom.csv to check for part identities")
@@ -59,6 +62,8 @@ def main() -> int:
     args = parser.parse_args()
     if args.command not in {"import-project", "diagnose"} and args.source is not None:
         parser.error("--source requires import-project or diagnose")
+    if args.command != "scan-imports" and args.source_dir is not None:
+        parser.error("--source-dir requires scan-imports")
     if args.command != "import-project" and args.dry_run:
         parser.error("--dry-run options require import-project")
     if args.command != "diagnose" and (args.native_report or args.bom):
@@ -117,6 +122,13 @@ def main() -> int:
         if args.project_id is None or args.toolchain is None or args.source is None:
             parser.error("import-project requires --source, --project-id and --toolchain")
         result = import_project(args.root, args.source, args.project_id, args.toolchain, args.dry_run)
+    elif args.command == "scan-imports":
+        if args.source_dir is None or args.toolchain is None:
+            parser.error("scan-imports requires --source-dir and --toolchain")
+        report = scan_imports(args.root, args.source_dir, args.toolchain)
+        print(format_import_inventory(report) if args.format == "text"
+              else report.model_dump_json(indent=2))
+        return 0 if report.status == "PASS" else 1
     elif args.command == "diagnose":
         if args.project_id is None:
             parser.error("diagnose requires --project-id")
