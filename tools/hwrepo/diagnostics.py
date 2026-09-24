@@ -625,7 +625,7 @@ def format_text(result: DiagnosticReport, detail: Literal["brief", "full"] = "br
                     continue
                 number += 1
                 lines.extend((
-                    f"{number}. [{row.severity}] {row.code} — {row.location}",
+                    f"{number}. [{row.severity}] {row.code} at {row.location}",
                     f"   Observed: {row.observed}",
                     f"   Fix: {row.action}",
                     f"   Guide: {row.guide}",

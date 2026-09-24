@@ -291,6 +291,7 @@ class DiagnosticTests(unittest.TestCase):
         self.assertNotIn("board.kicad_pcb:4", formatted)
         self.assertEqual(len(result.findings), 5)
         full = format_text(result, "full")
+        self.assertIn("CAD_PATH at board.kicad_pcb:4", full)
         self.assertIn("board.kicad_pcb:4", full)
         self.assertEqual(full.count("Move the asset into the project."), 5)
 
