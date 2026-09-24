@@ -37,7 +37,10 @@ def reference_root() -> Path:
     destination.mkdir()
     for directory in ("tools", "tests", "docs", "templates", "examples", ".github"):
         shutil.copytree(SOURCE_ROOT / directory, destination / directory, ignore=ignore_local)
-    for name in ("README.md", "CHANGELOG.md", ".gitignore", ".gitattributes", "pyproject.toml"):
+    for name in (
+        "README.md", "AGENTS.md", "CLAUDE.md", "CHANGELOG.md",
+        ".gitignore", ".gitattributes", "pyproject.toml",
+    ):
         shutil.copy2(SOURCE_ROOT / name, destination / name)
     # Adopters may have their own root license or none yet; shared-tool tests
     # always exercise the original template notice in a disposable checkout.

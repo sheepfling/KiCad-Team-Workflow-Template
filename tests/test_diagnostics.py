@@ -225,6 +225,17 @@ class DiagnosticTests(unittest.TestCase):
                                      capture_output=True, text=True, check=False)
         self.assertEqual(json_result.returncode, 1)
         self.assertEqual(json.loads(json_result.stdout)["run_directory"], str(json_log.resolve()))
+        full_log = self.root / "full-log"
+        full_result = subprocess.run((*command, "--detail", "full", "--log-dir", str(full_log)),
+                                     capture_output=True, text=True, check=False)
+        self.assertEqual(full_result.returncode, 1)
+        self.assertIn("[BLOCKING] IMPORT", full_result.stdout)
+        self.assertEqual((full_log / "diagnosis.txt").read_text().strip(),
+                         full_result.stdout.strip())
+        incompatible = subprocess.run((*command, "--format", "json", "--detail", "full"),
+                                      capture_output=True, text=True, check=False)
+        self.assertEqual(incompatible.returncode, 2)
+        self.assertIn("JSON already includes every finding", incompatible.stderr)
         unused_flag = subprocess.run((sys.executable, "-B", "-m", "tools.template", "doctor",
                                       "--format", "text"), capture_output=True,
                                      text=True, check=False)
@@ -279,6 +290,9 @@ class DiagnosticTests(unittest.TestCase):
         self.assertIn("... and 2 more in diagnosis.json", formatted)
         self.assertNotIn("board.kicad_pcb:4", formatted)
         self.assertEqual(len(result.findings), 5)
+        full = format_text(result, "full")
+        self.assertIn("board.kicad_pcb:4", full)
+        self.assertEqual(full.count("Move the asset into the project."), 5)
 
     def test_next_command_quotes_powershell_apostrophes(self) -> None:
         self.assertEqual(quote_argument("C:\\Users\\O'Connor\\board", windows=True),

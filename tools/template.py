@@ -42,6 +42,8 @@ def main() -> int:
     parser.add_argument("--bom", type=Path, help="Native assembly/bom.csv to check for part identities")
     parser.add_argument("--format", choices=("text", "json"),
                         help="Output format for diagnose (default: text)")
+    parser.add_argument("--detail", choices=("brief", "full"),
+                        help="Text detail for diagnose (default: brief; JSON is always full)")
     parser.add_argument("--log-dir", type=Path,
                         help="New diagnostic receipt directory (default: ignored build/diagnostics)")
     args = parser.parse_args()
@@ -50,9 +52,10 @@ def main() -> int:
     if args.command != "import-project" and args.dry_run:
         parser.error("--dry-run options require import-project")
     if args.command != "diagnose" and (
-        args.native_report or args.bom or args.format is not None or args.log_dir is not None
+        args.native_report or args.bom or args.format is not None
+        or args.detail is not None or args.log_dir is not None
     ):
-        parser.error("--native-report, --bom, --format and --log-dir require diagnose")
+        parser.error("--native-report, --bom, --format, --detail and --log-dir require diagnose")
     if args.command != "doctor" and args.native:
         parser.error("--native requires doctor")
     if args.command == "doctor":
@@ -72,6 +75,8 @@ def main() -> int:
     elif args.command == "diagnose":
         if args.project_id is None:
             parser.error("diagnose requires --project-id")
+        if args.format == "json" and args.detail is not None:
+            parser.error("--detail is for text; JSON already includes every finding")
         if args.source is not None:
             if args.toolchain is None or args.native_report or args.bom:
                 parser.error("diagnose --source requires --toolchain and cannot use native/BOM reports")
@@ -97,7 +102,7 @@ def main() -> int:
                     args.root, args.project_id, args.native_report, args.bom, journal
                 )
             result = result.model_copy(update={"run_directory": str(journal.directory)})
-            human_text = format_text(result)
+            human_text = format_text(result, args.detail or "brief")
             journal.finish(result, human_text, result.status)
         except Exception as exc:  # noqa: BLE001 - CLI boundary must retain unexpected tracebacks
             journal.fail(exc)

@@ -28,6 +28,26 @@ For a crash, start with `events.log`, then `error.txt`; retain both when asking 
 tool maintainer for help. If the log cannot be created, fix `build/` permissions or
 use `--log-dir` outside the checkout.
 
+Choose the amount of output you need without changing the checks:
+
+| View | Command option | Use it for |
+| --- | --- | --- |
+| Short repair queue | default or `--detail brief` | First pass: repeated causes are grouped, with up to three example locations per group. |
+| Every finding in text | `--detail full` | A larger terminal dump with every location, observation, repair action and guide. The same text is saved as `diagnosis.txt`. |
+| Complete structured data | `--format json` | Scripts or agents that need stable fields and every finding. The same data is saved as `diagnosis.json` on every run. |
+
+The options work with either import preview or an existing project. JSON
+already contains all findings, so it does not take `--detail`. Progress
+messages go to stderr; stdout stays suitable for saving or parsing. A large
+board may have hundreds of instances of one cause: start with the short queue,
+then inspect the full receipt to find all locations. Do not paste a huge dump
+into project documentation.
+
+For a tool failure, read `events.log` to find the last stage and `error.txt`
+for the traceback. Include those files, the command, and `run.json` when
+reporting a coach bug. The stage log identifies whether import preview,
+portable checks, native-report inspection or BOM inspection stopped.
+
 ## Before importing
 
 ```sh
@@ -83,6 +103,33 @@ When `PROJECT_TEST` names `discovery`, check that the island has discoverable
 The selected gate detects a newly added failing test automatically; do not edit a
 central list of test lanes. For a missing asset, first inspect the named KiCad
 source location and the corresponding file path. Do not suppress the policy check.
+
+## Repair loop for people and agents
+
+1. Select the board ID and run the smallest relevant diagnosis: import preview
+   before copying, or the selected project lane after copying. Keep the receipt
+   path from the terminal.
+2. Work through `BLOCKING` groups first. Open the named source location and
+   underlying `import-preview.json`, `portable.json`, or native report when the
+   short explanation is insufficient. Use `--detail full` or `diagnosis.json`
+   to find the remaining instances of a repeated cause.
+3. Fix the authoritative input, not the generated report. Mechanical repairs
+   include correcting a known filename or case mismatch, restoring a missing
+   declared asset from its source, and repairing test discovery. Inspect the
+   diff before proceeding.
+4. Treat circuit topology, pins, part substitutions, net expectations,
+   ERC/DRC exclusions and release decisions as engineering choices. Compare
+   them with requirements and ask the responsible engineer when evidence is
+   missing; an agent must not invent an electrical expectation or waive a
+   check to obtain a green result.
+5. Rerun diagnosis and the selected CI lane after each source fix. Run the full
+   CI gate before review. After KiCad source changes, regenerate native results
+   in a fresh output directory and recheck any derived BOM or export.
+
+For handoff, report the project ID, branch/commit, command, receipt directory,
+finding code and source location, repair made, checks rerun, and any unresolved
+engineering decision. Keep evidence in ignored `build/`, a CI artifact, or the
+issue/PR; keep durable design decisions in that project's `docs/`.
 
 ## After a native check
 

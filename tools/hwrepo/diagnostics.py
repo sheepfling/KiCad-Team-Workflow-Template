@@ -8,6 +8,7 @@ import xml.etree.ElementTree as ET
 from collections import Counter
 from contextlib import nullcontext
 from pathlib import Path
+from typing import Literal
 
 from .contracts import read_model, repo_path
 from .diagnostic_journal import DiagnosticJournal
@@ -610,24 +611,38 @@ def diagnose_project(
     return report(project_id, "project", findings, next_command)
 
 
-def format_text(result: DiagnosticReport) -> str:
-    """Show a small ordered repair queue; the ignored receipt retains every detail."""
+def format_text(result: DiagnosticReport, detail: Literal["brief", "full"] = "brief") -> str:
+    """Show a short repair queue or every finding without losing its source location."""
     blocking = sum(row.severity == "BLOCKING" for row in result.findings)
     review = len(result.findings) - blocking
     lines = [f"{result.status}: {result.scope} diagnostics for {result.project_id}",
              f"{blocking} blocking finding(s); {review} review task(s)."]
-    groups: dict[tuple[str, str, str, str], list[DiagnosticFinding]] = {}
-    for severity in ("BLOCKING", "REVIEW"):
-        for row in result.findings:
-            if row.severity == severity:
-                groups.setdefault((row.severity, row.code, row.action, row.guide), []).append(row)
-    for number, ((severity, code, action, guide), rows) in enumerate(groups.items(), 1):
-        lines.append(f"{number}. [{severity}] {code} ({len(rows)} finding(s))")
-        for row in rows[:3]:
-            lines.append(f"   At {row.location}: {row.observed}")
-        if len(rows) > 3:
-            lines.append(f"   ... and {len(rows) - 3} more in diagnosis.json")
-        lines.extend((f"   Fix: {action}", f"   Guide: {guide}"))
+    if detail == "full":
+        number = 0
+        for severity in ("BLOCKING", "REVIEW"):
+            for row in result.findings:
+                if row.severity != severity:
+                    continue
+                number += 1
+                lines.extend((
+                    f"{number}. [{row.severity}] {row.code} — {row.location}",
+                    f"   Observed: {row.observed}",
+                    f"   Fix: {row.action}",
+                    f"   Guide: {row.guide}",
+                ))
+    else:
+        groups: dict[tuple[str, str, str, str], list[DiagnosticFinding]] = {}
+        for severity in ("BLOCKING", "REVIEW"):
+            for row in result.findings:
+                if row.severity == severity:
+                    groups.setdefault((row.severity, row.code, row.action, row.guide), []).append(row)
+        for number, ((severity, code, action, guide), rows) in enumerate(groups.items(), 1):
+            lines.append(f"{number}. [{severity}] {code} ({len(rows)} finding(s))")
+            for row in rows[:3]:
+                lines.append(f"   At {row.location}: {row.observed}")
+            if len(rows) > 3:
+                lines.append(f"   ... and {len(rows) - 3} more in diagnosis.json")
+            lines.extend((f"   Fix: {action}", f"   Guide: {guide}"))
     if not result.findings:
         lines.append("No diagnosed problems in this scope. Continue with the selected CI lane.")
     lines.extend((f"Next command: {result.next_command}",

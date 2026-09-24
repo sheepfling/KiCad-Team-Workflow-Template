@@ -444,7 +444,10 @@ def snapshot(root: Path, output: Path) -> SnapshotManifest:
         path.relative_to(root).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
         for path in sorted(sources)
     }
-    for name in ("README.md", ".gitattributes", ".gitignore", "pyproject.toml", "template-adoption.json"):
+    for name in (
+        "README.md", "AGENTS.md", "CLAUDE.md", "CHANGELOG.md", ".gitattributes",
+        ".gitignore", "pyproject.toml", "template-adoption.json",
+    ):
         if (root / name).is_file():
             source_hashes[name] = hashlib.sha256((root / name).read_bytes()).hexdigest()
     manifest = SnapshotManifest(
