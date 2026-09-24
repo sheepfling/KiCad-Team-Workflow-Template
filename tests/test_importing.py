@@ -111,6 +111,7 @@ class ImportTests(unittest.TestCase):
         self.assertEqual(dry_run.status, "PASS", dry_run.issues)
         self.assertFalse((self.root / dry_run.directory).exists())
         self.assertIn("authoritative schematic", dry_run.next_step)
+        self.assertIn("tools.verify --project", dry_run.next_step)
         result = self.run_import()
         self.assertEqual(result.status, "PASS", result.issues)
         island = self.root / result.directory

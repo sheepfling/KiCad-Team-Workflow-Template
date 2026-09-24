@@ -72,11 +72,12 @@ def project_readme(project_id: str, kind: ProjectKind = ProjectKind.PCB) -> Docu
     paragraph(
         document,
         "From the repository root: ",
-        Inline(f"python -B -m tools.ci --project {project_id}", code=True),
+        Inline(f"python -B -m tools.verify --project {project_id}", code=True),
         ".",
     )
     document.add_paragraph(
-        "Checks will fail until the native files and engineering expectations exist."
+        "Checks will fail until the native files and engineering expectations exist. "
+        "After they are authored, add --depth native for exact KiCad checks and an ignored receipt."
     )
     return document
 
@@ -119,11 +120,12 @@ def imported_project_readme(
     paragraph(
         document,
         "From the repository root: ",
-        Inline(f"python -B -m tools.ci --project {project_id}", code=True),
+        Inline(f"python -B -m tools.verify --project {project_id}", code=True),
         ".",
     )
     document.add_paragraph(
-        "Import success means source was copied, not that native validation passes."
+        "Import success means source was copied, not that native validation passes. "
+        "After independently authoring the contract, add --depth native for exact KiCad checks."
     )
     links = tuple(
         Inline(f"Upstream {name}", link=quote(f"kicad/{name}"))

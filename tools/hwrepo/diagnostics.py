@@ -289,7 +289,7 @@ def portable_findings(
             "the selected check."
             if name == "discovery" or "none were discovered" in (command.error or "") else
             "Open the failing test and its assertion, repair the design or test fixture from "
-            "the requirement, then rerun the selected CI lane. The complete test stderr "
+            "the requirement, then rerun the selected verification. The complete test stderr "
             "is in this run's portable.json."
         )
         findings.append(finding(
@@ -615,7 +615,12 @@ def diagnose_project(
         with journal.stage("bom") if journal is not None else nullcontext():
             findings.extend(bom_binding_findings(root, project_id, bom, native_report))
             findings.extend(bom_findings(root, bom))
-    if any(row.severity == "BLOCKING" for row in findings):
+    if any(row.code == "STALE_NATIVE_REPORT" for row in findings):
+        next_command = (
+            f"python -B -m tools.verify --root {quote_argument(str(root))} "
+            f"--project {quote_argument(project_id)} --depth native"
+        )
+    elif any(row.severity == "BLOCKING" for row in findings):
         next_command = (
             f"python -B -m tools.template diagnose --root {quote_argument(str(root))} "
             f"--project-id {quote_argument(project_id)}"
@@ -626,7 +631,7 @@ def diagnose_project(
             next_command += f" --bom {quote_argument(str(bom))}"
     else:
         next_command = (
-            f"python -B -m tools.ci --root {quote_argument(str(root))} "
+            f"python -B -m tools.verify --root {quote_argument(str(root))} "
             f"--project {quote_argument(project_id)}"
         )
     return report(project_id, "project", findings, next_command)
@@ -665,14 +670,14 @@ def format_text(result: DiagnosticReport, detail: Literal["brief", "full"] = "br
                 lines.append(f"   ... and {len(rows) - 3} more in diagnosis.json")
             lines.extend((f"   Fix: {action}", f"   Guide: {guide}"))
     if not result.findings:
-        lines.append("No diagnosed problems in this scope. Continue with the selected CI lane.")
+        lines.append("No diagnosed problems in this scope. Continue with the selected verification command.")
     lines.extend((f"Next command: {result.next_command}",
                   "Diagnostic success does not approve the electrical design or a release."))
     if any(row.code.startswith("NATIVE_") or row.code.startswith("BOM_")
            or row.code == "STALE_NATIVE_REPORT" for row in result.findings):
         lines.append(
-            "After changing KiCad source or check settings, run a new native check in a "
-            "fresh output directory and replace --native-report/--bom paths above."
+            "After changing KiCad source or check settings, use tools.verify --depth native "
+            "for a fresh report and replace any --native-report/--bom paths above."
         )
     if result.run_directory is not None:
         lines.append(f"Run log: {Path(result.run_directory) / 'events.log'}")
