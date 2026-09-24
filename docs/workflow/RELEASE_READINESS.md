@@ -22,6 +22,17 @@ hashes the entire clean source commit, so it cannot be mistaken for a full gate.
 Run `python -B -m tools.ci --format text` and the hosted full CI gate separately
 for repository-wide acceptance.
 
+For a hosted rehearsal of one registered project, open **Actions → Selected release
+candidate → Run workflow** and enter its registered project ID (see
+`python -B -m tools.template list --format text`). This manually triggered job
+prepares, checks, packages and verifies an `engineering_review` candidate from
+the selected GitHub commit. It fetches full source history for the restorable
+Git bundle and retains its ignored evidence as a 30-day CI
+artifact. It adds no time to ordinary PR checks. Review the artifact and the
+actual board outputs. An example project can exercise the template path before
+adoption, but it is training-only. This rehearsal is not a manufacturing release or a
+substitute for the team's separate approval and long-term storage decisions.
+
 Use `--portable build/portable/portable.json` only to reuse a full passing report
 or a passing release-scoped report covering **exactly** this selection from the
 same clean commit. A plain `tools.ci --project` report has no release source
