@@ -325,6 +325,12 @@ class DiagnosticTests(unittest.TestCase):
                 row = repository_guidance(f"CAD_PATH: projects/board.kicad_pcb:12: {observed}")
                 self.assertEqual(row.location, "projects/board.kicad_pcb:12")
                 self.assertIn(repair, row.action)
+        installed = repository_guidance(
+            "CAD_PATH: projects/fp-lib-table:3: machine-local dependency "
+            "'/usr/share/kicad/footprints/Package_LGA.pretty'", "10"
+        )
+        self.assertIn("${KICAD10_FOOTPRINT_DIR}", installed.action)
+        self.assertIn("Do not copy standard KiCad libraries", installed.action)
 
     def test_failing_island_test_is_named_and_repairable(self) -> None:
         repository = self.root / "repository"

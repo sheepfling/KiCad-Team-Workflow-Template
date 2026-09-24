@@ -66,7 +66,8 @@ portable lane passes, but they must be resolved before the activity they name
 | `IMPORT` missing matching design or sheet | Select a complete saved project, repair the sheet reference in KiCad, or use the explicit PCB-only lane for a real board-only source. Do not make up a missing schematic. |
 | `IMPORT` nonportable/case-colliding/linked path | Rename the source and its references to an exact portable spelling, or bring the real asset into a declared local/shared library. Preview again before copying. |
 | `IMPORT_EXCLUSIONS` | Open `import-preview.json` to see every excluded path. Regenerate exports, leave caches behind, review restricted authored assets separately, and import sibling/nested designs as separate islands. |
-| `CAD_PATH` machine-local path | Bring the actual asset into the project or a declared shared library, then update the KiCad reference to a portable path. |
+| `CAD_PATH` installed KiCad library path | Replace the operating-system installation prefix with the pinned versioned KiCad library variable and verify the named library exists. Do not copy the whole standard library into the project. |
+| `CAD_PATH` private machine path | Bring the actual custom asset into the project or a declared shared library, then update the KiCad reference to a portable path. |
 | `CAD_PATH` old variable | Use the correct library variable for the pinned KiCad version, or a reviewed project-local asset via `KIPRJMOD`; verify the target exists. |
 | `CAD_PATH` missing, embedded or case-mismatched target | Correct exact spelling/case or add the intended asset and verify it opens in KiCad. Do not add a dummy file. |
 | `TRACKED_GENERATED_OUTPUT`, `TRACKED_LOCAL_STATE`, `TRACKED_UNMANAGED_ARTIFACT` | Keep generated exports and local state under ignored `build/`; remove already tracked copies from the Git index with `git rm --cached -- <path>` after confirming their source of truth. Review any authored document or image placement before moving it. |

@@ -142,14 +142,35 @@ def diagnose_import(
     return report(project_id, "import", findings, command)
 
 
-def repository_guidance(issue: str) -> DiagnosticFinding:
+def repository_guidance(issue: str, kicad_major: str | None = None) -> DiagnosticFinding:
     if issue.startswith("CAD_PATH: "):
         location, _, observed = issue.removeprefix("CAD_PATH: ").partition(": ")
         if "machine-local dependency" in observed:
-            action = (
-                "Move the actual asset into this project or a declared shared library, update "
-                "the KiCad reference to a portable path, and verify it opens on another machine."
-            )
+            normalized = observed.casefold().replace("\\", "/")
+            installed = any(prefix in normalized for prefix in (
+                "/usr/share/kicad/", "/applications/kicad/", "/program files/kicad/"
+            ))
+            if installed:
+                variable = (
+                    "FOOTPRINT_DIR" if "/footprints/" in normalized else
+                    "SYMBOL_DIR" if "/symbols/" in normalized else
+                    "3DMODEL_DIR" if "/3dmodels/" in normalized else None
+                )
+                library = (
+                    f"${{KICAD{kicad_major}_{variable}}}"
+                    if kicad_major is not None and variable is not None else
+                    "the pinned versioned KiCad library variable"
+                )
+                action = (
+                    f"Replace the machine-specific installed-library prefix with {library}, "
+                    "verify the named library exists in the pinned KiCad toolchain, and rerun "
+                    "the portable check. Do not copy standard KiCad libraries into the project."
+                )
+            else:
+                action = (
+                    "Move the actual asset into this project or a declared shared library, update "
+                    "the KiCad reference to a portable path, and verify it opens on another machine."
+                )
         elif "undocumented path variable" in observed or "invalid versioned" in observed:
             action = (
                 "Replace the legacy variable with the correct pinned KiCad library variable, "
@@ -203,13 +224,22 @@ def portable_findings(
     result = project_static_pipeline(root, (project_id,))
     if journal is not None:
         journal.save_model("portable", result)
+    registry = load_registry(root)
+    project = next(item for item in registry.projects if item.id == project_id)
+    manifest_path = repo_path(root, project.config)
+    manifest = read_model(manifest_path, ProjectManifest)
+    config = load_config(root, project.config)
+    contract_path = repo_path(manifest_path.parent, manifest.checks).relative_to(root).as_posix()
     findings = [
         finding("BLOCKING", "REGISTRY", "project/catalog", issue,
                 "Correct the named project manifest, inventory, or catalog record; rerun the "
                 "selected check. Do not relax the contract to hide a source problem.", CHECKS_GUIDE)
         for issue in result.registry.issues
     ]
-    findings.extend(repository_guidance(issue) for issue in result.repository.issues)
+    findings.extend(
+        repository_guidance(issue, config.kicad_version.split(".")[0])
+        for issue in result.repository.issues
+    )
     findings.extend(
         finding("BLOCKING", issue.code, issue.location, issue.message,
                 "Correct the authored product/catalog relationship, then regenerate and rerun "
@@ -239,12 +269,6 @@ def portable_findings(
             "BLOCKING", "PROJECT_TEST", name, detail or f"exit {command.returncode}",
             action, "tests/README.md",
         ))
-    registry = load_registry(root)
-    project = next(item for item in registry.projects if item.id == project_id)
-    manifest_path = repo_path(root, project.config)
-    manifest = read_model(manifest_path, ProjectManifest)
-    config = load_config(root, project.config)
-    contract_path = repo_path(manifest_path.parent, manifest.checks).relative_to(root).as_posix()
     if config.kind is ProjectKind.PCB_ONLY:
         findings.append(finding(
             "REVIEW", "PCB_ONLY_SCOPE", project.config,
