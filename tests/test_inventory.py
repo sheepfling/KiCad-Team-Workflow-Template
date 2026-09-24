@@ -36,6 +36,8 @@ class InventoryTests(unittest.TestCase):
         self.assertEqual({toolchain.id for toolchain in report.toolchains},
                          {"kicad-10.0.0", "kicad-10.0.5"})
         self.assertTrue(all(project.readiness == "INPUTS_PRESENT" for project in report.projects))
+        self.assertTrue(all("tools.verify --project" in project.next_command
+                            for project in report.projects))
 
     def test_empty_adopted_registry_and_incomplete_scaffold_are_not_called_validated(self) -> None:
         with tempfile.TemporaryDirectory(prefix="kicad-inventory-") as temporary:
@@ -55,13 +57,14 @@ class InventoryTests(unittest.TestCase):
 
             scaffold = new_project(root, "battery-board", ProjectKind.PCB, "kicad-10.0.5")
             self.assertEqual(scaffold.status, "PASS", scaffold.issues)
+            self.assertIn("tools.verify --project battery-board", scaffold.next_step)
             report = inventory(root)
             self.assertEqual(report.status, "PASS", report.issues)
             project = report.projects[0]
             self.assertEqual(project.readiness, "NEEDS_INPUTS")
             self.assertIn("projects/battery-board/kicad/battery-board.kicad_pro",
                           project.missing_inputs)
-            self.assertIn("--project battery-board", project.next_command)
+            self.assertIn("tools.verify --project battery-board", project.next_command)
             (root / "projects/battery-board/kicad").rmdir()
             missing_root = inventory(root)
             self.assertIn("projects/battery-board/kicad",

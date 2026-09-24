@@ -32,8 +32,9 @@ class MarkdownGenerationTests(unittest.TestCase):
             "[project.json](project.json). Complete the source inventory and "
             "[test contract](tests/contract.json). See [design notes](docs/README.md).\n\n"
             "From the repository root: "
-            "`python -B -m tools.ci --project battery-board`.\n\n"
-            "Checks will fail until the native files and engineering expectations exist.\n",
+            "`python -B -m tools.verify --project battery-board`.\n\n"
+            "Checks will fail until the native files and engineering expectations exist. "
+            "After they are authored, add --depth native for exact KiCad checks and an ignored receipt.\n",
         )
         self.assertEqual(
             f"{notes}\n",

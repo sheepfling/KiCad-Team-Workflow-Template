@@ -53,15 +53,16 @@ every finding. For a newly scaffolded board, first save its actual KiCad source
 and complete the independent test contract. The scaffold intentionally fails
 checks until its design inputs are present.
 
-Save and close KiCad before running the reproducible checker from the repository root:
+Save and close KiCad before running the selected verifier from the repository root:
 
 ```sh
-python -B -m tools.ci --project battery-board --format text
-python -B -m tools.ci --kicad --project battery-board --output projects/battery-board/build/review-001 --format text
+python -B -m tools.verify --project battery-board
+python -B -m tools.verify --project battery-board --depth native
 ```
 
 Replace `battery-board` with the assigned project ID in every command and path.
-Choose a new evidence directory each time. A missing tool, unexpected version,
+The verifier creates a fresh ignored receipt each time and gives repair guidance.
+A missing tool, unexpected version,
 new board scope, dependency problem or electrical/parity finding is a failure,
 not permission to skip the check. The independent test contract records reviewed
 expectations; changing it is itself reviewable engineering work.

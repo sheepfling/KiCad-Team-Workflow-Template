@@ -114,10 +114,10 @@ def import_project(root: Path, source_project: Path, project_id: str,
         if not required.issubset(copied):
             raise ValueError(f"Required design sources were excluded: {sorted(required - set(copied))}")
         next_step = (
-            "Review board dependencies and DRC/layout expectations, then run tools.ci. "
+            f"Review board dependencies and DRC/layout expectations, then run python -B -m tools.verify --project {manifest.id}. "
             "Add an authoritative schematic and migrate to pcb before product or manufacturing work."
             if kind is ProjectKind.PCB_ONLY
-            else "Review dependencies, populate independent test expectations, then run tools.ci. "
+            else f"Review dependencies, populate independent test expectations, then run python -B -m tools.verify --project {manifest.id}. "
             "Import does not approve the design."
         )
         report = ProjectImportReport(

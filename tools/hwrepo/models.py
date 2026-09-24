@@ -378,7 +378,7 @@ class ProjectScaffoldReport(StrictModel):
     status: Literal["PASS", "FAIL"]
     directory: str
     issues: tuple[str, ...] = ()
-    next_step: str = "Create the native KiCad design, then complete the test contract and run tools.ci."
+    next_step: str = "Create the native KiCad design, then complete the test contract and run tools.verify."
 
 
 class ProjectImportReport(StrictModel):
@@ -392,7 +392,7 @@ class ProjectImportReport(StrictModel):
     excluded: Mapping[RepositoryPath, str] = Field(default_factory=dict)
     issues: tuple[str, ...] = ()
     review_required: Literal[True] = True
-    next_step: str = "Review dependencies, populate independent test expectations, then run tools.ci. Import does not approve the design."
+    next_step: str = "Review dependencies, populate independent test expectations, then run tools.verify. Import does not approve the design."
 
 
 class ImportInventoryCandidate(StrictModel):
@@ -1122,6 +1122,7 @@ class DiagnosticReport(StrictModel):
     status: Literal["PASS", "NEEDS_WORK"]
     findings: tuple[DiagnosticFinding, ...]
     next_command: NonEmptyText
+    follow_up_command: NonEmptyText | None = None
     run_directory: str | None = None
 
 
