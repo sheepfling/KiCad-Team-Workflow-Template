@@ -94,6 +94,9 @@ class ImportTests(unittest.TestCase):
             self.project.with_suffix(".kicad_sch").write_text(f'(property "Sheetfile" "{name}")')
             report = self.run_import()
             self.assertEqual(report.status, "FAIL")
+            if name.startswith("../"):
+                self.assertIn("outside the selected project directory", report.issues[0])
+                self.assertIn("../outside.kicad_sch", report.issues[0])
             self.assertFalse((self.root / report.directory).exists())
 
     def test_pcb_only_import_is_inventoried_and_limited_to_board_validation(self) -> None:
