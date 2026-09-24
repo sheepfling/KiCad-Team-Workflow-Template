@@ -9,9 +9,11 @@ from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
+from pydantic import ValidationError
+
 from tests.support import reference_root
 from tools.hwrepo.import_inventory import scan_imports
-from tools.hwrepo.models import ProjectKind
+from tools.hwrepo.models import ImportInventoryReport, ProjectKind
 from tools.template import main as template_main
 
 
@@ -81,6 +83,23 @@ class ImportInventoryTests(unittest.TestCase):
             self.assertEqual(template_main(), 0)
         self.assertIn("Import inventory: PASS; 1 candidate", output.getvalue())
         self.assertIn("suggested ID: battery", output.getvalue())
+
+    def test_inventory_json_contract_round_trips_and_rejects_invalid_boundaries(self) -> None:
+        self.write_candidate("battery.kicad_pro", pcb=True)
+        report = scan_imports(reference_root(), self.source, "kicad-10.0.5")
+        payload = json.loads(report.model_dump_json())
+        self.assertEqual(ImportInventoryReport.model_validate_json(
+            json.dumps(payload)), report)
+        cases = (
+            {**payload, "schema_version": "2"},
+            {**payload, "copied": "false"},
+            {**payload, "copied": True},
+            {**payload, "invented_field": True},
+            {**payload, "candidates": [{**payload["candidates"][0], "invented_field": True}]},
+        )
+        for invalid in cases:
+            with self.subTest(invalid=invalid), self.assertRaises(ValidationError):
+                ImportInventoryReport.model_validate_json(json.dumps(invalid))
 
 
 if __name__ == "__main__":

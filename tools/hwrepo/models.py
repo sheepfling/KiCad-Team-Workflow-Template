@@ -412,7 +412,7 @@ class ImportInventoryReport(StrictModel):
     lane: Literal["IMPORT_INVENTORY"] = "IMPORT_INVENTORY"
     source_directory: NonEmptyText
     status: Literal["PASS", "NEEDS_WORK"]
-    copied: bool = False
+    copied: Literal[False] = False
     candidates: tuple[ImportInventoryCandidate, ...] = ()
     skipped_local_state: tuple[NonEmptyText, ...] = ()
     issues: tuple[NonEmptyText, ...] = ()
