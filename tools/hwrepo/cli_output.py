@@ -42,6 +42,10 @@ def issue_text(value: object) -> str:
         return str(value)
     code = str(issue.get("code", "issue"))
     location = str(issue.get("location", ""))
+    if not location and issue.get("path"):
+        location = str(issue["path"])
+        if issue.get("line"):
+            location += f":{issue['line']}"
     message = str(issue.get("message", issue.get("observed", "")))
     return f"{code} at {location}: {message}" if location else f"{code}: {message}"
 
@@ -86,6 +90,7 @@ def summary(label: str, report: BaseModel, *, limit: int = 5) -> str:
         if check.get("status") == "FAIL":
             lines.append(f"    Next: {check.get('next_action', 'Review this check.')}")
     failures: list[str] = []
+    hidden_findings = False
     for key, raw_stage in data.items():
         if key in {"source", "checks"}:
             continue
@@ -100,7 +105,9 @@ def summary(label: str, report: BaseModel, *, limit: int = 5) -> str:
         lines.append(f"  {key.replace('_', ' ')}: {stage_status}")
         if stage_status == "PASS":
             continue
-        for issue in sequence(stage.get("issues"))[:limit]:
+        stage_issues = sequence(stage.get("issues"))
+        hidden_findings = hidden_findings or len(stage_issues) > limit
+        for issue in stage_issues[:limit]:
             failures.append(f"{key}: {issue_text(issue)}")
         commands = mapping(stage.get("commands")) or {}
         for name, raw_command in commands.items():
@@ -118,11 +125,12 @@ def summary(label: str, report: BaseModel, *, limit: int = 5) -> str:
         if stderr_lines:
             failures.append(f"{key}: {stderr_lines[-1]}")
     issues = sequence(data.get("issues"))
+    hidden_findings = hidden_findings or len(issues) > limit
     failures.extend(issue_text(value) for value in issues[:limit])
     if failures:
         lines.append("Needs attention:")
         lines.extend(f"  - {value}" for value in failures[:limit])
-        if len(failures) > limit or len(issues) > limit:
+        if len(failures) > limit or hidden_findings:
             lines.append("  More findings are available with --format json.")
     for key in ("changed", "removed"):
         values = sequence(data.get(key))
