@@ -168,9 +168,9 @@ class ImportTests(unittest.TestCase):
         board.write_text('(kicad_pcb (model "kicad-embed://part.step") '
                          '(embedded_files (file (name "part.step") (type model) '
                          '(data |YWJj|) (checksum "AABB"))))')
-        self.assertEqual(cad_dependencies(self.base, board, self.source, "10"), [])
+        self.assertEqual(cad_dependencies(self.base, board, self.source, "10", frozenset()), [])
         board.write_text('(kicad_pcb (model "kicad-embed://part.step"))')
-        self.assertIn("missing embedded model", cad_dependencies(self.base, board, self.source, "10")[0])
+        self.assertIn("missing embedded model", cad_dependencies(self.base, board, self.source, "10", frozenset())[0])
 
 
 if __name__ == "__main__":

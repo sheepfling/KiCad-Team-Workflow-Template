@@ -13,7 +13,7 @@ from tools.ci_matrix import build_matrix
 from tools.hwrepo.contracts import read_model, write_model
 from tools.hwrepo.generation import check_generation, drift, generate
 from tools.hwrepo.initialization import initialize
-from tools.hwrepo.models import ProductIndex, ProjectDiscovery, ProjectManifest
+from tools.hwrepo.models import LibrariesCatalog, ProductIndex, ProjectDiscovery, ProjectManifest
 from tools.hwrepo.product import check as product_check
 from tools.hwrepo.repository import check_repository
 from tools.lint_registry import lint
@@ -91,6 +91,43 @@ class ForkWorkflowTests(unittest.TestCase):
         path.write_bytes(b"derived fixture")
         subprocess.run(("git", "-C", str(self.root), "add", "-f", "--", generated), check=True)
         self.assertIn(f"TRACKED_LOCAL_STATE: {generated}", check_repository(self.root).issues)
+
+    def test_shared_library_paths_are_inventoried_and_private_project_paths_fail(self) -> None:
+        selected = ("arduino-uno-status-led",)
+        self.assertEqual(check_repository(self.root, selected).status, "PASS")
+        self.assertEqual(lint(self.root, list(selected)).status, "PASS")
+        table = self.root / "examples/projects/arduino-uno-status-led/kicad/sym-lib-table"
+        table.write_text(
+            table.read_text(encoding="utf-8").replace(
+                "${KIPRJMOD}/../../../libraries/status-led/status-led.kicad_sym",
+                "${KIPRJMOD}/../../controller/kicad/Pilot.kicad_sym",
+            ),
+            encoding="utf-8",
+        )
+        report = check_repository(self.root, selected)
+        self.assertEqual(report.status, "FAIL")
+        self.assertTrue(any("not in this project's required_inputs" in issue for issue in report.issues))
+
+    def test_shared_source_roots_must_match_registered_library_paths(self) -> None:
+        path = self.root / "examples/projects/arduino-uno-status-led/project.json"
+        manifest = read_model(path, ProjectManifest)
+        write_model(path, manifest.model_copy(update={
+            "shared_source_roots": ("examples/projects/controller/kicad",),
+        }))
+        report = lint(self.root, ["arduino-uno-status-led"])
+        self.assertEqual(report.status, "FAIL")
+        self.assertTrue(any("shared_source_roots must match library_ids" in issue for issue in report.issues))
+
+    def test_library_catalog_cannot_register_another_project_as_a_library(self) -> None:
+        path = self.root / "catalog/libraries.json"
+        catalog = read_model(path, LibrariesCatalog)
+        library = catalog.libraries[0].model_copy(update={
+            "path": "examples/projects/controller/kicad",
+        })
+        write_model(path, catalog.model_copy(update={"libraries": (library,)}))
+        report = lint(self.root, ["arduino-uno-status-led"])
+        self.assertEqual(report.status, "FAIL")
+        self.assertTrue(any("path must be a named directory under libraries/" in issue for issue in report.issues))
 
     def test_fresh_policy_generation_needs_no_cached_exports_and_writes_no_source(self) -> None:
         self.assertFalse((self.root / "schemas/product-v1.schema.json").exists())
