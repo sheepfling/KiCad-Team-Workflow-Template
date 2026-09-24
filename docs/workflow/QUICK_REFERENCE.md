@@ -16,6 +16,12 @@ main and hand back the assignment.
 
 On conflict, missing libraries, new tool versions or unexpected changes: stop, preserve work and ask the maintainer with branch, SHA, status and error. Never guess ours/theirs.
 
+For a failed board check, run `python -B -m tools.template diagnose --project-id <project-id>`.
+Start with its short repair queue; use `--detail full` for every finding or
+`--format json` for an agent or script. Open the printed `build/diagnostics/`
+receipt for stage logs and raw results. Follow [diagnose and repair](DIAGNOSTICS.md)
+before changing source or test expectations.
+
 Run `python -B -m tools.ci --project <project-id>` for the selected board's portable
 checks and `python -B -m tools.ci` for the full shared gate. With its exact catalogued
 KiCad installed, run `python -B -m tools.ci --kicad --project <project-id> --output build/review-001`

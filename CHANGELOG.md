@@ -3,6 +3,12 @@
 These versions describe the reusable workflow, independently of board and product
 revisions. See [versioning](docs/workflow/VERSIONING.md) and [adoption](docs/workflow/TEMPLATE_ADOPTION.md).
 
+## Unreleased
+
+- Add a project diagnostic command that coaches import, portable CI, native KiCad
+  and purchasing-BOM repairs without editing design source.
+- Include CAD dependency line numbers in portable policy findings.
+
 ## 1.3.2 — 2026-09-11
 
 - Include every project declared for a selected product in release evidence checks.

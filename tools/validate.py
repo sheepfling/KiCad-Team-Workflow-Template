@@ -119,6 +119,38 @@ def check_report(
             for key in drc_categories
         )
     return sum(len(items) for items in findings)
+
+
+def native_report_examples(path: Path, kind: str) -> tuple[str, ...]:
+    """Read a few rule descriptions from KiCad JSON for the repair coach."""
+    try:
+        data = _mapping(json.loads(path.read_text(encoding="utf-8")), "KiCad report")
+        if kind == "erc":
+            sheets = _sequence(data.get("sheets"), "ERC sheets")
+            groups = tuple(
+                _sequence(_mapping(sheet, "ERC sheet").get("violations"), "ERC findings")
+                for sheet in sheets
+            )
+        else:
+            groups = tuple(
+                _sequence(data.get(key), f"DRC {key}")
+                for key in ("violations", "unconnected_items", "schematic_parity")
+                if data.get(key) is not None
+            )
+        examples: list[str] = []
+        for group in groups:
+            for item in group:
+                record = _mapping(item, "KiCad finding")
+                rule, description = record.get("type"), record.get("description")
+                if isinstance(rule, str) and isinstance(description, str):
+                    examples.append(f"{rule}: {description}")
+                if len(examples) == 3:
+                    return tuple(examples)
+        return tuple(examples)
+    except (OSError, ValueError, TypeError):
+        return ()
+
+
 def read_netlist(path: Path) -> NetlistContract:
     """Parse actual KiCad names, including hierarchical nets and unassigned footprints."""
     tree = ET.parse(path).getroot()

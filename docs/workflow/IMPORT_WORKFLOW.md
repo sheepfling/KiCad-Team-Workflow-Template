@@ -6,8 +6,9 @@ untracked there. Run the commands from the candidate repository with its Python
 development environment installed.
 
 ```sh
-python -B -m tools.template import-project --source "/path/to/Old board.kicad_pro" --project-id battery-board --toolchain kicad-10.0.5 --dry-run
+python -B -m tools.template diagnose --source "/path/to/Old board.kicad_pro" --project-id battery-board --toolchain kicad-10.0.5
 python -B -m tools.template import-project --source "/path/to/Old board.kicad_pro" --project-id battery-board --toolchain kicad-10.0.5
+python -B -m tools.template diagnose --project-id battery-board
 python -B -m tools.ci --project battery-board
 python -B -m tools.ci --matrix
 ```
@@ -25,6 +26,9 @@ files, and inventories all copied inputs. Separate sibling/nested projects get
 separate imports. Symlinks, case conflicts and escaping or missing sheets fail with a
 diagnostic. Dependencies outside the selected project directory need a separate,
 explicit migration into local or declared shared storage.
+The initial diagnostic is a read-only dry run with a fresh, ignored log and a
+repair queue. Fix blockers and preview again before copying. See
+[diagnose and repair](DIAGNOSTICS.md) for the log contents and each failure class.
 
 Review `docs/import.json` before accepting the import. It records file hashes and
 exclusions: local preferences/caches, working fabrication exports, separate designs

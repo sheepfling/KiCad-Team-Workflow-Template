@@ -21,6 +21,9 @@ to understand what belongs with each board and what is shared.
 5. Use a short-lived branch, run the selected and full gates, and review source and
    exported evidence. A new island's README is discovered automatically by docs policy.
 
+When an import or check fails, follow [diagnose and repair](DIAGNOSTICS.md) for a
+project-local finding, concrete next action and the relevant source of authority.
+
 No product model or production governance record is needed to start a standalone
 board. Add shared libraries through explicit dependencies. Add a product only when
 cross-board assembly, wiring or integration requirements need their own record.

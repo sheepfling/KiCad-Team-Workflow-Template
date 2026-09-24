@@ -52,6 +52,8 @@ class TemplateToolTests(unittest.TestCase):
             report = bootstrap(self.root, destination, "example-board")
         self.assertEqual(report.status, "PASS", report.issues)
         self.assertFalse((destination / ".git").exists())
+        self.assertTrue((destination / "AGENTS.md").is_file())
+        self.assertTrue((destination / "CLAUDE.md").is_file())
         adoption = read_model(destination / "template-adoption.json", TemplateAdoptionRecord)
         self.assertEqual(adoption.project_id, "example-board")
         self.assertEqual(adoption.status, "needs_adoption")
