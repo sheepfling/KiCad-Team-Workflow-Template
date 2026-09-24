@@ -27,6 +27,13 @@ def evidence(returncode: int) -> CommandEvidence:
 
 
 class CiDriverTests(unittest.TestCase):
+    def test_manual_focus_cannot_cancel_main_or_another_manual_run(self) -> None:
+        workflow = (ROOT / ".github/workflows/kicad-template.yml").read_text(encoding="utf-8")
+        self.assertIn(
+            "group: kicad-template-${{ github.event_name }}-${{ github.event_name == 'workflow_dispatch' && github.run_id || github.ref }}",
+            workflow,
+        )
+
     def test_missing_quality_tool_is_a_typed_failure(self) -> None:
         result = run_command(ROOT, "intentionally-absent-quality-tool")
         self.assertEqual(result.returncode, 127)

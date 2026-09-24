@@ -22,7 +22,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: kicad-template-${{ github.ref }}
+  group: kicad-template-${{ github.event_name }}-${{ github.event_name == 'workflow_dispatch' && github.run_id || github.ref }}
   cancel-in-progress: true
 jobs:
   scope:
