@@ -13,7 +13,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+mcp = ["mcp==2.2.0"]
 dev = [
+  "mcp==2.2.0",
   "pyright==1.1.411",
   "nodeenv==1.10.0",
   "ruff==0.16.1",

@@ -62,6 +62,11 @@ command. Use `init` separately when you need to review each step or before a new
 bootstrap copy has Git history.
 An empty fork passes scaffold checks and reports that no hardware was validated.
 
+For agents that connect through MCP, install the optional `.[mcp]` dependency and
+follow [the local MCP setup](docs/workflow/MCP.md). It exposes project discovery,
+prerequisites and workflow guidance; checks and project creation are separately
+enabled at startup.
+
 ## Start a board
 
 ```sh

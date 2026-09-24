@@ -42,12 +42,15 @@ Choose text for a concise terminal view and JSON for the complete typed result:
 
 The lower-level runner modules in the table below remain JSON-first adapters.
 Do not scrape human text in automation; check the exit status and parse stdout JSON.
-Agents with shell access can call these CLIs directly. An MCP server is optional
-integration work, not a prerequisite for repository policy.
+Agents with shell access can call these CLIs directly. The optional local
+[MCP server](../docs/workflow/MCP.md) exposes discovery, prerequisites, workflow
+documents and import previews. Its startup flags separately enable test execution
+and project creation/import; it uses the same repository services.
 
 | Module | Responsibility |
 | --- | --- |
 | `verify` | One-board portable/native run, exact runner choice, and a fresh logged repair receipt |
+| `mcp` | Optional local stdio adapter with a fixed checkout, workflow resources and separately enabled checks/writes |
 | `ci`, `ci_matrix`, `check_all` | Coordinate the portable gate, registry-driven matrix and native lanes |
 | `impact`, `hwrepo/impact.py` | Plan affected PR project lanes from changed paths; broaden ambiguous/shared-tool changes to full scope |
 | `native_deps` | Prepare Linux wheels for the pinned container's Python, without requiring pip inside the image |

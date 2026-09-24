@@ -1073,6 +1073,16 @@ class InventoryProject(StrictModel):
     next_command: NonEmptyText
 
 
+class McpProjectReport(StrictModel):
+    """One project's declared inputs; inspection never authorizes manufacturing."""
+
+    schema_version: Literal["1"] = "1"
+    build_authorized: Literal[False] = False
+    project: InventoryProject
+    manifest: ProjectManifest
+    contract: ProjectTestContract | None
+
+
 class InventoryGroup(StrictModel):
     """One product or tag and its selected project IDs."""
 

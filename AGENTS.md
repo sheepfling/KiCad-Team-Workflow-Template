@@ -3,6 +3,9 @@
 This file is for coding agents and engineers using an agent. Start with the
 [workflow guide](docs/workflow/START_HERE.md) and the
 [diagnostic guide](docs/workflow/DIAGNOSTICS.md). Use Python 3.11 syntax.
+The optional [local MCP adapter](docs/workflow/MCP.md) exposes the same services
+for clients without shell integration. Discover projects before selecting an ID;
+its checks execute repository tests and require `--allow-checks` at startup.
 
 ## Find the right source
 
