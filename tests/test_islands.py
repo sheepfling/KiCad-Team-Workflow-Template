@@ -118,6 +118,20 @@ class IslandTests(unittest.TestCase):
         self.assertNotEqual(result.commands["project-arduino-uno-status-led"].returncode, 0)
         self.assertEqual(project_static_pipeline(self.root, ("arduino-uno-status-led",)).status, "FAIL")
 
+    def test_parallel_island_suites_keep_stable_results_and_order(self) -> None:
+        self.write_test("examples/projects/controller", True)
+        self.write_test("examples/projects/arduino-uno-status-led", False)
+        serial = run_tests(self.root)
+        parallel = run_tests(self.root, max_workers=2)
+        self.assertEqual(parallel.status, "FAIL")
+        self.assertEqual(list(parallel.commands), list(serial.commands))
+        self.assertEqual(
+            {name: command.returncode for name, command in parallel.commands.items()},
+            {name: command.returncode for name, command in serial.commands.items()},
+        )
+        with self.assertRaisesRegex(ValueError, "at least one"):
+            run_tests(self.root, max_workers=0)
+
     def test_product_tests_run_only_for_participating_projects(self) -> None:
         self.write_test("examples/products/status-indicator-system", False)
         self.assertEqual(run_tests(self.root, ("controller",)).status, "PASS")

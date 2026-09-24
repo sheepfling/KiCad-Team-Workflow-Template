@@ -33,6 +33,7 @@ python -B -m tools.ci --tag status-led --format text
 python -B -m tools.ci --tag status-led --exclude-tag legacy --format text
 python -B -m tools.ci --exclude-tag legacy --format text
 python -B -m tools.ci --format text
+python -B -m tools.ci --jobs 4 --output build/portable-review --format text
 python -B -m tools.ci --matrix --format text
 python -B -m tools.ci --matrix --product status-indicator-system --format text
 python -B -m tools.ci --kicad --project controller --output examples/projects/controller/build/review-001 --format text
@@ -52,6 +53,10 @@ matching no projects fail. No selector means the full set. Tags belong in each
 `project.json`; product membership belongs in `catalog/products.json`. Custom
 project/product tests run in separate Python processes; add `test_*.py` files
 without editing the workflow.
+`--jobs <n>` runs up to that many independent project/product Python suites at
+once, with deterministic per-island results. The default is one for local runs;
+hosted portable jobs use four. Project tests must keep their temporary work in
+their own island or a private temporary directory rather than a shared path.
 See [test extension](../../tests/README.md).
 
 Native output directories and review snapshots are write-once. Use a fresh path each
@@ -142,6 +147,10 @@ work for its affected projects and their dependents, not every historical board.
 Native jobs can run concurrently subject to hosted runner capacity, so elapsed
 time need not grow one-for-one with project count; total CI compute and queue
 time can still grow.
+Portable jobs use a pip download cache keyed by `pyproject.toml`, Python and
+runner OS; installation and all checks still run on every job. Their project
+Python suites run with four bounded workers. Full portable jobs have a separate
+pipeline step timeout so evidence upload can still run after a timed-out check.
 
 An initialized fork with no projects emits an empty matrix. The final check still
 requires applicable policy success and states that no hardware was validated.
@@ -154,6 +163,11 @@ CI retains selected portable and native review evidence. Reports record the
 observed source commit and file hashes. Dirty local reports remain useful for
 development but cannot supply release evidence. Configure artifact retention and required branch checks during
 [adoption](START_HERE.md); a configured workflow is not evidence of a hosted run.
+When `tools.ci --output <new-directory>` is used, `events.jsonl` and `run.json`
+appear as phases start, and each completed phase gets its own JSON report before
+the final `portable.json` is written. The same stage progress appears in terminal
+and Actions logs. A missing `portable.json` means the gate did not finish; partial
+phase evidence is for diagnosis only, never release acceptance.
 
 ## Replaying a native CI lane locally
 
