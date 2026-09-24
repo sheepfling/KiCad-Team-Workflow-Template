@@ -8,14 +8,15 @@ import subprocess
 import sys
 from pathlib import Path
 
-from .hwrepo.contracts import read_model
+from .hwrepo.contracts import read_model, repo_path
+from .hwrepo.discovery import settings
 from .hwrepo.models import ToolchainAssessment, ToolchainRecord, ToolchainsCatalog
 
 MACOS_KICAD_CLI = Path("/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli")
 
 
 def toolchain(root: Path, identifier: str) -> ToolchainRecord:
-    catalog = read_model(root / "catalog/toolchains.json", ToolchainsCatalog)
+    catalog = read_model(repo_path(root, settings(root).catalogs.toolchains), ToolchainsCatalog)
     for record in catalog.toolchains:
         if record.id == identifier:
             return record

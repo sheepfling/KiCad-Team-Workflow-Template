@@ -5,6 +5,9 @@ Run every CLI from the repository root as `python -B -m tools.<command>`.
 Use `python -B -m tools.template list --format text` to find registered project,
 product, tag and toolchain IDs before selecting a lane. Its `readiness` field only
 reports whether declared inputs are present; run checks to validate a design.
+For one engineer's board, `tools.verify --project <id>` runs the selected
+portable lane and keeps a fresh ignored receipt; add `--depth native` to choose
+the exact local KiCad CLI or the project's pinned Docker image automatically.
 Use `--project <id>` for one island, `--product <id>` for a registered product's
 members, or `--tag <tag>` for a manifest cohort. These include selectors form
 a union; `--exclude-tag <tag>` removes matches. The selected portable lane
@@ -21,6 +24,7 @@ Choose text for a concise terminal view and JSON for the complete typed result:
 
 | User-facing command | Human view | Agent/script view |
 | --- | --- | --- |
+| `tools.verify --project <id>` | Brief text by default; `--detail full` expands repair findings | `--format json` |
 | `tools.template diagnose` | Brief text by default; `--detail full` expands it | `--format json` |
 | `tools.template list` | `--format text` shows selections and next commands | JSON by default; typed inventory |
 | `tools.template rescue --project-id <id>` | Brief local repair view, always unverified; `--detail full` expands it | `--format json` with `UNVERIFIED_GLOBAL` and no CI/release eligibility |
@@ -35,6 +39,7 @@ integration work, not a prerequisite for repository policy.
 
 | Module | Responsibility |
 | --- | --- |
+| `verify` | One-board portable/native run, exact runner choice, and a fresh logged repair receipt |
 | `ci`, `ci_matrix`, `check_all` | Coordinate the portable gate, registry-driven matrix and native lanes |
 | `impact`, `hwrepo/impact.py` | Plan affected PR project lanes from changed paths; broaden ambiguous/shared-tool changes to full scope |
 | `native_deps` | Prepare Linux wheels for the pinned container's Python, without requiring pip inside the image |

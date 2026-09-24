@@ -37,7 +37,11 @@ def main() -> int:
     parser.add_argument("--cli", default="kicad-cli", help="KiCad CLI to inspect with doctor")
     parser.add_argument(
         "--native", action="store_true",
-        help="Require doctor to find Docker or an exact selected KiCad CLI",
+        help="Require doctor to find this project's exact local CLI or pinned Docker runner",
+    )
+    parser.add_argument(
+        "--runner", choices=("auto", "local", "container"), default="auto",
+        help="Doctor native runner; auto prefers an exact local CLI, then Docker",
     )
     parser.add_argument("--source", type=Path, help="Existing .kicad_pro file to import")
     parser.add_argument("--dry-run", action="store_true", help="Preview an import without writing files")
@@ -62,8 +66,13 @@ def main() -> int:
         parser.error("--detail and --log-dir require diagnose or rescue")
     if args.command != "doctor" and args.native:
         parser.error("--native requires doctor")
+    if args.command != "doctor" and args.runner != "auto":
+        parser.error("--runner requires doctor")
     if args.command == "doctor":
-        result = doctor(args.root, args.native, args.toolchain, args.cli)
+        result = doctor(
+            args.root, args.native, args.toolchain, args.cli,
+            project_id=args.project_id, runner=args.runner,
+        )
     elif args.command == "rescue":
         if args.project_id is None:
             parser.error("rescue requires --project-id")

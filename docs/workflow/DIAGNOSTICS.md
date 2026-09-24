@@ -155,8 +155,19 @@ issue/PR; keep durable design decisions in that project's `docs/`.
 
 ## After a native check
 
-Run the exact toolchain and keep each native output directory distinct. Point the
-coach at the **project** summary beneath that output:
+Run `python -B -m tools.verify --project battery-board --depth native` for
+selected portable and native validation with a fresh ignored receipt. It picks
+an exact local KiCad CLI when installed, otherwise the board's digest-pinned
+Docker image. Use `--runner local` or `--runner container` for an explicit
+choice; `--format json` gives agents the typed result, and `--detail full` shows
+every repair finding. Its receipt keeps `events.log`, `verification.json`, the
+raw runner commands, and the native project summary. If no native report could
+be produced, inspect `dependency-command.json` or `native-command.json` for
+the setup failure; `error.txt` identifies a tool crash.
+
+The lower-level command remains available when manually replaying a CI lane.
+Keep each native output directory distinct and point the coach at the **project**
+summary beneath that output:
 
 ```sh
 python -B -m tools.ci --kicad --project battery-board --output projects/battery-board/build/review-001 --format text
