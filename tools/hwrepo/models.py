@@ -1072,6 +1072,24 @@ class DiagnosticReport(StrictModel):
     run_directory: str | None = None
 
 
+class LocalRescueReport(StrictModel):
+    """Partial, read-only island inspection that cannot satisfy repository gates."""
+
+    schema_version: Literal["1"] = "1"
+    lane: Literal["LOCAL_PROJECT_RESCUE"] = "LOCAL_PROJECT_RESCUE"
+    status: Literal["UNVERIFIED_GLOBAL"] = "UNVERIFIED_GLOBAL"
+    build_authorized: Literal[False] = False
+    ci_eligible: Literal[False] = False
+    release_eligible: Literal[False] = False
+    project_id: NonEmptyText
+    selected_manifest: RepositoryPath | None = None
+    local_inspection: Literal["CLEAR", "NEEDS_REPAIR"]
+    findings: tuple[DiagnosticFinding, ...] = ()
+    omitted_checks: tuple[NonEmptyText, ...]
+    next_command: NonEmptyText
+    run_directory: NonEmptyText
+
+
 class TemplatePreflightReport(StrictModel):
     schema_version: Literal["1"] = "1"
     lane: Literal["TEMPLATE_PREFLIGHT"] = "TEMPLATE_PREFLIGHT"

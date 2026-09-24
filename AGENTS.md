@@ -25,6 +25,11 @@ This file is for coding agents and engineers using an agent. Start with the
   not the human text: the versioned report includes `status`, `findings`,
   `next_command` and `run_directory`. Each run also writes a fresh ignored
   `build/diagnostics/` receipt.
+- If an unrelated malformed manifest blocks normal selected discovery, run
+  `python -B -m tools.template rescue --project-id <id>` for a read-only local
+  repair view. It always reports `UNVERIFIED_GLOBAL` and exits nonzero, even if
+  the selected island looks clear. Never cite it as CI or release evidence;
+  repair global discovery and rerun normal diagnosis and the full gate.
 
 ## Diagnose, repair, verify
 

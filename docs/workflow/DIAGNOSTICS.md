@@ -75,6 +75,27 @@ python -B -m tools.ci --project battery-board --format text
 result names the failed input and next action. A `PASS` means only that this local
 diagnostic scope has no blockers; it does not replace the full CI gate or native
 KiCad. Use `--format json` when a script needs stable fields.
+
+If an unrelated malformed project manifest prevents normal discovery, use the
+local rescue command to inspect one direct island while repairing the registry:
+
+```sh
+python -B -m tools.template rescue --project-id battery-board
+python -B -m tools.template rescue --project-id battery-board --detail full
+python -B -m tools.template rescue --project-id battery-board --format json
+```
+
+Rescue reads the configured project roots, the selected `project.json`, its
+contract and toolchain, and its declared source inventory and CAD references.
+It does not parse peer manifests, run project Python tests or KiCad, or establish
+global catalog, product, CI, or release validity. Every result says
+`UNVERIFIED_GLOBAL`, `ci_eligible: false`, and `release_eligible: false`; even a
+locally clear result exits `1`. A fresh ignored receipt keeps `diagnosis.json`,
+`diagnosis.txt`, stage logs and the selected parsed inputs. Use `--detail full`
+for every local finding or `--format json` for an agent. Repair the peer manifest,
+then return to normal `diagnose` and the full CI gate. Rescue never replaces
+those fail-closed checks.
+
 Start with the first blocking group in the terminal, repair one cause, then run
 the displayed next command. Do not copy observed KiCad output into an independent
 test contract just to make a red check green. `REVIEW` rows can remain after the

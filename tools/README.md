@@ -23,6 +23,7 @@ Choose text for a concise terminal view and JSON for the complete typed result:
 | --- | --- | --- |
 | `tools.template diagnose` | Brief text by default; `--detail full` expands it | `--format json` |
 | `tools.template list` | `--format text` shows selections and next commands | JSON by default; typed inventory |
+| `tools.template rescue --project-id <id>` | Brief local repair view, always unverified; `--detail full` expands it | `--format json` with `UNVERIFIED_GLOBAL` and no CI/release eligibility |
 | Other `tools.template` commands; `tools.ci`, `tools.hardware`, `tools.sourcing`, `tools.metrics` | `--format text` | JSON by default |
 | `tools.release prepare` | Text by default | `--format json` or `--json` |
 | Other `tools.release` commands | `--format text` | JSON by default |
