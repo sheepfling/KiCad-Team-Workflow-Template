@@ -14,6 +14,7 @@ from .models import (
     Assurance,
     DeviationStatus,
     GovernanceRecord,
+    HarnessInterfaceValidationContract,
     InterfacesCatalog,
     LibrariesCatalog,
     PolicyIssue,
@@ -28,6 +29,7 @@ from .models import (
     ReleasePoliciesCatalog,
     ReleaseReadinessReport,
     ReleaseStatus,
+    SystemWiringValidationContract,
     TeamPolicy,
     ToolchainsCatalog,
 )
@@ -118,6 +120,28 @@ def load_release_repository(root: Path, manifest: ReleaseManifest) -> ProductRep
         product = indexed.get(variant.product)
         if product is not None:
             selected.update(product.project_ids)
+    relevant_products = {
+        entry.id for entry in index.products
+        if not selected.isdisjoint(entry.project_ids)
+    } | {variant.product for variant in manifest.variants}
+    # Product-view projects name their product in the authored test contract.
+    # Read that metadata before narrowing to indexed IDs: otherwise a missing
+    # index membership would silently omit its view from release evidence.
+    for project in load_registry(root).projects:
+        if project.kind not in {ProjectKind.SYSTEM_WIRING, ProjectKind.HARNESS_INTERFACE}:
+            continue
+        validation = load_config(root, project.config).validation
+        if not isinstance(validation, (SystemWiringValidationContract,
+                                       HarnessInterfaceValidationContract)):
+            raise TypeError(f"{project.config}: product-view validation contract is missing")
+        entry = indexed.get(validation.product_id)
+        if validation.product_id in relevant_products and (
+            entry is None or project.id not in entry.project_ids
+        ):
+            raise ValueError(
+                f"catalog/products.json: product {validation.product_id} omits "
+                f"product-view project {project.id} declared by {project.config}"
+            )
     return load_repository(root, tuple(sorted(selected)))
 
 
@@ -311,7 +335,7 @@ def check(root: Path, manifest: ReleaseManifest, today: date | None = None) -> R
     findings: list[PolicyIssue] = []
     try:
         repository = load_release_repository(resolved_root, manifest)
-    except (OSError, ValueError) as exc:
+    except (OSError, TypeError, ValueError) as exc:
         findings.append(issue("RELEASE_DEPENDENCY", "products", str(exc)))
         repository = load_repository(resolved_root, ())
     findings.extend(repository.issues)

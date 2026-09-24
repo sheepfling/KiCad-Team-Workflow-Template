@@ -189,6 +189,24 @@ class ReleaseReadinessTests(unittest.TestCase):
             },
         )
 
+    def test_variant_release_rejects_product_view_omitted_from_index(self) -> None:
+        index_path = self.root / "catalog/products.json"
+        index = read_model(index_path, ProductIndex)
+        entry = next(item for item in index.products if item.id == "status-indicator-system")
+        shortened = entry.model_copy(update={
+            "project_ids": tuple(name for name in entry.project_ids
+                                 if name != "status-indicator-wiring"),
+        })
+        write_model(index_path, index.model_copy(update={
+            "products": tuple(shortened if item.id == entry.id else item
+                              for item in index.products),
+        }))
+        with self.assertRaisesRegex(ValueError, "omits product-view project status-indicator-wiring"):
+            load_release_repository(self.root, self.manifest())
+        self.assertIn("RELEASE_DEPENDENCY", {
+            finding.code for finding in check(self.root, self.manifest()).issues
+        })
+
     def test_revision_and_library_binding_cannot_be_stale(self) -> None:
         base = self.manifest()
         variant = base.variants[0].model_copy(update={"variant_revision": "B"})

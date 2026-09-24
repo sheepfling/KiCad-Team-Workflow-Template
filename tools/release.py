@@ -151,7 +151,8 @@ def main() -> int:
                 parser.error("check requires --manifest")
             manifest = read_model(repo_path(root, args.manifest), ReleaseManifest)
             report = check(root, manifest)
-    except (OSError, ValueError, StopIteration, subprocess.SubprocessError, zipfile.BadZipFile) as exc:
+    except (OSError, TypeError, ValueError, StopIteration,
+            subprocess.SubprocessError, zipfile.BadZipFile) as exc:
         parser.error(str(exc))
     if args.format == "text":
         location = args.destination if args.command == "restore" else args.output
