@@ -59,27 +59,31 @@ This is the shortest path from a fresh fork to a checked project island. Use
    or the import command. That is a not-for-manufacture capture lane with DRC/layout
    checks; add an authoritative schematic and migrate it to `pcb` before product or
    manufacturing work.
-5. Run the fast island check, then the pinned native check:
+5. Verify the board. Start with portable checks, then include the pinned native
+   checks after changing KiCad source:
 
    ```sh
-   python -B -m tools.template list --format text
-   python -B -m tools.ci --project battery-board --format text
-   python -B -m tools.ci --kicad --project battery-board --output projects/battery-board/build/review-001 --format text
+   python -B -m tools.verify --project battery-board
+   python -B -m tools.verify --project battery-board --depth native
    ```
 
-   If a check fails, run `python -B -m tools.template diagnose --project-id battery-board`
-   and follow [the repair guide](DIAGNOSTICS.md). Add the native
-   project's `summary.json` with `--native-report` to explain ERC, DRC and contract
-   failures. To compare an existing native netlist with the authored contract,
-   use:
+   Each attempt writes a fresh ignored receipt and prints its path. The native
+   receipt keeps `native/battery-board/summary.json`, ERC/DRC output and command
+   evidence. A failed verification shows repair findings; use `--detail full` or
+   `--format json` and follow [the repair guide](DIAGNOSTICS.md). If the native
+   runner cannot start, use `tools.template doctor --native --project-id battery-board`
+   to diagnose local KiCad or Docker readiness. To compare the
+   native netlist with the authored contract, use the summary in that receipt:
 
    ```sh
-   python -B -m tools.contract_coach --project-id battery-board --native-summary projects/battery-board/build/review-001/battery-board/summary.json --format text
+   python -B -m tools.contract_coach --project-id battery-board --native-summary "PASTE_RECEIPT_PATH/native/battery-board/summary.json" --format text
    ```
 
    That command verifies the selected project, netlist artifact and current design
    hashes before showing differences. Add `--detail full`, `--format json`, or a
    new `--output build/contract-coach/review-001` receipt when more detail is needed.
+   `tools.ci --kicad --project battery-board` remains available when you need
+   direct control of the lower-level native lane.
 
 6. Commit only authored source, push a short-lived branch and open a pull request.
    Review the exact Actions commit and retained evidence before merging.

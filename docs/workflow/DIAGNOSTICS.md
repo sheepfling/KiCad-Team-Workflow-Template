@@ -68,13 +68,14 @@ inside the new island.
 
 ```sh
 python -B -m tools.template diagnose --project-id battery-board
-python -B -m tools.ci --project battery-board --format text
+python -B -m tools.verify --project battery-board
 ```
 
 `diagnose` runs the selected portable policy and project test lane. Its `NEEDS_WORK`
 result names the failed input and next action. A `PASS` means only that this local
 diagnostic scope has no blockers; it does not replace the full CI gate or native
-KiCad. Use `--format json` when a script needs stable fields.
+KiCad. Add `--depth native` to `tools.verify` after KiCad source changes. Use
+`--format json` when a script needs stable fields.
 
 If an unrelated malformed project manifest prevents normal discovery, use the
 local rescue command to inspect one direct island while repairing the registry:

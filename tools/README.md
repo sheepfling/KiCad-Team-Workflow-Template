@@ -1,13 +1,16 @@
 # Repository tools
 
 Run every CLI from the repository root as `python -B -m tools.<command>`.
-`tools.ci` is the common local and hosted entry point. See the [command guide](../docs/workflow/CHECKS_AND_CI.md).
+For one board, start with `tools.verify --project <id>`; add `--depth native`
+after editing KiCad source. `tools.ci` runs the shared or hosted gate and exposes
+lower-level selected lanes. See the [command guide](../docs/workflow/CHECKS_AND_CI.md).
 Use `python -B -m tools.template list --format text` to find registered project,
 product, tag and toolchain IDs before selecting a lane. Its `readiness` field only
 reports whether declared inputs are present; run checks to validate a design.
 For one engineer's board, `tools.verify --project <id>` runs the selected
 portable lane and keeps a fresh ignored receipt; add `--depth native` to choose
 the exact local KiCad CLI or the project's pinned Docker image automatically.
+Use `tools.ci --kicad` when direct native-lane control is needed.
 Use `--project <id>` for one island, `--product <id>` for a registered product's
 members, or `--tag <tag>` for a manifest cohort. These include selectors form
 a union; `--exclude-tag <tag>` removes matches. The selected portable lane
