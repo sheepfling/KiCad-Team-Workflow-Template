@@ -26,6 +26,7 @@ rather than adding a dated report to this directory.
 - [Product workflow](workflow/PRODUCT_WORKFLOW.md)
 - [Import workflow](workflow/IMPORT_WORKFLOW.md)
 - [Checks and CI](workflow/CHECKS_AND_CI.md)
+- [Diagnose and repair a project](workflow/DIAGNOSTICS.md)
 - [Quick reference](workflow/QUICK_REFERENCE.md)
 - [Contributor guide](workflow/CONTRIBUTOR_GUIDE.md)
 - [Repository hygiene](workflow/REPOSITORY_HYGIENE.md)

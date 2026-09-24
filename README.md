@@ -94,6 +94,8 @@ python -B -m unittest discover -s tests -v
 ```
 
 See [checks and CI](docs/workflow/CHECKS_AND_CI.md) and [extending tests](tests/README.md).
+When a board fails, `python -B -m tools.template diagnose --project-id battery-board`
+shows the observed issue, a repair action and the relevant [diagnostic guide](docs/workflow/DIAGNOSTICS.md).
 In an uninitialized template checkout, select `arduino-uno-status-led`,
 `raspberry-pi-status-led` or `controller` for a bundled rehearsal. Initialization
 removes these examples from live discovery; shared-tool tests still use their

@@ -198,9 +198,13 @@ def cad_dependencies(root: Path, file: Path, project_dir: Path, major: str) -> l
     embedded = set(re.findall(
         r'\(file\s+\(name\s+"([^"\n]+)"\)\s+\(type\s+model\)\s+'
         r'\(data\s+\|[A-Za-z0-9+/=\s]+\|\s*\)\s+\(checksum\s+"[A-Fa-f0-9]+"\)\s*\)', text))
+    previous_match = 0
+    line = 1
     for match in re.finditer(r'\((?:uri|model)\s+"([^"\n]*)"', text):
         value = match.group(1)
-        label = file.relative_to(root).as_posix()
+        line += text.count("\n", previous_match, match.start())
+        previous_match = match.start()
+        label = f"{file.relative_to(root).as_posix()}:{line}"
         if value.startswith("kicad-embed://"):
             # The containing native file is itself inventoried and hashed. Check
             # record presence here; native KiCad owns decoding the embedded bytes.

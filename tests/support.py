@@ -20,7 +20,11 @@ def ignore_local(directory: str, names: list[str]) -> set[str]:
 
 
 def initialize_git(root: Path) -> None:
-    for args in (("init", "-q"), ("add", "--all")):
+    # Disposable repositories are deleted immediately after each test. Keep Git
+    # from starting background maintenance that can recreate .git/objects during
+    # TemporaryDirectory cleanup on macOS.
+    for args in (("init", "-q"), ("config", "gc.auto", "0"),
+                 ("config", "maintenance.auto", "false"), ("add", "--all")):
         subprocess.run(("git", "-C", str(root), *args), check=True, capture_output=True)
 
 

@@ -1,6 +1,8 @@
 # Checks and CI
 
 The same shared runner checks project islands locally and in hosted CI.
+If a selected project fails, use the [diagnostic command](DIAGNOSTICS.md) to pair
+portable, native and BOM findings with specific repair steps.
 
 | Check scope | What runs |
 | --- | --- |

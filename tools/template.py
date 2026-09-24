@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 from .hwrepo.adoption import adopt
+from .hwrepo.diagnostics import diagnose_import, diagnose_project, format_text
 from .hwrepo.doctor import doctor
 from .hwrepo.importing import import_project
 from .hwrepo.initialization import initialize
@@ -20,7 +21,7 @@ def main() -> int:
         "command",
         choices=(
             "doctor", "adopt", "init", "preflight", "bootstrap", "upgrade-plan",
-            "new-project", "import-project",
+            "new-project", "import-project", "diagnose",
         ),
     )
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
@@ -36,9 +37,17 @@ def main() -> int:
     )
     parser.add_argument("--source", type=Path, help="Existing .kicad_pro file to import")
     parser.add_argument("--dry-run", action="store_true", help="Preview an import without writing files")
+    parser.add_argument("--native-report", type=Path, help="Project native summary.json to explain")
+    parser.add_argument("--bom", type=Path, help="Native assembly/bom.csv to check for part identities")
+    parser.add_argument("--format", choices=("text", "json"),
+                        help="Output format for diagnose (default: text)")
     args = parser.parse_args()
-    if args.command != "import-project" and (args.dry_run or args.source is not None):
-        parser.error("--source and --dry-run require import-project")
+    if args.command not in {"import-project", "diagnose"} and args.source is not None:
+        parser.error("--source requires import-project or diagnose")
+    if args.command != "import-project" and args.dry_run:
+        parser.error("--dry-run options require import-project")
+    if args.command != "diagnose" and (args.native_report or args.bom or args.format is not None):
+        parser.error("--native-report, --bom and --format require diagnose")
     if args.command != "doctor" and args.native:
         parser.error("--native requires doctor")
     if args.command == "doctor":
@@ -55,6 +64,21 @@ def main() -> int:
         if args.project_id is None or args.toolchain is None or args.source is None:
             parser.error("import-project requires --source, --project-id and --toolchain")
         result = import_project(args.root, args.source, args.project_id, args.toolchain, args.dry_run)
+    elif args.command == "diagnose":
+        if args.project_id is None:
+            parser.error("diagnose requires --project-id")
+        if args.source is not None:
+            if args.toolchain is None or args.native_report or args.bom:
+                parser.error("diagnose --source requires --toolchain and cannot use native/BOM reports")
+            result = diagnose_import(args.root, args.source, args.project_id, args.toolchain)
+        else:
+            if args.toolchain is not None:
+                parser.error("diagnose --toolchain requires --source")
+            if args.bom is not None and args.native_report is None:
+                parser.error("diagnose --bom requires --native-report for the selected project")
+            result = diagnose_project(args.root, args.project_id, args.native_report, args.bom)
+        print(result.model_dump_json(indent=2) if args.format == "json" else format_text(result))
+        return 0 if result.status == "PASS" else 1
     elif args.command == "new-project":
         if args.project_id is None or args.toolchain is None:
             parser.error("new-project requires --project-id and --toolchain")

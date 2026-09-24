@@ -25,6 +25,8 @@ files, and inventories all copied inputs. Separate sibling/nested projects get
 separate imports. Symlinks, case conflicts and escaping or missing sheets fail with a
 diagnostic. Dependencies outside the selected project directory need a separate,
 explicit migration into local or declared shared storage.
+For a repair-oriented dry run, use the diagnostic command with `--source`,
+`--project-id` and `--toolchain` as shown in [diagnose and repair](DIAGNOSTICS.md).
 
 Review `docs/import.json` before accepting the import. It records file hashes and
 exclusions: local preferences/caches, working fabrication exports, separate designs

@@ -985,6 +985,30 @@ class TemplateDoctorReport(StrictModel):
     next_actions: tuple[NonEmptyText, ...] = ()
 
 
+class DiagnosticFinding(StrictModel):
+    """One observed failure or review task with a concrete repair path."""
+
+    severity: Literal["BLOCKING", "REVIEW"]
+    code: NonEmptyText
+    location: NonEmptyText
+    observed: NonEmptyText
+    action: NonEmptyText
+    guide: RepositoryPath
+
+
+class DiagnosticReport(StrictModel):
+    """A local coaching view; success never constitutes engineering approval."""
+
+    schema_version: Literal["1"] = "1"
+    lane: Literal["PROJECT_DIAGNOSTICS"] = "PROJECT_DIAGNOSTICS"
+    build_authorized: Literal[False] = False
+    project_id: NonEmptyText
+    scope: Literal["import", "project"]
+    status: Literal["PASS", "NEEDS_WORK"]
+    findings: tuple[DiagnosticFinding, ...]
+    next_command: NonEmptyText
+
+
 class TemplatePreflightReport(StrictModel):
     schema_version: Literal["1"] = "1"
     lane: Literal["TEMPLATE_PREFLIGHT"] = "TEMPLATE_PREFLIGHT"

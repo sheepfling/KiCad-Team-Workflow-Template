@@ -43,6 +43,11 @@ This is the shortest path from a fresh fork to a checked project island. Use
    python -B -m tools.ci --kicad --project battery-board --output projects/battery-board/build/review-001
    ```
 
+   If a check fails, run `python -B -m tools.template diagnose --project-id battery-board`
+   and follow [the repair guide](DIAGNOSTICS.md). Add the native
+   project's `summary.json` with `--native-report` to explain ERC, DRC and contract
+   failures.
+
 6. Commit only authored source, push a short-lived branch and open a pull request.
    Review the exact Actions commit and retained evidence before merging.
 
