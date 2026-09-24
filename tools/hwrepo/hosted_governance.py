@@ -18,6 +18,7 @@ from .models import GovernanceRecord, HostedGovernanceCheck, HostedGovernanceRep
 
 REPOSITORY_NAME = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 OWNER_EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+OWNER_HANDLE = re.compile(r"^@[A-Za-z0-9][A-Za-z0-9_.-]*(?:/[A-Za-z0-9][A-Za-z0-9_.-]*)?$")
 CODEOWNERS_PATHS = (".github/CODEOWNERS", "CODEOWNERS", "docs/CODEOWNERS")
 AuditStatus = Literal["PASS", "NEEDS_SETUP", "UNKNOWN"]
 
@@ -92,6 +93,15 @@ class RepositoryContent(ApiModel):
     encoding: str | None = None
     content: str | None = None
     size: int | None = None
+
+
+class CodeownersError(ApiModel):
+    line: int
+    kind: str
+
+
+class CodeownersErrors(ApiModel):
+    errors: list[CodeownersError]
 
 
 @dataclass(frozen=True)
@@ -275,16 +285,42 @@ def _codeowners(root: Path, repository: str, branch: str) -> tuple[HostedGoverna
             return _check("codeowners_file", "Active CODEOWNERS on default branch",
                           f"{path}: {exc}", "UNKNOWN", endpoint,
                           "Repair or inspect CODEOWNERS encoding."), ()
-        owners = tuple(sorted({part for line in lines if line.strip() and not line.lstrip().startswith("#")
-                               for part in line.split()[1:]
-                               if part.startswith("@") or OWNER_EMAIL.fullmatch(part)}))
+        owners_set: set[str] = set()
+        for number, line in enumerate(lines, 1):
+            if not line.strip() or line.lstrip().startswith("#"):
+                continue
+            fields = line.split()
+            if len(fields) < 2 or any(
+                not (OWNER_HANDLE.fullmatch(owner) or OWNER_EMAIL.fullmatch(owner))
+                for owner in fields[1:]
+            ):
+                return _check("codeowners_file", "Active CODEOWNERS on default branch",
+                              f"{path} line {number} has a missing or malformed owner entry",
+                              "NEEDS_SETUP", endpoint,
+                              "Repair the named CODEOWNERS entry and rerun the audit."), ()
+            owners_set.update(fields[1:])
+        owners = tuple(sorted(owners_set))
         if not owners or any("YOUR-" in owner.upper() or "REPLACE" in owner.upper()
                              for owner in owners):
             return _check("codeowners_file", "Active CODEOWNERS on default branch",
                           f"{path} has no reviewed owner entries", "NEEDS_SETUP", endpoint,
                           "Populate CODEOWNERS with real user or team handles."), owners
+        errors_endpoint = f"repos/{repository}/codeowners/errors?ref={ref}"
+        try:
+            errors = _model(_gh(root, "api", errors_endpoint), CodeownersErrors, errors_endpoint)
+        except ApiError as exc:
+            return _check("codeowners_file", "Active CODEOWNERS on default branch",
+                          f"Cannot verify CODEOWNERS syntax: {exc}", "UNKNOWN", errors_endpoint,
+                          "Grant Contents:read or inspect GitHub's CODEOWNERS errors on the default branch."), ()
+        if errors.errors:
+            examples = ", ".join(f"line {error.line}: {error.kind}" for error in errors.errors[:3])
+            return _check("codeowners_file", "Active CODEOWNERS on default branch",
+                          f"{path} has {len(errors.errors)} GitHub CODEOWNERS error(s): {examples}",
+                          "NEEDS_SETUP", errors_endpoint,
+                          "Repair GitHub's reported CODEOWNERS errors and rerun the audit."), ()
         return _check("codeowners_file", "Active CODEOWNERS on default branch",
-                      f"{path} declares {len(owners)} owner entry/entries", "PASS", endpoint), owners
+                      f"{path} declares {len(owners)} owner entry/entries; GitHub reports no syntax errors",
+                      "PASS", f"{endpoint}; {errors_endpoint}"), owners
     # A successful root listing establishes Contents:read before interpreting 404s as absence.
     endpoint = f"repos/{repository}/contents?ref={ref}"
     try:
@@ -401,26 +437,43 @@ def audit(root: Path, repository: str | None = None, record_path: str | None = N
         ))
     declared_people = (() if record is None else
                        (*record.authors, *record.reviewers, *record.integrators))
+    role_groups = (() if record is None else (
+        ("authors", record.authors), ("reviewers", record.reviewers),
+        ("integrators", record.integrators),
+    ))
+    missing_roles = tuple(role for role, people in role_groups if not people)
     record_needs_setup = record is not None and (
-        len({person.casefold() for person in declared_people}) < policy.minimum_actors
+        bool(missing_roles)
+        or len({person.casefold() for person in declared_people}) < policy.minimum_actors
         or any(not reviewed_value(person) for person in declared_people)
         or (policy.independent_review and bool(
             {person.casefold() for person in record.authors}
             & {person.casefold() for person in record.reviewers}
         ))
     )
+    if missing_roles:
+        identity_observed = f"Governance record is missing {', '.join(missing_roles)}"
+        identity_action = (
+            f"Assign and review at least one {', '.join(missing_roles)} role in the governance record."
+        )
+    elif record_needs_setup:
+        identity_observed = "Governance record has placeholders or insufficient independent actors"
+        identity_action = "Replace governance-record placeholders with independently reviewed actors."
+    else:
+        identity_observed = (
+            f"{len(owners)} CODEOWNERS owner(s), {len(declared_people)} declared role(s); "
+            "live permissions and team rehearsal unverified"
+        )
+        identity_action = (
+            "Confirm real users/teams have write and review rights, inspect bypass actors, "
+            "and rehearse approvals, rejected checks, and access revocation."
+        )
     checks.append(_check(
         "team_identities",
         f"At least {policy.minimum_actors} real actors and rehearsed review/merge permissions",
-        ("Governance record has placeholders or insufficient independent actors"
-         if record_needs_setup else
-         f"{len(owners)} CODEOWNERS owner(s), {len(declared_people)} declared role(s); "
-         "live permissions and team rehearsal unverified"),
+        identity_observed,
         "NEEDS_SETUP" if record_needs_setup else "UNKNOWN", record_path,
-        ("Replace governance-record placeholders with independently reviewed actors."
-         if record_needs_setup else
-         "Confirm real users/teams have write and review rights, inspect bypass actors, "
-         "and rehearse approvals, rejected checks, and access revocation."),
+        identity_action,
     ))
     hosted_controls_status = _overall([check for check in checks if check.id != "team_identities"])
     status = _overall(checks)
