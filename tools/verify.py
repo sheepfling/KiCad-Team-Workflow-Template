@@ -63,7 +63,7 @@ def container_command(
     deps = dependencies.relative_to(root).as_posix()
     output = native_output.relative_to(root).as_posix()
     command = ["docker", "run", "--rm", "--platform", "linux/amd64"]
-    if hasattr(os, "getuid") and hasattr(os, "getgid"):
+    if sys.platform != "win32":
         command.extend(("--user", f"{os.getuid()}:{os.getgid()}"))
     command.extend((
         "--entrypoint", "python3", "-e", "HOME=/tmp/kicad-template",
@@ -266,7 +266,10 @@ def main() -> int:
     parser.add_argument("--depth", choices=("portable", "native"), default="portable")
     parser.add_argument("--runner", choices=("auto", "local", "container"), default="auto",
                         help="Native runner; auto prefers an exact local CLI, then pinned Docker")
-    parser.add_argument("--cli", default="kicad-cli", help="Exact local KiCad CLI or path")
+    parser.add_argument(
+        "--cli", default="kicad-cli",
+        help="Exact local KiCad CLI command or path (relative paths use the caller's cwd)",
+    )
     parser.add_argument("--output", type=Path, help="Fresh receipt path under ignored build/")
     parser.add_argument("--format", choices=("text", "json"), default="text")
     parser.add_argument("--detail", choices=("brief", "full"), default="brief")

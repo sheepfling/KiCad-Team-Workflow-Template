@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -14,6 +15,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from tests.support import initialize_git, reference_root
+from tools.check_toolchain import cli_executable
 from tools.hwrepo.contracts import write_model
 from tools.hwrepo.models import (
     CheckAllSummary,
@@ -25,7 +27,7 @@ from tools.hwrepo.models import (
     RepositoryPolicyReport,
     ValidationSummary,
 )
-from tools.verify import run_command, verify
+from tools.verify import container_command, run_command, verify
 
 
 def native_summary(status: str = "PASS") -> CheckAllSummary:
@@ -117,6 +119,39 @@ class VerifyTests(unittest.TestCase):
         self.assertEqual(args[0], self.root.resolve())
         self.assertEqual(args[2:], ("kicad-cli", ["controller"]))
         self.assertTrue(args[1].is_relative_to(self.root / "build"))
+
+    def test_relative_cli_path_uses_callers_cwd_with_a_different_root(self) -> None:
+        caller = self.root.parent / "caller"
+        executable = caller / "bin" / "kicad-cli"
+        executable.parent.mkdir(parents=True)
+        executable.write_text("fixture", encoding="utf-8")
+        relative_cli = "./bin/kicad-cli"
+
+        def native(_root: Path, _output: Path, cli: str, projects: list[str]) -> CheckAllSummary:
+            self.assertEqual(projects, ["controller"])
+            self.assertEqual(cli, relative_cli)
+            self.assertEqual(cli_executable(cli), str(executable.resolve()))
+            return native_summary()
+
+        original_cwd = Path.cwd()
+        try:
+            os.chdir(caller)
+            with (
+                self.runner_environment("10.0.0"),
+                patch("tools.verify.check_all", side_effect=native),
+            ):
+                result = verify(self.root, "controller", depth="native", runner="local", cli=relative_cli)
+        finally:
+            os.chdir(original_cwd)
+        self.assertEqual(result.status, "PASS", result.error)
+
+    def test_windows_container_command_does_not_request_posix_user(self) -> None:
+        with patch("tools.verify.sys.platform", "win32"):
+            command = container_command(
+                self.root, "kicad@sha256:" + "0" * 64, "controller",
+                self.root / "build/deps", self.root / "build/native",
+            )
+        self.assertNotIn("--user", command)
 
     def test_container_runner_uses_only_catalogued_image_and_captures_commands(self) -> None:
         commands: list[tuple[str, ...]] = []

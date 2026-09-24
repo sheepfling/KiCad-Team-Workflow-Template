@@ -107,6 +107,9 @@ same runner readiness. The lower-level `tools.ci --kicad` remains useful in CI
 or when you manage the
 evidence path yourself; it does not choose Docker automatically. A tag or
 product selects a larger group without naming each member.
+When passing `--cli ./path/to/kicad-cli`, the relative path is resolved from
+the directory where you invoke the command, even if `--root` points to another
+repository directory. An executable name without a slash is found on `PATH`.
 `tools.ci --matrix --project <id>` previews just the selected native job.
 Use `tools.ci` without a selector for a full portable rehearsal, especially
 after changing shared tooling, catalog policy, or release behavior.

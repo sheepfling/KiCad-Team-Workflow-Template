@@ -34,7 +34,10 @@ def main() -> int:
     parser.add_argument("--target-version")
     parser.add_argument("--kind", choices=[kind.value for kind in ProjectKind], default="pcb")
     parser.add_argument("--toolchain")
-    parser.add_argument("--cli", default="kicad-cli", help="KiCad CLI to inspect with doctor")
+    parser.add_argument(
+        "--cli", default="kicad-cli",
+        help="KiCad CLI for doctor (relative paths use the caller's cwd)",
+    )
     parser.add_argument(
         "--native", action="store_true",
         help="Require doctor to find this project's exact local CLI or pinned Docker runner",
