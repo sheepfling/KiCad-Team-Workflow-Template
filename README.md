@@ -46,8 +46,8 @@ source .venv/bin/activate
 # Windows PowerShell: .venv\Scripts\Activate.ps1
 python -m pip install -e '.[dev]'
 # Once in your fork, before adding designs:
-python -B -m tools.template doctor
-python -B -m tools.template adopt --project-id my-hardware
+python -B -m tools.template doctor --format text
+python -B -m tools.template adopt --project-id my-hardware --format text
 ```
 
 If activation is unavailable, invoke `.venv/bin/python` or
@@ -64,8 +64,8 @@ An empty fork passes scaffold checks and reports that no hardware was validated.
 ## Start a board
 
 ```sh
-python -B -m tools.template new-project --project-id battery-board --kind pcb --toolchain kicad-10.0.5
-python -B -m tools.template new-project --project-id pwm-board --kind pcb --toolchain kicad-10.0.5
+python -B -m tools.template new-project --project-id battery-board --kind pcb --toolchain kicad-10.0.5 --format text
+python -B -m tools.template new-project --project-id pwm-board --kind pcb --toolchain kicad-10.0.5 --format text
 ```
 
 The command creates the folder, manifest, notes and test-contract skeleton. Create
@@ -82,13 +82,13 @@ Exercise imports in a temporary copy and retain each run through its PR or CI ar
 
 ```sh
 # Selected board, its dependencies and applicable board/product tests
-python -B -m tools.ci --project battery-board
+python -B -m tools.ci --project battery-board --format text
 # Shared policy and tools, every project, all unit and project tests
-python -B -m tools.ci
+python -B -m tools.ci --format text
 # Preview automatic native CI lanes
-python -B -m tools.ci --matrix
+python -B -m tools.ci --matrix --format text
 # Pinned native check; use a fresh output path each attempt
-python -B -m tools.ci --kicad --project battery-board --output projects/battery-board/build/review-001
+python -B -m tools.ci --kicad --project battery-board --output projects/battery-board/build/review-001 --format text
 # Shared tooling tests alone
 python -B -m unittest discover -s tests -v
 ```

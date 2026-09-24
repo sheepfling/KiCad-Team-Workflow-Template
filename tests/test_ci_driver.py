@@ -61,6 +61,34 @@ class CiDriverTests(unittest.TestCase):
         self.assertEqual(report["scope"], "project_static")
         self.assertNotIn("ruff", report)
 
+    def test_selected_project_can_print_a_short_human_summary(self) -> None:
+        result = subprocess.run(
+            [sys.executable, "-B", "-m", "tools.ci", "--project", "controller",
+             "--format", "text"],
+            cwd=ROOT, capture_output=True, text=True, check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Portable check: PASS", result.stdout)
+        self.assertIn("Projects: controller", result.stdout)
+        self.assertIn("registry: PASS", result.stdout)
+
+    def test_failed_project_text_points_to_the_diagnostic_command(self) -> None:
+        with (
+            patch.object(sys, "argv", [
+                "ci.py", "--root", str(ROOT), "--project", "controller",
+                "--format", "text",
+            ]),
+            patch("tools.ci.check_generation", return_value=("Outdated BOM view",)),
+            patch("sys.stdout", new_callable=StringIO) as output,
+        ):
+            self.assertEqual(main(), 1)
+        self.assertIn("generation: FAIL", output.getvalue())
+        self.assertIn("Outdated BOM view", output.getvalue())
+        self.assertIn(
+            "python -B -m tools.template diagnose --project-id controller",
+            output.getvalue(),
+        )
+
     def test_module_entrypoint_selects_projects_by_metadata_tag(self) -> None:
         result = subprocess.run(
             [sys.executable, "-B", "-m", "tools.ci", "--tag", "status-led"],
@@ -83,6 +111,15 @@ class CiDriverTests(unittest.TestCase):
         ):
             self.assertEqual(main(), 0)
         self.assertEqual(len(output.getvalue().splitlines()), 1)
+
+    def test_metrics_text_reuses_the_read_only_summary(self) -> None:
+        with (
+            patch.object(sys, "argv", ["ci.py", "--root", str(ROOT), "--metrics", "--format", "text"]),
+            patch("sys.stdout", new_callable=StringIO) as output,
+        ):
+            self.assertEqual(main(), 0)
+        self.assertIn("Template metrics:", output.getvalue())
+        self.assertIn("Build authorized: no", output.getvalue())
 
     def test_module_entrypoint_resolves_the_package_without_path_injection(self) -> None:
         result = subprocess.run(

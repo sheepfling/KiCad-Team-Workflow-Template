@@ -2,10 +2,14 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import shutil
+import sys
 import tempfile
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
 from datetime import date
+from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
@@ -15,21 +19,28 @@ from tools.hwrepo.models import (
     DeviationStatus,
     InterfacesCatalog,
     LibrariesCatalog,
+    PolicyIssue,
     ProductRecord,
     ProjectKind,
+    ProjectManifest,
     ReleaseArtifact,
     ReleaseArtifactKind,
     ReleaseClass,
     ReleaseDeviation,
+    ReleaseExportReport,
     ReleaseInterface,
     ReleaseLibrary,
     ReleaseManifest,
+    ReleasePackageReport,
+    ReleaseReadinessReport,
     ReleaseStatus,
     ReleaseVariant,
+    SourceState,
 )
 from tools.hwrepo.product import load_repository
 from tools.hwrepo.release import check, selected_project_records
 from tools.hwrepo.scaffold import new_project
+from tools.release import main as release_main
 
 ROOT = reference_root()
 COMMIT = "a" * 40
@@ -190,6 +201,107 @@ class ReleaseReadinessTests(unittest.TestCase):
                 {finding.code for finding in report.issues}
             )
         )
+
+    def test_prepare_json_is_one_document_and_default_output_remains_human(self) -> None:
+        manifest = self.manifest()
+        argv = [
+            "tools.release", "prepare", "--root", str(self.root),
+            "--release-id", manifest.release_id, "--project", "passive-signal-reference",
+        ]
+        with patch("tools.hwrepo.releasing.prepare", return_value=manifest):
+            machine_output = StringIO()
+            with patch.object(sys, "argv", [*argv, "--json"]), redirect_stdout(machine_output):
+                self.assertEqual(release_main(), 0)
+            self.assertEqual(json.loads(machine_output.getvalue()), manifest.model_dump(mode="json"))
+
+            alias_output = StringIO()
+            with patch.object(sys, "argv", [*argv, "--format", "json"]), redirect_stdout(alias_output):
+                self.assertEqual(release_main(), 0)
+            self.assertEqual(alias_output.getvalue(), machine_output.getvalue())
+
+            human_output = StringIO()
+            with patch.object(sys, "argv", argv), redirect_stdout(human_output):
+                self.assertEqual(release_main(), 0)
+        self.assertEqual(
+            human_output.getvalue(),
+            f"Prepared engineering_review candidate {manifest.release_id}\n"
+            f"Source: {manifest.source_commit}; toolchain: {manifest.toolchain_id}\n"
+            f"Retained {len(manifest.artifacts)} artifacts. Review is required before manufacture.\n"
+            f"Candidate written to build/releases/{manifest.release_id}/manifest.json\n",
+        )
+
+        with (
+            patch.object(sys, "argv", [*argv, "--json", "--format", "text"]),
+            redirect_stderr(StringIO()),
+            self.assertRaises(SystemExit) as error,
+        ):
+            release_main()
+        self.assertEqual(error.exception.code, 2)
+
+    def test_release_check_text_shows_issues_and_default_remains_json(self) -> None:
+        manifest = self.manifest()
+        manifest_name = "release-cli-test.json"
+        write_model(self.root / manifest_name, manifest)
+        issue = PolicyIssue(code="RELEASE_EVIDENCE", location="evidence.native",
+                            message="Native evidence is missing")
+        report = ReleaseReadinessReport(release_id=manifest.release_id,
+            release_class=manifest.release_class, status="FAIL", issues=(issue,))
+        argv = ["tools.release", "check", "--root", str(self.root), "--manifest", manifest_name]
+        with patch("tools.release.check", return_value=report):
+            human_output = StringIO()
+            with patch.object(sys, "argv", [*argv, "--format", "text"]), \
+                    redirect_stdout(human_output):
+                self.assertEqual(release_main(), 1)
+            self.assertIn("FAIL: release readiness", human_output.getvalue())
+            self.assertIn("RELEASE_EVIDENCE at evidence.native: Native evidence is missing",
+                          human_output.getvalue())
+
+            machine_output = StringIO()
+            with patch.object(sys, "argv", argv), redirect_stdout(machine_output):
+                self.assertEqual(release_main(), 1)
+            self.assertEqual(json.loads(machine_output.getvalue()), report.model_dump(mode="json"))
+
+    def test_export_and_package_operations_accept_text_format(self) -> None:
+        project = read_model(
+            self.root / "examples/projects/arduino-uno-status-led/project.json", ProjectManifest
+        )
+        self.assertIsNotNone(project.release_exports)
+        assert project.release_exports is not None
+        export_report = ReleaseExportReport(
+            project_id=project.id, source=SourceState(commit=COMMIT, clean=True),
+            toolchain_id=project.toolchain_id, settings=project.release_exports,
+            commands={}, artifacts_sha256={}, status="PASS",
+        )
+        output = self.root / "build/export-cli-test"
+        with patch("tools.hwrepo.exports.export", return_value=export_report):
+            captured = StringIO()
+            argv = ["tools.release", "export", "--root", str(self.root),
+                    "--project", project.id, "--output", str(output), "--format", "text"]
+            with patch.object(sys, "argv", argv), redirect_stdout(captured):
+                self.assertEqual(release_main(), 0)
+            self.assertIn(f"PASS: release export for {project.id}", captured.getvalue())
+            self.assertIn(f"Output: {output}", captured.getvalue())
+
+        package_report = ReleasePackageReport(
+            status="PASS", source_commit=COMMIT, package="/tmp/release.zip",
+            package_sha256="b" * 64, manifest="build/releases/test/manifest.json",
+        )
+        for command, arguments in (
+            ("package", ["--manifest", package_report.manifest, "--output", "/tmp/release.zip"]),
+            ("verify", ["--archive", package_report.package]),
+            ("restore", ["--archive", package_report.package, "--destination", "/tmp/restored"]),
+        ):
+            with self.subTest(command=command), \
+                    patch(f"tools.hwrepo.packaging.{command}", return_value=package_report):
+                captured = StringIO()
+                argv = ["tools.release", command, "--root", str(self.root),
+                        *arguments, "--format", "text"]
+                with patch.object(sys, "argv", argv), redirect_stdout(captured):
+                    self.assertEqual(release_main(), 0)
+                self.assertIn(f"PASS: release {command}", captured.getvalue())
+                self.assertIn("SHA-256: " + package_report.package_sha256, captured.getvalue())
+                if command == "restore":
+                    self.assertIn("Restored to: /tmp/restored", captured.getvalue())
 
 
 if __name__ == "__main__":

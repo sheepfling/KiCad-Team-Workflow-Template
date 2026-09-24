@@ -1,12 +1,17 @@
 """Supplier-offer snapshots remain typed, local and non-authorizing."""
 from __future__ import annotations
 
+import json
+import sys
 import unittest
 from datetime import UTC, datetime
+from io import StringIO
+from unittest.mock import patch
 
 from tests.support import reference_root
 from tools.hwrepo.models import SourcingSnapshot, SupplierOffer
 from tools.hwrepo.sourcing import check
+from tools.sourcing import main as sourcing_main
 
 ROOT = reference_root()
 
@@ -45,6 +50,41 @@ class SourcingSnapshotTests(unittest.TestCase):
         report = check(ROOT, self.snapshot(offers=(offer,)))
         self.assertEqual(report.status, "FAIL")
         self.assertIn("SOURCING_PART", {issue.code for issue in report.issues})
+
+    def test_cli_defaults_to_json_and_text_explains_a_failing_offer(self) -> None:
+        snapshot = self.snapshot()
+        with (
+            patch.object(sys, "argv", ["sourcing.py", "--snapshot", "offer.json"]),
+            patch("tools.sourcing.read_model", return_value=snapshot),
+            patch("sys.stdout", new_callable=StringIO) as output,
+        ):
+            self.assertEqual(sourcing_main(), 0)
+        self.assertEqual(json.loads(output.getvalue())["lane"], "SOURCING_SNAPSHOT")
+
+        unknown = snapshot.offers[0].model_copy(update={"part_id": "unknown-part"})
+        with (
+            patch.object(sys, "argv", [
+                "sourcing.py", "--snapshot", "offer.json", "--format", "text",
+            ]),
+            patch("tools.sourcing.read_model", return_value=self.snapshot(offers=(unknown,))),
+            patch("sys.stdout", new_callable=StringIO) as output,
+        ):
+            self.assertEqual(sourcing_main(), 1)
+        self.assertIn("Sourcing snapshot training-offer-observation: FAIL", output.getvalue())
+        self.assertIn("SOURCING_PART at offer-1", output.getvalue())
+        self.assertIn("Build authorized: no", output.getvalue())
+
+    def test_cli_text_reports_an_unreadable_snapshot(self) -> None:
+        with (
+            patch.object(sys, "argv", [
+                "sourcing.py", "--snapshot", "missing.json", "--format", "text",
+            ]),
+            patch("tools.sourcing.read_model", side_effect=OSError("missing snapshot")),
+            patch("sys.stdout", new_callable=StringIO) as output,
+            patch("sys.stderr", new_callable=StringIO),
+        ):
+            self.assertEqual(sourcing_main(), 1)
+        self.assertIn("SOURCING_LOAD at missing.json: missing snapshot", output.getvalue())
 
 
 if __name__ == "__main__":

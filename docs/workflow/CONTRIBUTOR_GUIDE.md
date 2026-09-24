@@ -8,7 +8,7 @@ project identity and branch names to the adopted repository.
 ## 01 / Get set up once
 
 Install Git, Python 3.11+ and the repository's approved KiCad build. Follow the
-[Python environment setup](../../README.md#checks) before running checks. Clone your repository, keeping the complete project and its adjacent libraries together. Replace `REPOSITORY_URL` and `REVIEW_BRANCH` below with the repository and branch assigned for the work. Confirm the default branch and the example's availability with the maintainer.
+[Python environment setup](../../README.md#first-run-setup) before running checks. Clone your repository, keeping the complete project and its adjacent libraries together. Replace `REPOSITORY_URL` and `REVIEW_BRANCH` below with the repository and branch assigned for the work. Confirm the default branch and the example's availability with the maintainer.
 
 ```sh
 git clone "REPOSITORY_URL" kicad-project
@@ -40,9 +40,10 @@ Start with a non-electrical drawing-text change. Keep the whole schematic/PCB/li
 Save and close KiCad before running the reproducible checker from the repository root:
 
 ```sh
-python -m tools.validate --output build/review-001
+python -B -m tools.ci --kicad --project controller --output build/review-001
 ```
 
+Replace `controller` with the assigned project ID in an adopted repository.
 Choose a new evidence directory each time. A missing tool, unexpected version, new board scope, dependency problem or electrical/parity finding is a failure, not permission to skip the check. The independent netlist contract deliberately detects fixture connectivity/value changes; changing that contract is itself reviewable engineering work.
 
 ## 04 / Save, share and request review

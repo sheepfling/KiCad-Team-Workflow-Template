@@ -236,11 +236,11 @@ class DiagnosticTests(unittest.TestCase):
                                       capture_output=True, text=True, check=False)
         self.assertEqual(incompatible.returncode, 2)
         self.assertIn("JSON already includes every finding", incompatible.stderr)
-        unused_flag = subprocess.run((sys.executable, "-B", "-m", "tools.template", "doctor",
+        doctor_text = subprocess.run((sys.executable, "-B", "-m", "tools.template", "doctor",
                                       "--format", "text"), capture_output=True,
                                      text=True, check=False)
-        self.assertEqual(unused_flag.returncode, 2)
-        self.assertIn("require diagnose", unused_flag.stderr)
+        self.assertEqual(doctor_text.returncode, 0, doctor_text.stderr)
+        self.assertIn("Template doctor: PASS", doctor_text.stdout)
         unbound_bom = subprocess.run((sys.executable, "-B", "-m", "tools.template", "diagnose",
                                       "--project-id", "controller", "--bom", str(self.root / "bom.csv")),
                                      capture_output=True, text=True, check=False)

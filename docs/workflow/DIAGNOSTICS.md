@@ -51,7 +51,7 @@ portable checks, native-report inspection or BOM inspection stopped.
 ## Before importing
 
 ```sh
-python -B -m tools.template doctor
+python -B -m tools.template doctor --format text
 python -B -m tools.template diagnose --source "/path/to/board.kicad_pro" --project-id battery-board --toolchain kicad-10.0.5
 ```
 
@@ -68,7 +68,7 @@ inside the new island.
 
 ```sh
 python -B -m tools.template diagnose --project-id battery-board
-python -B -m tools.ci --project battery-board
+python -B -m tools.ci --project battery-board --format text
 ```
 
 `diagnose` runs the selected portable policy and project test lane. Its `NEEDS_WORK`
@@ -137,7 +137,7 @@ Run the exact toolchain and keep each native output directory distinct. Point th
 coach at the **project** summary beneath that output:
 
 ```sh
-python -B -m tools.ci --kicad --project battery-board --output projects/battery-board/build/review-001
+python -B -m tools.ci --kicad --project battery-board --output projects/battery-board/build/review-001 --format text
 python -B -m tools.template diagnose --project-id battery-board --native-report projects/battery-board/build/review-001/battery-board/summary.json
 ```
 
