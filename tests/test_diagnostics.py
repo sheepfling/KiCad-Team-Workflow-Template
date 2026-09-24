@@ -321,6 +321,14 @@ class DiagnosticTests(unittest.TestCase):
         self.assertIn("--depth native", result.next_command)
         self.assertNotIn("--native-report", result.next_command)
 
+        bom = self.root / "bom.csv"
+        bom.write_text("Reference,Value,Footprint,PartID,DNP\nR1,1k,R_Axial,,\n")
+        with_bom = diagnose_project(repository, "controller", native_report=native, bom=bom)
+        self.assertIsNotNone(with_bom.follow_up_command)
+        self.assertIn("--native-report FRESH_NATIVE_DIR", with_bom.follow_up_command or "")
+        self.assertIn(f"--bom {quote_argument(str(bom))}", with_bom.follow_up_command or "")
+        self.assertIn("Follow-up command:", format_text(with_bom))
+
         summary_path = native / "summary.json"
         summary = read_model(summary_path, ValidationSummary)
         write_model(summary_path, summary.model_copy(update={"project_id": "another-board"}))

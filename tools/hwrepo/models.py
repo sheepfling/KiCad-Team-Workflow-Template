@@ -1122,6 +1122,7 @@ class DiagnosticReport(StrictModel):
     status: Literal["PASS", "NEEDS_WORK"]
     findings: tuple[DiagnosticFinding, ...]
     next_command: NonEmptyText
+    follow_up_command: NonEmptyText | None = None
     run_directory: str | None = None
 
 

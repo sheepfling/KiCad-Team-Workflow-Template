@@ -51,7 +51,8 @@ def finding(
 
 
 def report(
-    project_id: str, scope: str, findings: list[DiagnosticFinding], next_command: str
+    project_id: str, scope: str, findings: list[DiagnosticFinding], next_command: str,
+    follow_up_command: str | None = None,
 ) -> DiagnosticReport:
     return DiagnosticReport.model_validate({
         "project_id": project_id,
@@ -59,6 +60,7 @@ def report(
         "status": "NEEDS_WORK" if any(row.severity == "BLOCKING" for row in findings) else "PASS",
         "findings": tuple(findings),
         "next_command": next_command,
+        "follow_up_command": follow_up_command,
     })
 
 
@@ -615,11 +617,18 @@ def diagnose_project(
         with journal.stage("bom") if journal is not None else nullcontext():
             findings.extend(bom_binding_findings(root, project_id, bom, native_report))
             findings.extend(bom_findings(root, bom))
+    follow_up_command: str | None = None
     if any(row.code in {"STALE_NATIVE_REPORT", "NATIVE_REPORT"} for row in findings):
         next_command = (
             f"python -B -m tools.verify --root {quote_argument(str(root))} "
             f"--project {quote_argument(project_id)} --depth native"
         )
+        if bom is not None:
+            follow_up_command = (
+                f"python -B -m tools.template diagnose --root {quote_argument(str(root))} "
+                f"--project-id {quote_argument(project_id)} "
+                f"--native-report FRESH_NATIVE_DIR --bom {quote_argument(str(bom))}"
+            )
     elif any(row.severity == "BLOCKING" for row in findings):
         next_command = (
             f"python -B -m tools.template diagnose --root {quote_argument(str(root))} "
@@ -634,7 +643,7 @@ def diagnose_project(
             f"python -B -m tools.verify --root {quote_argument(str(root))} "
             f"--project {quote_argument(project_id)}"
         )
-    return report(project_id, "project", findings, next_command)
+    return report(project_id, "project", findings, next_command, follow_up_command)
 
 
 def format_text(result: DiagnosticReport, detail: Literal["brief", "full"] = "brief") -> str:
@@ -671,8 +680,14 @@ def format_text(result: DiagnosticReport, detail: Literal["brief", "full"] = "br
             lines.extend((f"   Fix: {action}", f"   Guide: {guide}"))
     if not result.findings:
         lines.append("No diagnosed problems in this scope. Continue with the selected verification command.")
-    lines.extend((f"Next command: {result.next_command}",
-                  "Diagnostic success does not approve the electrical design or a release."))
+    lines.append(f"Next command: {result.next_command}")
+    if result.follow_up_command is not None:
+        lines.append(
+            "After the fresh run, replace FRESH_NATIVE_DIR with that receipt's native/ "
+            "directory and recheck the BOM:"
+        )
+        lines.append(f"Follow-up command: {result.follow_up_command}")
+    lines.append("Diagnostic success does not approve the electrical design or a release.")
     if any(row.code.startswith("NATIVE_") or row.code.startswith("BOM_")
            or row.code == "STALE_NATIVE_REPORT" for row in result.findings):
         lines.append(
