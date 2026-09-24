@@ -26,20 +26,22 @@ This is the shortest path from a fresh fork to a checked project island. Use
 
 4. Create and save the design under `projects/battery-board/kicad/`. Complete its
    `project.json` and design notes. Before authoring electrical expectations, use
-   an exact installed KiCad CLI to capture an **UNREVIEWED** netlist inventory:
+   the exact catalogued KiCad toolchain to capture an **UNREVIEWED** netlist inventory:
 
    ```sh
    python -B -m tools.contract_coach --project-id battery-board --capture --format text
    ```
 
-   The command creates a fresh ignored `build/contract-coach/` receipt; add
-   `--cli /path/to/kicad-cli` when the exact catalogued CLI is not on `PATH`. The receipt
-   retains the command log, source hashes, netlist and full text/JSON inventory.
+   The command creates a fresh ignored `build/contract-coach/` receipt. `--runner auto`
+   (the default) uses the exact local KiCad CLI when available, otherwise the
+   catalogued digest-pinned Docker image. Use `--runner local --cli /path/to/kicad-cli`
+   to insist on a local installation or `--runner container` to insist on Docker.
+   The receipt retains all version probes, the export command with stdout/stderr,
+   source hashes, netlist and full text/JSON inventory. The container mounts
+   authored source read-only and writes only the ignored receipt.
    Compare observed components, pins, nets and `PART_ID` values with requirements
    and the schematic. Then independently author `tests/contract.json`; the coach
-   never writes it. If KiCad is available only through Docker, use an existing
-   hashed native summary once the contract permits a native run; local capture
-   currently needs an installed CLI.
+   never writes it. An empty authored contract does not block this capture.
 
    The generated skeleton is intentionally incomplete and fails until it
    describes the real board. Development

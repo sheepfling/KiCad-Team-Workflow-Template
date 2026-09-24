@@ -2,15 +2,19 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from tests.support import reference_root
 from tools.hwrepo.contract_coach import (
+    AutoNetlistRunner,
+    ContainerNetlistRunner,
     capture,
     inspect_summary,
     receipt_directory,
@@ -56,10 +60,12 @@ class FakeRunner:
         self.observed_version = version
         self.exported = False
 
-    def version(self, _root: Path, _config: object) -> CommandEvidence:
+    def version(self, root: Path, config: object) -> CommandEvidence:
+        _ = root, config
         return command(self.observed_version + "\n")
 
-    def export(self, _root: Path, _config: object, output: Path) -> CommandEvidence:
+    def export(self, root: Path, config: object, output: Path) -> CommandEvidence:
+        _ = root, config
         self.exported = True
         output.write_text(NETLIST, encoding="utf-8")
         return command()
@@ -231,7 +237,8 @@ class ContractCoachTests(unittest.TestCase):
         result = subprocess.run(
             (
                 sys.executable, "-B", "-m", "tools.contract_coach", "--root", str(self.root),
-                "--project-id", self.project_id, "--capture", "--cli", "missing-kicad-cli-test",
+                "--project-id", self.project_id, "--capture", "--runner", "local",
+                "--cli", "missing-kicad-cli-test",
                 "--format", "json",
             ),
             cwd=self.root, capture_output=True, text=True, check=False,
@@ -240,6 +247,121 @@ class ContractCoachTests(unittest.TestCase):
         report = json.loads(result.stdout)
         self.assertEqual(report["status"], "BLOCKED")
         self.assertTrue(Path(report["receipt_dir"], "report.json").is_file())
+
+    def test_container_runner_uses_pinned_image_and_read_only_source(self) -> None:
+        output = receipt_directory(self.root, self.project_id, None) / "netlist.xml"
+        calls: list[tuple[str, ...]] = []
+
+        def fake_command(_root: Path, argv: tuple[str, ...], timeout: int = 180) -> CommandEvidence:
+            self.assertEqual(timeout, 600)
+            calls.append(argv)
+            return command(self.config.kicad_version + "\n")
+
+        with patch("tools.hwrepo.contract_coach.run_command", side_effect=fake_command):
+            runner = ContainerNetlistRunner()
+            runner.version(self.root, self.config)
+            runner.export(self.root, self.config, output)
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(calls[0][-2:], (self.config.image, "version"))
+        self.assertIn("@sha256:", calls[0][-2])
+        self.assertIn(("-v", f"{self.root}:/work:ro"), tuple(zip(calls[1], calls[1][1:])))
+        self.assertIn(("-v", f"{output.parent}:/output:rw"),
+                      tuple(zip(calls[1], calls[1][1:])))
+        self.assertEqual(calls[1][calls[1].index("--output") + 1], "/output/netlist.xml")
+        self.assertEqual(calls[1][-1], "/work/examples/projects/controller/kicad/controller.kicad_sch")
+
+    def test_auto_falls_back_to_container_and_records_both_version_probes(self) -> None:
+        def fake_command(_root: Path, argv: tuple[str, ...], timeout: int = 180) -> CommandEvidence:
+            if argv[0] == "docker":
+                return command(self.config.kicad_version + "\n")
+            return command("9.0.0\n")
+
+        with patch("tools.hwrepo.contract_coach.run_command", side_effect=fake_command):
+            runner = AutoNetlistRunner("wrong-local-kicad")
+            result = runner.version(self.root, self.config)
+        self.assertEqual(result.stdout.strip(), self.config.kicad_version)
+        self.assertEqual(runner.selected_runner, "container")
+        self.assertEqual(set(runner.probes), {"local_version", "container_version"})
+        self.assertEqual(runner.probes["local_version"].stdout.strip(), "9.0.0")
+
+    def test_auto_fallback_capture_retains_both_probes_in_ignored_receipt(self) -> None:
+        class FakeContainer(ContainerNetlistRunner):
+            def version(self, root: Path, config: object) -> CommandEvidence:
+                _ = root, config
+                return command(self_version + "\n")
+
+            def export(self, root: Path, config: object, output: Path) -> CommandEvidence:
+                _ = root, config
+                output.write_text(NETLIST, encoding="utf-8")
+                return command()
+
+        self_version = self.config.kicad_version
+        runner = AutoNetlistRunner("missing-kicad-cli-auto-test")
+        runner.container = FakeContainer()
+        output = receipt_directory(self.root, self.project_id, None)
+        report = capture(self.root, self.project_id, output, runner)
+        self.assertEqual(report.status, "READY_FOR_REVIEW", report.issues)
+        self.assertEqual(report.selected_runner, "container")
+        self.assertEqual(set(report.commands),
+                         {"local_version", "container_version", "version", "netlist"})
+        self.assertIsNotNone(report.commands["local_version"].error)
+        self.assertTrue((output / "local_version.command.json").is_file())
+        self.assertTrue((output / "container_version.command.json").is_file())
+
+    def test_container_capture_cli_keeps_unreviewed_receipt_and_contract_unchanged(self) -> None:
+        executable_dir = self.root / "build/bin"
+        executable_dir.mkdir(parents=True)
+        executable = executable_dir / "docker"
+        executable.write_text(
+            f"#!{sys.executable}\n"
+            "import pathlib, sys\n"
+            "args = sys.argv[1:]\n"
+            "if args[-1] == 'version':\n"
+            f"    print({self.config.kicad_version!r})\n"
+            "elif 'sch' in args:\n"
+            "    mounts = [args[i + 1] for i, value in enumerate(args[:-1]) if value == '-v']\n"
+            "    output = pathlib.Path(next(value.split(':/output:rw')[0] for value in mounts "
+            "if value.endswith(':/output:rw')))\n"
+            f"    (output / 'netlist.xml').write_text({NETLIST!r}, encoding='utf-8')\n"
+            "else:\n"
+            "    raise SystemExit(2)\n",
+            encoding="utf-8",
+        )
+        executable.chmod(0o755)
+        contract_path = self.root / "examples/projects/controller/tests/contract.json"
+        before = contract_path.read_bytes()
+        result = subprocess.run(
+            (
+                sys.executable, "-B", "-m", "tools.contract_coach", "--root", str(self.root),
+                "--project-id", self.project_id, "--capture", "--runner", "container",
+                "--format", "json",
+            ),
+            cwd=self.root, capture_output=True, text=True, check=False,
+            env={**os.environ, "PATH": f"{executable_dir}{os.pathsep}{os.environ.get('PATH', '')}"},
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        report = json.loads(result.stdout)
+        self.assertEqual(report["selected_runner"], "container")
+        self.assertEqual(report["status"], "READY_FOR_REVIEW")
+        self.assertEqual(report["review_state"], "UNREVIEWED")
+        self.assertFalse(report["electrical_coverage"])
+        self.assertIn("@sha256:", " ".join(report["commands"]["netlist"]["argv"]))
+        self.assertTrue(Path(report["receipt_dir"], "netlist.xml").is_file())
+        self.assertEqual(contract_path.read_bytes(), before)
+
+    def test_container_capture_refuses_mutable_catalogued_image(self) -> None:
+        catalog = self.root / "catalog/toolchains.json"
+        data = json.loads(catalog.read_text(encoding="utf-8"))
+        for record in data["toolchains"]:
+            if record["id"] == self.config.toolchain_id:
+                record["image"] = "ghcr.io/kicad/kicad:mutable"
+        catalog.write_text(json.dumps(data), encoding="utf-8")
+        output = receipt_directory(self.root, self.project_id, None)
+        with patch("tools.hwrepo.contract_coach.run_command") as run:
+            report = capture(self.root, self.project_id, output, ContainerNetlistRunner())
+        self.assertEqual(report.status, "BLOCKED")
+        self.assertIn("digest-pinned", report.issues[0])
+        run.assert_not_called()
 
     def test_cli_capture_runs_local_adapter_and_retains_command_evidence(self) -> None:
         executable = self.root / "build/fake-kicad-cli"

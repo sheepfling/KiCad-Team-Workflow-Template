@@ -113,7 +113,7 @@ portable lane passes, but they must be resolved before the activity they name
 | `CAD_PATH` missing, embedded or case-mismatched target | Correct exact spelling/case or add the intended asset and verify it opens in KiCad. Do not add a dummy file. |
 | `TRACKED_GENERATED_OUTPUT`, `TRACKED_LOCAL_STATE`, `TRACKED_UNMANAGED_ARTIFACT` | Keep generated exports and local state under ignored `build/`; remove already tracked copies from the Git index with `git rm --cached -- <path>` after confirming their source of truth. Review any authored document or image placement before moving it. |
 | `UNREGISTERED_DESIGN` | Give a separate native design its own registered island; do not hide it in another project's input inventory. |
-| `EMPTY_COMPONENT_CONTRACT` | Run `tools.contract_coach --project-id <id> --capture` with the exact local KiCad CLI to inventory UNREVIEWED components and nets. Compare them with requirements, then write independent expectations in `tests/contract.json`. |
+| `EMPTY_COMPONENT_CONTRACT` | Run `tools.contract_coach --project-id <id> --capture` to inventory UNREVIEWED components and nets with exact local KiCad or the catalogued digest-pinned Docker image. Compare them with requirements, then write independent expectations in `tests/contract.json`. |
 | `EMPTY_NET_CONTRACT` | Review the empty net expectation; author real expected connectivity or record that the design is intentionally net-free. |
 | `PROJECT_TEST` | Read the failing assertion and requirement, repair the design or test fixture, then rerun the selected lane. |
 | `PART_ID_SCOPE` or `EXPORT_SETTINGS` | Complete these reviewed records before purchasing or manufacturing work; a portable pass does not imply release readiness. |
@@ -195,6 +195,16 @@ for agents. A failed native contract comparison may still provide usable
 UNREVIEWED observations when the KiCad export itself succeeded; it does not turn
 the failed validation green. See [checks and CI](CHECKS_AND_CI.md) and
 [test authority](../../tests/README.md).
+
+For an empty electrical contract, `tools.contract_coach --project-id <id> --capture`
+exports an observed netlist before native validation can pass. The default
+`--runner auto` tries an exact local KiCad CLI, then the digest-pinned Docker
+image. `--runner local --cli <path>` and `--runner container` select one path.
+If capture fails, open `version.command.json` or `netlist.command.json` in the
+reported ignored receipt; an auto fallback also retains `local_version.command.json`
+and `container_version.command.json`. The `--format json` report records the
+selected runner and every command, including stdout, stderr, return code and
+launch error. The coach never writes or approves `tests/contract.json`.
 
 ## Before a purchasing BOM or release export
 

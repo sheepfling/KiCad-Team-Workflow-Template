@@ -26,6 +26,8 @@ When first authoring a schematic-backed contract, use
 `tools.contract_coach --project-id <id> --capture` to inventory observed KiCad
 components and nets before writing expectations. The inventory is UNREVIEWED;
 compare it with requirements and keep the contract independently authored.
+The default `--runner auto` uses exact local KiCad or the digest-pinned Docker
+image and retains the selected runner and command evidence in ignored `build/`.
 The coach can also inspect a hashed native summary with `--native-summary`.
 Optional project `test_*.py`
 files cover board-specific requirements. The Raspberry Pi example's

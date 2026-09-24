@@ -5,6 +5,8 @@ import argparse
 from pathlib import Path
 
 from .hwrepo.contract_coach import (
+    AutoNetlistRunner,
+    ContainerNetlistRunner,
     LocalNetlistRunner,
     capture,
     inspect_summary,
@@ -29,6 +31,10 @@ def main() -> int:
     )
     parser.add_argument("--cli", default="kicad-cli", help="Exact catalogued local KiCad CLI for --capture")
     parser.add_argument(
+        "--runner", choices=("auto", "local", "container"), default="auto",
+        help="Capture with exact local KiCad when available, else the digest-pinned Docker image",
+    )
+    parser.add_argument(
         "--output", type=Path,
         help="Fresh ignored build/ receipt; --capture creates one automatically if omitted",
     )
@@ -39,6 +45,8 @@ def main() -> int:
         parser.error("--detail is for text; JSON already includes the full inventory")
     if args.native_summary is not None and args.cli != "kicad-cli":
         parser.error("--cli applies only to --capture")
+    if args.native_summary is not None and args.runner != "auto":
+        parser.error("--runner applies only to --capture")
     root = args.root.resolve()
     try:
         receipt = (
@@ -48,7 +56,12 @@ def main() -> int:
         if args.capture:
             if receipt is None:
                 raise ValueError("Capture requires a new ignored receipt")
-            report = capture(root, args.project_id, receipt, LocalNetlistRunner(args.cli))
+            runner = (
+                LocalNetlistRunner(args.cli) if args.runner == "local"
+                else ContainerNetlistRunner() if args.runner == "container"
+                else AutoNetlistRunner(args.cli)
+            )
+            report = capture(root, args.project_id, receipt, runner)
         else:
             if args.native_summary is None:
                 raise ValueError("Select --capture or --native-summary")

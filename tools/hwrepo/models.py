@@ -1397,6 +1397,7 @@ class ContractCoachReport(StrictModel):
     review_state: Literal["UNREVIEWED"] = "UNREVIEWED"
     electrical_coverage: Literal[False] = False
     build_authorized: Literal[False] = False
+    selected_runner: Literal["local", "container"] | None = None
     source_hashes: Mapping[RepositoryPath, Digest] = Field(default_factory=dict)
     netlist_sha256: Digest | None = None
     native_summary: str | None = None

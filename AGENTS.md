@@ -36,7 +36,8 @@ This file is for coding agents and engineers using an agent. Start with the
   repair global discovery and rerun normal diagnosis and the full gate.
 - For a new schematic-backed board with an empty component/net contract, run
   `python -B -m tools.contract_coach --project-id <id> --capture --format json`
-  with the exact catalogued local KiCad CLI. For an existing native report, use
+  with the exact local KiCad CLI or the digest-pinned Docker image (`--runner auto`
+  selects one). For an existing native report, use
   `--native-summary <project-summary.json>` instead. This read-only coach checks
   project identity, source hashes and netlist artifact evidence; its components
   and nets are explicitly `UNREVIEWED`. It never edits `tests/contract.json` or

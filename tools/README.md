@@ -49,7 +49,7 @@ integration work, not a prerequisite for repository policy.
 | `impact`, `hwrepo/impact.py` | Plan affected PR project lanes from changed paths; broaden ambiguous/shared-tool changes to full scope |
 | `native_deps` | Prepare Linux wheels for the pinned container's Python, without requiring pip inside the image |
 | `validate`, `check_toolchain`, `fault_probe` | Adapt the pinned KiCad CLI, preserve source hashes and test deliberate native defects |
-| `contract_coach`, `hwrepo/contract_coach.py` | Capture or inspect a source-bound netlist, compare it with independently authored expectations and retain ignored review evidence |
+| `contract_coach`, `hwrepo/contract_coach.py` | Capture or inspect a source-bound netlist using exact local KiCad or the digest-pinned Docker image, compare it with independently authored expectations and retain ignored review evidence |
 | `lint_registry`, `docs_policy` | Expose registry and Markdown policy |
 | `hardware` | Check products, generate ignored review views/schemas, create and verify snapshots |
 | `template`, `release`, `sourcing`, `metrics` | Expose environment and project diagnostics, adoption, release readiness, supplier snapshots and current policy metrics |
