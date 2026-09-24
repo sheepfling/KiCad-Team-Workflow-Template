@@ -5,9 +5,11 @@ import csv
 import shlex
 import xml.etree.ElementTree as ET
 from collections import Counter
+from contextlib import nullcontext
 from pathlib import Path
 
 from .contracts import read_model, repo_path
+from .diagnostic_journal import DiagnosticJournal
 from .discovery import load_config, load_registry
 from .importing import import_project
 from .models import (
@@ -50,6 +52,14 @@ def report(
 
 
 def import_guidance(message: str) -> str:
+    if "matching .kicad_sch or .kicad_pcb" in message:
+        return (
+            "This .kicad_pro has neither a matching schematic nor board. Find the complete "
+            "saved project or choose the correct .kicad_pro. A board without a schematic can "
+            "be imported as pcb_only; do not fabricate a missing design file."
+        )
+    if "Select an existing .kicad_pro" in message:
+        return "Select the actual .kicad_pro file for one complete design, then preview again."
     if "outside the selected project directory" in message or "is not in the subpath of" in message:
         return (
             "Move the referenced sheet and its dependencies into this project, update its "
@@ -65,6 +75,13 @@ def import_guidance(message: str) -> str:
             "Rename the source path to a portable, unique spelling and update every KiCad "
             "reference to it before retrying."
         )
+    if "Linked source path" in message:
+        return (
+            "Replace the symlink with the actual reviewed project-local asset, or declare a "
+            "shared library dependency, then preview again."
+        )
+    if "Source and destination directories must not overlap" in message:
+        return "Use an external source copy and a distinct destination island, then preview again."
     if "variable" in message:
         return (
             "Resolve the sheet path to a reviewed project-local dependency, update Sheetfile "
@@ -73,9 +90,16 @@ def import_guidance(message: str) -> str:
     return "Repair the named source or project selection, then rerun the dry-run import."
 
 
-def diagnose_import(root: Path, source: Path, project_id: str, toolchain_id: str) -> DiagnosticReport:
+def diagnose_import(
+    root: Path, source: Path, project_id: str, toolchain_id: str,
+    journal: DiagnosticJournal | None = None,
+) -> DiagnosticReport:
     """Preview an import and group omissions without copying the candidate project."""
-    preview = import_project(root, source, project_id, toolchain_id, dry_run=True)
+    root = root.resolve()
+    with journal.stage("import-preview") if journal is not None else nullcontext():
+        preview = import_project(root, source, project_id, toolchain_id, dry_run=True)
+        if journal is not None:
+            journal.save_model("import-preview", preview)
     findings = [
         finding("BLOCKING", "IMPORT", source.as_posix(), issue,
                 import_guidance(issue), IMPORT_GUIDE)
@@ -83,16 +107,36 @@ def diagnose_import(root: Path, source: Path, project_id: str, toolchain_id: str
     ]
     if preview.excluded:
         counts = Counter(preview.excluded.values())
-        observed = "; ".join(f"{count} {reason}" for reason, count in sorted(counts.items()))
-        findings.append(finding(
-            "REVIEW", "IMPORT_EXCLUSIONS", source.parent.as_posix(), observed,
-            "Review each exclusion in the import receipt after copying. Migrate any needed authored "
-            "asset explicitly; leave working exports and local state out of Git.", IMPORT_GUIDE,
-        ))
+        actions = {
+            "generated export": "Regenerate working Gerbers, drills or other exports from the "
+                "imported source under ignored build/; do not commit the old export.",
+            "local state or build output": "Leave caches, preferences and prior build outputs "
+                "behind. Recreate them locally only if needed.",
+            "artifact restricted by repository hygiene; review separately":
+                "Inspect the excluded list for authored documentation or assets. Move needed "
+                "source into an allowed project path under an explicit team policy; keep vendor "
+                "packages and generated media outside the source repository.",
+            "separate nested project; import independently": "Preview and import that separate "
+                "design using its own .kicad_pro and project ID.",
+            "separate sibling project; import independently": "Preview and import that separate "
+                "design using its own .kicad_pro and project ID.",
+            "schematic outside the selected hierarchy": "Check whether this is an unused "
+                "backup or a separate design. Never silently discard a sheet referenced "
+                "by the selected schematic.",
+        }
+        for reason, count in sorted(counts.items()):
+            examples = [name for name, value in preview.excluded.items() if value == reason][:3]
+            findings.append(finding(
+                "REVIEW", "IMPORT_EXCLUSIONS", source.parent.as_posix(),
+                f"{count} excluded as {reason}; examples: {', '.join(examples)}",
+                actions.get(reason, "Review the excluded list in import-preview.json before copying."),
+                IMPORT_GUIDE,
+            ))
     command = (
         "python -B -m tools.template "
         + ("diagnose" if preview.status == "FAIL" else "import-project")
-        + f" --source {shlex.quote(str(source))} --project-id {shlex.quote(project_id)} "
+        + f" --root {shlex.quote(str(root))} --source {shlex.quote(str(source))} "
+        + f"--project-id {shlex.quote(project_id)} "
         + f"--toolchain {shlex.quote(toolchain_id)}"
     )
     return report(project_id, "import", findings, command)
@@ -133,17 +177,32 @@ def repository_guidance(issue: str) -> DiagnosticFinding:
         )
     elif code == "UNREGISTERED_DESIGN":
         action = "Register or import this separate native project as its own island."
+    elif code == "TRACKED_UNMANAGED_ARTIFACT":
+        action = (
+            "Review whether this is authored source or a generated/vendor artifact. Put needed "
+            "documentation images under docs/assets; keep build outputs under ignored build/, "
+            "and remove prohibited files from the Git index."
+        )
+    elif code == "REPOSITORY_LOAD":
+        action = (
+            "Run 'python -B -m tools.template doctor', repair Git or the named registry input, "
+            "then rerun diagnostics."
+        )
     else:
         action = "Inspect the named repository input and correct the source or declaration."
     return finding("BLOCKING", code or "REPOSITORY", detail or "repository", issue,
                    action, CHECKS_GUIDE)
 
 
-def portable_findings(root: Path, project_id: str) -> list[DiagnosticFinding]:
+def portable_findings(
+    root: Path, project_id: str, journal: DiagnosticJournal | None = None
+) -> list[DiagnosticFinding]:
     """Run the same selected portable lane as CI, then explain its constituent failures."""
     from ..ci import project_static_pipeline
 
     result = project_static_pipeline(root, (project_id,))
+    if journal is not None:
+        journal.save_model("portable", result)
     findings = [
         finding("BLOCKING", "REGISTRY", "project/catalog", issue,
                 "Correct the named project manifest, inventory, or catalog record; rerun the "
@@ -166,11 +225,19 @@ def portable_findings(root: Path, project_id: str) -> list[DiagnosticFinding]:
     for name, command in result.project_tests.commands.items():
         if command.returncode == 0:
             continue
-        detail = command.error or "\n".join(command.stderr.strip().splitlines()[-3:])
+        detail = command.error or "\n".join(command.stderr.strip().splitlines()[-16:])
+        action = (
+            "Check the island's tests/ directory and discoverable test_*.py files. Nested "
+            "test directories need __init__.py; fix the named import or syntax error and rerun "
+            "the selected check."
+            if name == "discovery" or "none were discovered" in (command.error or "") else
+            "Open the failing test and its assertion, repair the design or test fixture from "
+            "the requirement, then rerun the selected CI lane. The complete test stderr "
+            "is in this run's portable.json."
+        )
         findings.append(finding(
             "BLOCKING", "PROJECT_TEST", name, detail or f"exit {command.returncode}",
-            "Open the failing test and its assertion, repair the design or test fixture from "
-            "the requirement, then rerun the selected CI lane.", "tests/README.md",
+            action, "tests/README.md",
         ))
     registry = load_registry(root)
     project = next(item for item in registry.projects if item.id == project_id)
@@ -194,6 +261,15 @@ def portable_findings(root: Path, project_id: str) -> list[DiagnosticFinding]:
                 f"and nets in {contract_path} from design requirements; do not copy the "
                 "export merely to make the check pass.", FIRST_BOARD_GUIDE,
             ))
+        if not config.validation.nets:
+            findings.append(finding(
+                "REVIEW", "EMPTY_NET_CONTRACT", contract_path,
+                "The independent expected-net list is empty.",
+                "Check the circuit requirements and author the expected nets in "
+                f"{contract_path}. A deliberately net-free design needs an explicit "
+                "engineering review; do not copy the exported netlist as test truth.",
+                FIRST_BOARD_GUIDE,
+            ))
         if not manifest.component_identity.required:
             findings.append(finding(
                 "REVIEW", "PART_ID_SCOPE", project.config,
@@ -212,7 +288,12 @@ def portable_findings(root: Path, project_id: str) -> list[DiagnosticFinding]:
     return findings
 
 
-def native_findings(path: Path, project_id: str, root: Path | None = None) -> list[DiagnosticFinding]:
+def native_findings(
+    path: Path, project_id: str, root: Path | None = None,
+    journal: DiagnosticJournal | None = None,
+) -> list[DiagnosticFinding]:
+    if root is not None:
+        root = root.resolve()
     summary_path = path / "summary.json" if path.is_dir() else path
     try:
         summary = read_model(summary_path, ValidationSummary)
@@ -221,6 +302,8 @@ def native_findings(path: Path, project_id: str, root: Path | None = None) -> li
             "BLOCKING", "NATIVE_REPORT", str(summary_path), str(exc),
             "Select this project's native summary.json from a fresh KiCad check.", CHECKS_GUIDE,
         )]
+    if journal is not None:
+        journal.save_model("native-summary", summary)
     if summary.project_id != project_id:
         return [finding(
             "BLOCKING", "NATIVE_REPORT", str(summary_path),
@@ -230,7 +313,14 @@ def native_findings(path: Path, project_id: str, root: Path | None = None) -> li
     findings: list[DiagnosticFinding] = []
     if root is not None:
         scope = summary.checks.get("source_scope")
-        if scope is not None and scope.source_hashes:
+        if scope is None or not scope.source_hashes:
+            findings.append(finding(
+                "BLOCKING", "NATIVE_SOURCE", str(summary_path),
+                "The native report has no declared source hashes.",
+                "Run a fresh selected native check; do not use an unbound report to guide "
+                "release or BOM decisions.", CHECKS_GUIDE,
+            ))
+        else:
             from ..validate import hashes
 
             try:
@@ -256,10 +346,16 @@ def native_findings(path: Path, project_id: str, root: Path | None = None) -> li
             continue
         observed = check.error or f"{name} status is {check.status}"
         if name in {"erc", "drc"}:
+            from ..validate import native_report_examples
+
+            examples = native_report_examples(summary_path.parent / f"{name}.json", name)
+            if examples:
+                observed += "; examples: " + "; ".join(examples)
             if "Disabled-check inventory changed" in observed:
+                setup = "Schematic Setup's ERC settings" if name == "erc" else "Board Setup's DRC settings"
                 action = (
-                    "In KiCad Schematic Setup (ERC) or Board Setup (DRC), enable the named "
-                    "disabled checks, then resolve resulting findings. Do not change the "
+                    f"In KiCad {setup}, enable the named disabled checks, then resolve "
+                    "resulting findings. Do not change the "
                     "development contract to mirror disabled defaults."
                 )
             else:
@@ -270,9 +366,21 @@ def native_findings(path: Path, project_id: str, root: Path | None = None) -> li
                 )
             guide = IMPORT_GUIDE
         elif name == "netlist":
+            contract_path = "the project's declared tests contract"
+            if root is not None:
+                try:
+                    registry = load_registry(root)
+                    project = next(item for item in registry.projects if item.id == project_id)
+                    manifest_path = repo_path(root, project.config)
+                    manifest = read_model(manifest_path, ProjectManifest)
+                    contract_path = repo_path(manifest_path.parent, manifest.checks).relative_to(
+                        root
+                    ).as_posix()
+                except (OSError, ValueError, StopIteration):
+                    pass
             action = (
                 "Compare the native export with independently reviewed component and net "
-                "expectations in tests/contract.json. Fix the design or correct a reviewed "
+                f"expectations in {contract_path}. Fix the design or correct a reviewed "
                 "requirement; do not blindly copy observed nets into the contract."
             )
             guide = "tests/README.md"
@@ -286,11 +394,22 @@ def native_findings(path: Path, project_id: str, root: Path | None = None) -> li
             action = "Close KiCad, preserve the changed source, and rerun from a stable source state."
             guide = CHECKS_GUIDE
         else:
-            action = "Inspect the named command evidence and correct the source or export setting."
+            action = (
+                f"Open {summary_path.parent / (name + '.command.json')} for the exact KiCad "
+                "invocation, stdout and stderr; repair the named source or export setting, "
+                "then rerun into a fresh output directory."
+            )
             guide = CHECKS_GUIDE
         location = summary_path.parent / f"{name}.json" if name in {"erc", "drc"} else summary_path
         findings.append(finding("BLOCKING", "NATIVE_" + name.upper(),
                                 str(location), observed, action, guide))
+    if summary.status == "FAIL" and not any(check.status != "PASS" for check in summary.checks.values()):
+        findings.append(finding(
+            "BLOCKING", "NATIVE_REPORT", str(summary_path),
+            "Native summary failed but contains no failed check to explain why.",
+            "Inspect the full native output and rerun with a fresh directory; retain this "
+            "diagnostic log if the tool itself is faulty.", CHECKS_GUIDE,
+        ))
     return findings
 
 
@@ -417,39 +536,76 @@ def bom_binding_findings(
 def diagnose_project(
     root: Path, project_id: str, native_report: Path | None = None,
     bom: Path | None = None,
+    journal: DiagnosticJournal | None = None,
 ) -> DiagnosticReport:
     """Give one project a portable check and optional native/BOM follow-up."""
     root = root.resolve()
     try:
-        selected = resolve_project_ids(root, ProjectSelector(project_ids=(project_id,)))
-        findings = portable_findings(root, selected[0])
+        with journal.stage("project-selection") if journal is not None else nullcontext():
+            selected = resolve_project_ids(root, ProjectSelector(project_ids=(project_id,)))
+        with journal.stage("portable") if journal is not None else nullcontext():
+            findings = portable_findings(root, selected[0], journal)
     except (OSError, ValueError, TypeError) as exc:
+        if journal is not None:
+            journal.event("discovery", "HANDLED", f"{type(exc).__name__}: {exc}")
         findings = [finding(
             "BLOCKING", "DISCOVERY", "catalog/projects.json", str(exc),
             "Repair project discovery or the selected project ID, then rerun diagnostics.",
             CHECKS_GUIDE,
         )]
     if native_report is not None:
-        findings.extend(native_findings(native_report, project_id, root))
+        with journal.stage("native-report") if journal is not None else nullcontext():
+            findings.extend(native_findings(native_report, project_id, root, journal))
     if bom is not None:
-        findings.extend(bom_binding_findings(root, project_id, bom, native_report))
-        findings.extend(bom_findings(root, bom))
-    return report(project_id, "project", findings,
-                  f"python -B -m tools.ci --project {shlex.quote(project_id)}")
+        with journal.stage("bom") if journal is not None else nullcontext():
+            findings.extend(bom_binding_findings(root, project_id, bom, native_report))
+            findings.extend(bom_findings(root, bom))
+    if any(row.severity == "BLOCKING" for row in findings):
+        next_command = (
+            f"python -B -m tools.template diagnose --root {shlex.quote(str(root))} "
+            f"--project-id {shlex.quote(project_id)}"
+        )
+        if native_report is not None:
+            next_command += f" --native-report {shlex.quote(str(native_report))}"
+        if bom is not None:
+            next_command += f" --bom {shlex.quote(str(bom))}"
+    else:
+        next_command = (
+            f"python -B -m tools.ci --root {shlex.quote(str(root))} "
+            f"--project {shlex.quote(project_id)}"
+        )
+    return report(project_id, "project", findings, next_command)
 
 
 def format_text(result: DiagnosticReport) -> str:
-    """A short human-readable view with every repair next to its observed finding."""
-    lines = [f"{result.status}: {result.scope} diagnostics for {result.project_id}"]
-    for row in result.findings:
-        lines.extend((
-            f"[{row.severity}] {row.code} — {row.location}",
-            f"  Observed: {row.observed}",
-            f"  Fix: {row.action}",
-            f"  Guide: {row.guide}",
-        ))
+    """Show a small ordered repair queue; the ignored receipt retains every detail."""
+    blocking = sum(row.severity == "BLOCKING" for row in result.findings)
+    review = len(result.findings) - blocking
+    lines = [f"{result.status}: {result.scope} diagnostics for {result.project_id}",
+             f"{blocking} blocking finding(s); {review} review task(s)."]
+    groups: dict[tuple[str, str, str, str], list[DiagnosticFinding]] = {}
+    for severity in ("BLOCKING", "REVIEW"):
+        for row in result.findings:
+            if row.severity == severity:
+                groups.setdefault((row.severity, row.code, row.action, row.guide), []).append(row)
+    for number, ((severity, code, action, guide), rows) in enumerate(groups.items(), 1):
+        lines.append(f"{number}. [{severity}] {code} ({len(rows)} finding(s))")
+        for row in rows[:3]:
+            lines.append(f"   At {row.location}: {row.observed}")
+        if len(rows) > 3:
+            lines.append(f"   ... and {len(rows) - 3} more in diagnosis.json")
+        lines.extend((f"   Fix: {action}", f"   Guide: {guide}"))
     if not result.findings:
-        lines.append("No diagnosed problems in the selected scope.")
-    lines.extend((f"Next: {result.next_command}",
+        lines.append("No diagnosed problems in this scope. Continue with the selected CI lane.")
+    lines.extend((f"Next command: {result.next_command}",
                   "Diagnostic success does not approve the electrical design or a release."))
+    if any(row.code.startswith("NATIVE_") or row.code.startswith("BOM_")
+           or row.code == "STALE_NATIVE_REPORT" for row in result.findings):
+        lines.append(
+            "After changing KiCad source or check settings, run a new native check in a "
+            "fresh output directory and replace --native-report/--bom paths above."
+        )
+    if result.run_directory is not None:
+        lines.append(f"Run log: {result.run_directory}/events.log")
+        lines.append(f"Full findings: {result.run_directory}/diagnosis.json")
     return "\n".join(lines)

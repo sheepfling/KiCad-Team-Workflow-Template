@@ -1007,6 +1007,7 @@ class DiagnosticReport(StrictModel):
     status: Literal["PASS", "NEEDS_WORK"]
     findings: tuple[DiagnosticFinding, ...]
     next_command: NonEmptyText
+    run_directory: str | None = None
 
 
 class TemplatePreflightReport(StrictModel):

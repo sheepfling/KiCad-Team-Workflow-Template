@@ -3,21 +3,30 @@ from __future__ import annotations
 
 import csv
 import hashlib
+import io
+import json
 import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
+from unittest.mock import patch
 
 from tests.support import initialize_git, reference_root
 from tools.hwrepo.contracts import read_model, write_model
+from tools.hwrepo.diagnostic_journal import DiagnosticJournal
 from tools.hwrepo.diagnostics import (
     bom_binding_findings,
     bom_findings,
     diagnose_import,
     diagnose_project,
+    finding,
+    format_text,
     native_findings,
+    report,
+    repository_guidance,
 )
 from tools.hwrepo.discovery import load_config
 from tools.hwrepo.models import (
@@ -84,6 +93,26 @@ class DiagnosticTests(unittest.TestCase):
         empty = next(row for row in relocated.findings if row.code == "EMPTY_COMPONENT_CONTRACT")
         self.assertEqual(empty.location, f"examples/projects/controller/{alternate}")
         self.assertIn(empty.location, empty.action)
+        native = self.root / "native"
+        native.mkdir()
+        write_model(native / "summary.json", ValidationSummary(
+            timestamp_utc="2026-09-24T00:00:00+00:00",
+            checked_commit="LOCAL_UNBOUND",
+            project_id="controller",
+            checks={
+                "source_scope": CheckEvidence(
+                    status="PASS", source_hashes=hashes(repository, load_config(
+                        repository, "examples/projects/controller/project.json"
+                    ).source_roots),
+                ),
+                "netlist": CheckEvidence(status="FAIL", error="component mismatch"),
+            },
+            status="FAIL",
+            artifacts_sha256={},
+        ))
+        netlist_issue = next(row for row in native_findings(native, "controller", repository)
+                             if row.code == "NATIVE_NETLIST")
+        self.assertIn(empty.location, netlist_issue.action)
 
     def test_native_disabled_checks_and_bom_identifiers_have_distinct_actions(self) -> None:
         native = self.root / "native"
@@ -102,10 +131,15 @@ class DiagnosticTests(unittest.TestCase):
             status="FAIL",
             artifacts_sha256={},
         ))
+        (native / "erc.json").write_text(json.dumps({
+            "sheets": [{"violations": [{"type": "pin_not_connected",
+                                          "description": "Pin 3 on J1 is unconnected"}]}]
+        }))
         issues = native_findings(native, "controller")
         self.assertEqual(len(issues), 1)
         self.assertIn("Schematic Setup", issues[0].action)
         self.assertIn("Do not change", issues[0].action)
+        self.assertIn("pin_not_connected: Pin 3 on J1", issues[0].observed)
         current_source = native_findings(native, "controller", reference_root())
         self.assertEqual(current_source[0].code, "STALE_NATIVE_REPORT")
         wrong = native_findings(native, "some-other-board")
@@ -174,13 +208,22 @@ class DiagnosticTests(unittest.TestCase):
             "--root", str(reference_root()), "--source", str(project),
             "--project-id", "legacy-board", "--toolchain", "kicad-10.0.5",
         )
-        text_result = subprocess.run(command, capture_output=True, text=True, check=False)
+        text_log = self.root / "text-log"
+        text_result = subprocess.run((*command, "--log-dir", str(text_log)),
+                                     capture_output=True, text=True, check=False)
         self.assertEqual(text_result.returncode, 1)
         self.assertIn("Fix: Find the intended sheet", text_result.stdout)
-        json_result = subprocess.run((*command, "--format", "json"),
+        self.assertIn(str(text_log / "events.log"), text_result.stdout)
+        self.assertIn("import-preview done", text_result.stderr)
+        self.assertIn("Missing schematic sheet", (text_log / "import-preview.json").read_text())
+        self.assertEqual(json.loads((text_log / "run.json").read_text())["status"], "NEEDS_WORK")
+        self.assertEqual(json.loads((text_log / "diagnosis.json").read_text())["run_directory"],
+                         str(text_log.resolve()))
+        json_log = self.root / "json-log"
+        json_result = subprocess.run((*command, "--format", "json", "--log-dir", str(json_log)),
                                      capture_output=True, text=True, check=False)
         self.assertEqual(json_result.returncode, 1)
-        self.assertIn('"code": "IMPORT"', json_result.stdout)
+        self.assertEqual(json.loads(json_result.stdout)["run_directory"], str(json_log.resolve()))
         unused_flag = subprocess.run((sys.executable, "-B", "-m", "tools.template", "doctor",
                                       "--format", "text"), capture_output=True,
                                      text=True, check=False)
@@ -191,6 +234,115 @@ class DiagnosticTests(unittest.TestCase):
                                      capture_output=True, text=True, check=False)
         self.assertEqual(unbound_bom.returncode, 2)
         self.assertIn("requires --native-report", unbound_bom.stderr)
+
+    def test_crash_preserves_stage_log_and_traceback(self) -> None:
+        from tools.template import main
+
+        source = self.root / "board.kicad_pro"
+        source.write_text("{}")
+        log = self.root / "crash-log"
+        argv = ["tools.template", "diagnose", "--root", str(reference_root()),
+                "--source", str(source), "--project-id", "broken-board",
+                "--toolchain", "kicad-10.0.5", "--log-dir", str(log)]
+        stderr = io.StringIO()
+        with patch.object(sys, "argv", argv), patch(
+            "tools.hwrepo.diagnostics.import_project", side_effect=RuntimeError("probe failure")
+        ), redirect_stderr(stderr), redirect_stdout(io.StringIO()):
+            self.assertEqual(main(), 2)
+        self.assertIn("full traceback", stderr.getvalue())
+        self.assertIn("[import-preview] ERROR", (log / "events.log").read_text())
+        self.assertIn("RuntimeError: probe failure", (log / "error.txt").read_text())
+        self.assertEqual(json.loads((log / "run.json").read_text())["status"], "ERROR")
+
+    def test_default_log_is_ignored_and_custom_log_cannot_enter_source_tree(self) -> None:
+        repository = self.root / "repository"
+        shutil.copytree(reference_root(), repository, ignore=shutil.ignore_patterns(".git"))
+        initialize_git(repository)
+        journal = DiagnosticJournal(repository, "board")
+        ignored = subprocess.run(
+            ("git", "-C", str(repository), "check-ignore", "-q", str(journal.directory)),
+            check=False,
+        )
+        self.assertEqual(ignored.returncode, 0)
+        with self.assertRaisesRegex(ValueError, "under ignored build"):
+            DiagnosticJournal(repository, "board", repository / "docs/diagnostic-output")
+        self.assertFalse((repository / "docs/diagnostic-output").exists())
+
+    def test_repeated_findings_are_grouped_but_retained_in_full(self) -> None:
+        rows = [finding("BLOCKING", "CAD_PATH", f"board.kicad_pcb:{index}",
+                        "machine-local dependency", "Move the asset into the project.",
+                        "docs/workflow/IMPORT_WORKFLOW.md") for index in range(5)]
+        result = report("board", "project", rows, "python -B -m tools.template diagnose")
+        formatted = format_text(result)
+        self.assertIn("CAD_PATH (5 finding(s))", formatted)
+        self.assertIn("... and 2 more in diagnosis.json", formatted)
+        self.assertNotIn("board.kicad_pcb:4", formatted)
+        self.assertEqual(len(result.findings), 5)
+
+    def test_incomplete_backup_receives_specific_import_repair(self) -> None:
+        source = self.root / "incomplete"
+        source.mkdir()
+        project = source / "backup.kicad_pro"
+        project.write_text("{}")
+        result = diagnose_import(reference_root(), project, "backup", "kicad-10.0.5")
+        self.assertEqual(result.status, "NEEDS_WORK")
+        self.assertIn("neither a matching schematic nor board", result.findings[0].action)
+
+    def test_import_receipt_coaches_each_exclusion_class(self) -> None:
+        source = self.root / "mixed"
+        source.mkdir()
+        project = source / "mixed.kicad_pro"
+        project.write_text("{}")
+        (source / "mixed.kicad_sch").write_text("(kicad_sch)")
+        (source / "mixed.kicad_pcb").write_text("(kicad_pcb)")
+        (source / "old.gbr").write_text("generated")
+        (source / "mixed.kicad_prl").write_text("preference")
+        (source / "vendor.zip").write_text("archive")
+        (source / "other.kicad_pro").write_text("{}")
+        (source / "orphan.kicad_sch").write_text("(kicad_sch)")
+        nested = source / "nested"
+        nested.mkdir()
+        (nested / "nested.kicad_pro").write_text("{}")
+        result = diagnose_import(reference_root(), project, "mixed", "kicad-10.0.5")
+        self.assertEqual(result.status, "PASS")
+        self.assertEqual(len(result.findings), 6)
+        actions = "\n".join(row.action for row in result.findings)
+        for repair in ("Regenerate", "caches", "authored documentation", "separate",
+                       "unused backup"):
+            self.assertIn(repair, actions)
+
+    def test_path_policy_has_distinct_repairs_for_survey_causes(self) -> None:
+        cases = (
+            ("machine-local dependency '/Users/ee/model.step'", "portable path"),
+            ("undocumented path variable '${OLD_KICAD_VAR}'", "pinned KiCad"),
+            ("path case mismatch", "case-sensitive host"),
+            ("missing dependency model.step", "intended asset"),
+            ("missing embedded model kicad-embed://model.step", "intended asset"),
+            ("invalid versioned KiCad library path", "pinned KiCad"),
+        )
+        for observed, repair in cases:
+            with self.subTest(observed=observed):
+                row = repository_guidance(f"CAD_PATH: projects/board.kicad_pcb:12: {observed}")
+                self.assertEqual(row.location, "projects/board.kicad_pcb:12")
+                self.assertIn(repair, row.action)
+
+    def test_failing_island_test_is_named_and_repairable(self) -> None:
+        repository = self.root / "repository"
+        shutil.copytree(reference_root(), repository, ignore=shutil.ignore_patterns(".git"))
+        initialize_git(repository)
+        probe = repository / "examples/projects/controller/tests/test_probe.py"
+        probe.write_text(
+            "import unittest\n"
+            "class Probe(unittest.TestCase):\n"
+            "    def test_requirement(self):\n"
+            "        self.assertEqual(1, 2, 'connector contract changed')\n"
+        )
+        result = diagnose_project(repository, "controller")
+        failing = next(row for row in result.findings if row.code == "PROJECT_TEST")
+        self.assertEqual(result.status, "NEEDS_WORK")
+        self.assertIn("project-controller", failing.location)
+        self.assertIn("connector contract changed", failing.observed)
+        self.assertIn("requirement", failing.action)
 
 
 if __name__ == "__main__":

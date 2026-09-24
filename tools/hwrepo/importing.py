@@ -35,6 +35,12 @@ def schematic_files(source: Path, schematic: Path) -> set[Path]:
             # KiCad Sheetfile is relative to its containing sheet, except KIPRJMOD.
             parent = source if match.group(1).startswith("${KIPRJMOD}/") else path.parent
             normalized = Path(os.path.abspath(parent / name))
+            if not normalized.is_relative_to(source):
+                raise ValueError(
+                    f"Schematic sheet {match.group(1)!r} in {path.relative_to(source)} "
+                    "resolves outside the selected project directory; relocate the sheet "
+                    "and update Sheetfile before import"
+                )
             pending.append(repo_path(source, normalized.relative_to(source).as_posix()))
     return visited
 

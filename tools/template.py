@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 from .hwrepo.adoption import adopt
+from .hwrepo.diagnostic_journal import DiagnosticJournal
 from .hwrepo.diagnostics import diagnose_import, diagnose_project, format_text
 from .hwrepo.doctor import doctor
 from .hwrepo.importing import import_project
@@ -41,13 +42,17 @@ def main() -> int:
     parser.add_argument("--bom", type=Path, help="Native assembly/bom.csv to check for part identities")
     parser.add_argument("--format", choices=("text", "json"),
                         help="Output format for diagnose (default: text)")
+    parser.add_argument("--log-dir", type=Path,
+                        help="New diagnostic receipt directory (default: ignored build/diagnostics)")
     args = parser.parse_args()
     if args.command not in {"import-project", "diagnose"} and args.source is not None:
         parser.error("--source requires import-project or diagnose")
     if args.command != "import-project" and args.dry_run:
         parser.error("--dry-run options require import-project")
-    if args.command != "diagnose" and (args.native_report or args.bom or args.format is not None):
-        parser.error("--native-report, --bom and --format require diagnose")
+    if args.command != "diagnose" and (
+        args.native_report or args.bom or args.format is not None or args.log_dir is not None
+    ):
+        parser.error("--native-report, --bom, --format and --log-dir require diagnose")
     if args.command != "doctor" and args.native:
         parser.error("--native requires doctor")
     if args.command == "doctor":
@@ -70,14 +75,41 @@ def main() -> int:
         if args.source is not None:
             if args.toolchain is None or args.native_report or args.bom:
                 parser.error("diagnose --source requires --toolchain and cannot use native/BOM reports")
-            result = diagnose_import(args.root, args.source, args.project_id, args.toolchain)
         else:
             if args.toolchain is not None:
                 parser.error("diagnose --toolchain requires --source")
             if args.bom is not None and args.native_report is None:
                 parser.error("diagnose --bom requires --native-report for the selected project")
-            result = diagnose_project(args.root, args.project_id, args.native_report, args.bom)
-        print(result.model_dump_json(indent=2) if args.format == "json" else format_text(result))
+        try:
+            journal = DiagnosticJournal(args.root, args.project_id, args.log_dir)
+        except (OSError, ValueError) as exc:
+            print(f"Cannot create diagnostic log: {exc}. Use --log-dir outside the repository "
+                  "or repair build/ permissions.", file=sys.stderr)
+            return 2
+        try:
+            if args.source is not None:
+                assert args.toolchain is not None
+                result = diagnose_import(
+                    args.root, args.source, args.project_id, args.toolchain, journal
+                )
+            else:
+                result = diagnose_project(
+                    args.root, args.project_id, args.native_report, args.bom, journal
+                )
+            result = result.model_copy(update={"run_directory": str(journal.directory)})
+            human_text = format_text(result)
+            journal.finish(result, human_text, result.status)
+        except Exception as exc:  # noqa: BLE001 - CLI boundary must retain unexpected tracebacks
+            journal.fail(exc)
+            print(f"Diagnosis stopped: {type(exc).__name__}: {exc}\n"
+                  f"Repair the input or tool; full traceback: {journal.directory / 'error.txt'}",
+                  file=sys.stderr)
+            return 2
+        except KeyboardInterrupt as exc:
+            journal.fail(exc)
+            print(f"Diagnosis interrupted; run log: {journal.directory}", file=sys.stderr)
+            return 130
+        print(result.model_dump_json(indent=2) if args.format == "json" else human_text)
         return 0 if result.status == "PASS" else 1
     elif args.command == "new-project":
         if args.project_id is None or args.toolchain is None:
