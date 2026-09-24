@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -67,15 +68,22 @@ class LocalNetlistRunner:
     selected_runner: Literal["local"] = "local"
 
     def __init__(self, cli: str) -> None:
-        self.cli = cli
+        executable = cli_executable(cli)
+        candidate = Path(executable or cli)
+        # Capture the caller's path before run_command changes cwd to the repo.
+        self.cli = (
+            str(candidate.resolve())
+            if executable is not None or candidate.is_absolute() or candidate.parent != Path(".")
+            else cli
+        )
 
     def version(self, root: Path, config: ProjectConfig) -> CommandEvidence:
-        return run_command(root, (cli_executable(self.cli) or self.cli, "version"))
+        return run_command(root, (self.cli, "version"))
 
     def export(self, root: Path, config: ProjectConfig, output: Path) -> CommandEvidence:
         schematic = repo_path(root, config.project).with_suffix(".kicad_sch")
         return run_command(root, (
-            cli_executable(self.cli) or self.cli, "sch", "export", "netlist", "--format", "kicadxml",
+            self.cli, "sch", "export", "netlist", "--format", "kicadxml",
             "--output", str(output), str(schematic),
         ))
 
@@ -91,8 +99,9 @@ def docker_prefix() -> tuple[str, ...]:
     user: tuple[str, ...] = ()
     if sys.platform != "win32":
         user = ("--user", f"{os.getuid()}:{os.getgid()}")
+    docker = shutil.which("docker") if sys.platform == "win32" else None
     return (
-        "docker", "run", "--rm", "--platform", "linux/amd64", *user,
+        docker or "docker", "run", "--rm", "--platform", "linux/amd64", *user,
         "--entrypoint", "kicad-cli", "-e", "HOME=/tmp/kicad-coach",
     )
 
@@ -266,6 +275,17 @@ def inspect_summary(root: Path, project_id: str, native_summary: Path) -> Contra
         summary = read_model(summary_path, ValidationSummary)
         if summary.project_id != project_id or summary.project_kind is not config.kind:
             raise ValueError("Native summary belongs to another project or project kind")
+        toolchain_check = summary.checks.get("toolchain")
+        if (
+            toolchain_check is None or toolchain_check.status != "PASS"
+            or toolchain_check.error is not None
+            or toolchain_check.observed_version != config.kicad_version
+            or toolchain_check.image != config.image
+        ):
+            raise ValueError(
+                "Native summary toolchain version or image differs from the current "
+                "project configuration; rerun native KiCad validation"
+            )
         for key in ("source_scope", "source_unchanged"):
             check = summary.checks.get(key)
             if (check is None or check.status != "PASS" or check.error is not None

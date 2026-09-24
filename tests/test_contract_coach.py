@@ -16,6 +16,7 @@ from tools.hwrepo.contract_coach import (
     AutoNetlistRunner,
     ContainerNetlistRunner,
     capture,
+    docker_prefix,
     inspect_summary,
     receipt_directory,
     save_receipt,
@@ -30,6 +31,7 @@ from tools.hwrepo.models import (
     ProjectKind,
     ProjectManifest,
     ProjectTestContract,
+    SchematicValidationContract,
     ValidationSummary,
 )
 from tools.hwrepo.scaffold import new_project
@@ -53,6 +55,22 @@ def command(stdout: str = "", returncode: int = 0) -> CommandEvidence:
         argv=("synthetic-kicad-cli",), started_utc="2026-09-24T00:00:00+00:00",
         returncode=returncode, stdout=stdout,
     )
+
+
+def fake_executable(path: Path, source: str) -> Path:
+    """Make a runnable fake CLI on POSIX and Windows hosts."""
+    if sys.platform == "win32":
+        script = path.with_suffix(".py")
+        script.write_text(source, encoding="utf-8")
+        launcher = path.with_suffix(".cmd")
+        launcher.write_text(
+            f'@echo off\n"{sys.executable}" "%~dp0{script.name}" %*\n',
+            encoding="utf-8",
+        )
+        return launcher
+    path.write_text(f"#!{sys.executable}\n{source}", encoding="utf-8")
+    path.chmod(0o755)
+    return path
 
 
 class FakeRunner:
@@ -90,6 +108,10 @@ class ContractCoachTests(unittest.TestCase):
             checks={
                 "source_scope": CheckEvidence(status="PASS", source_hashes=current),
                 "source_unchanged": CheckEvidence(status="PASS", source_hashes=current),
+                "toolchain": CheckEvidence(
+                    status="PASS", observed_version=self.config.kicad_version,
+                    image=self.config.image,
+                ),
                 "netlist": CheckEvidence(status="FAIL", returncode=0,
                                          error="Independent contract differs"),
             },
@@ -138,6 +160,43 @@ class ContractCoachTests(unittest.TestCase):
             self.root, self.project_id, self.native,
         ).issues[0])
 
+    def test_native_summary_is_blocked_after_catalogued_toolchain_changes(self) -> None:
+        catalog = self.root / "catalog/toolchains.json"
+        original = json.loads(catalog.read_text(encoding="utf-8"))
+        for field, replacement in (
+            ("kicad_version", "10.0.1"),
+            ("image", "ghcr.io/kicad/kicad@sha256:" + "a" * 64),
+        ):
+            with self.subTest(field=field):
+                altered = json.loads(json.dumps(original))
+                for record in altered["toolchains"]:
+                    if record["id"] == self.config.toolchain_id:
+                        record[field] = replacement
+                catalog.write_text(json.dumps(altered), encoding="utf-8")
+                report = inspect_summary(self.root, self.project_id, self.native)
+                self.assertEqual(report.status, "BLOCKED")
+                self.assertIn("toolchain version or image", report.issues[0])
+                self.assertIsNone(report.observed)
+        catalog.write_text(json.dumps(original), encoding="utf-8")
+
+    def test_native_summary_requires_a_passing_toolchain_record(self) -> None:
+        for evidence in (None, CheckEvidence(
+            status="FAIL", observed_version=self.config.kicad_version,
+            image=self.config.image,
+        )):
+            with self.subTest(evidence=evidence):
+                checks = dict(self.summary.checks)
+                if evidence is None:
+                    del checks["toolchain"]
+                else:
+                    checks["toolchain"] = evidence
+                write_model(self.native / "summary.json", self.summary.model_copy(
+                    update={"checks": checks},
+                ))
+                report = inspect_summary(self.root, self.project_id, self.native)
+                self.assertEqual(report.status, "BLOCKED")
+                self.assertIn("toolchain version or image", report.issues[0])
+
     def test_command_evidence_must_be_hashed_and_successful(self) -> None:
         command_path = self.native / "netlist.command.json"
         command_path.write_text("{}", encoding="utf-8")
@@ -152,6 +211,7 @@ class ContractCoachTests(unittest.TestCase):
         manifest = read_model(manifest_path, ProjectManifest)
         contract_path = manifest_path.parent / manifest.checks
         contract = read_model(contract_path, ProjectTestContract)
+        assert isinstance(contract.validation, SchematicValidationContract)
         self.assertEqual(contract.validation.components, {})
         original = contract_path.read_bytes()
         runner = FakeRunner(config.kicad_version)
@@ -270,9 +330,16 @@ class ContractCoachTests(unittest.TestCase):
         self.assertEqual(calls[1][calls[1].index("--output") + 1], "/output/netlist.xml")
         self.assertEqual(calls[1][-1], "/work/examples/projects/controller/kicad/controller.kicad_sch")
 
+    def test_windows_container_resolves_docker_command_extension(self) -> None:
+        with (
+            patch("tools.hwrepo.contract_coach.sys.platform", "win32"),
+            patch("tools.hwrepo.contract_coach.shutil.which", return_value="C:/bin/docker.cmd"),
+        ):
+            self.assertEqual(docker_prefix()[0], "C:/bin/docker.cmd")
+
     def test_auto_falls_back_to_container_and_records_both_version_probes(self) -> None:
         def fake_command(_root: Path, argv: tuple[str, ...], timeout: int = 180) -> CommandEvidence:
-            if argv[0] == "docker":
+            if Path(argv[0]).stem == "docker":
                 return command(self.config.kicad_version + "\n")
             return command("9.0.0\n")
 
@@ -311,9 +378,7 @@ class ContractCoachTests(unittest.TestCase):
     def test_container_capture_cli_keeps_unreviewed_receipt_and_contract_unchanged(self) -> None:
         executable_dir = self.root / "build/bin"
         executable_dir.mkdir(parents=True)
-        executable = executable_dir / "docker"
-        executable.write_text(
-            f"#!{sys.executable}\n"
+        fake_executable(executable_dir / "docker",
             "import pathlib, sys\n"
             "args = sys.argv[1:]\n"
             "if args[-1] == 'version':\n"
@@ -325,9 +390,7 @@ class ContractCoachTests(unittest.TestCase):
             f"    (output / 'netlist.xml').write_text({NETLIST!r}, encoding='utf-8')\n"
             "else:\n"
             "    raise SystemExit(2)\n",
-            encoding="utf-8",
         )
-        executable.chmod(0o755)
         contract_path = self.root / "examples/projects/controller/tests/contract.json"
         before = contract_path.read_bytes()
         result = subprocess.run(
@@ -364,9 +427,7 @@ class ContractCoachTests(unittest.TestCase):
         run.assert_not_called()
 
     def test_cli_capture_runs_local_adapter_and_retains_command_evidence(self) -> None:
-        executable = self.root / "build/fake-kicad-cli"
-        executable.write_text(
-            f"#!{sys.executable}\n"
+        executable = fake_executable(self.root / "build/fake-kicad-cli",
             "import pathlib, sys\n"
             "if sys.argv[1:] == ['version']:\n"
             f"    print({self.config.kicad_version!r})\n"
@@ -374,9 +435,7 @@ class ContractCoachTests(unittest.TestCase):
             "    assert sys.argv[1:5] == ['sch', 'export', 'netlist', '--format']\n"
             "    output = pathlib.Path(sys.argv[sys.argv.index('--output') + 1])\n"
             f"    output.write_text({NETLIST!r}, encoding='utf-8')\n",
-            encoding="utf-8",
         )
-        executable.chmod(0o755)
         contract_path = self.root / "examples/projects/controller/tests/contract.json"
         before = contract_path.read_bytes()
         result = subprocess.run(
@@ -394,3 +453,33 @@ class ContractCoachTests(unittest.TestCase):
         self.assertEqual(report["commands"]["netlist"]["returncode"], 0)
         self.assertTrue(Path(report["receipt_dir"], "netlist.command.json").is_file())
         self.assertEqual(contract_path.read_bytes(), before)
+
+    def test_explicit_relative_cli_is_resolved_from_callers_cwd(self) -> None:
+        caller = self.root.parent / "caller"
+        executable_dir = caller / "bin"
+        executable_dir.mkdir(parents=True)
+        executable = fake_executable(executable_dir / "fake-kicad-cli",
+            "import pathlib, sys\n"
+            "if sys.argv[1:] == ['version']:\n"
+            f"    print({self.config.kicad_version!r})\n"
+            "else:\n"
+            "    output = pathlib.Path(sys.argv[sys.argv.index('--output') + 1])\n"
+            f"    output.write_text({NETLIST!r}, encoding='utf-8')\n"
+        )
+        environment = {
+            **os.environ,
+            "PYTHONPATH": str(self.root) + os.pathsep + os.environ.get("PYTHONPATH", ""),
+        }
+        result = subprocess.run(
+            (
+                sys.executable, "-B", "-m", "tools.contract_coach", "--root", str(self.root),
+                "--project-id", self.project_id, "--capture", "--runner", "local",
+                "--cli", f"./bin/{executable.name}", "--format", "json",
+            ),
+            cwd=caller, capture_output=True, text=True, check=False, env=environment,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
+        report = json.loads(result.stdout)
+        self.assertEqual(report["status"], "READY_FOR_REVIEW")
+        self.assertEqual(report["commands"]["version"]["argv"][0], str(executable.resolve()))
+        self.assertEqual(report["commands"]["netlist"]["argv"][0], str(executable.resolve()))
