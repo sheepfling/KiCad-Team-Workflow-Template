@@ -1364,6 +1364,8 @@ class ProjectVerificationReport(StrictModel):
     next_actions: tuple[NonEmptyText, ...] = ()
     error: str | None = None
 
+
+
 class ScopedReleasePortableReport(StrictModel):
     """Committed-source binding for the selected portable release lane.
 
@@ -1376,3 +1378,33 @@ class ScopedReleasePortableReport(StrictModel):
     source: SourceState
     projects: tuple[Identifier, ...]
     checks: ProjectStaticPipelineReport
+
+
+class ContractDifference(StrictModel):
+    kind: Literal["component", "net"]
+    identifier: NonEmptyText
+    difference: Literal["observed_only", "authored_only", "different"]
+
+
+class ContractCoachReport(StrictModel):
+    """Observed netlist inventory for human contract review, never an approval."""
+
+    schema_version: Literal["1"] = "1"
+    lane: Literal["CONTRACT_COACH"] = "CONTRACT_COACH"
+    status: Literal["READY_FOR_REVIEW", "BLOCKED"]
+    project_id: Identifier
+    project_kind: ProjectKind | None = None
+    review_state: Literal["UNREVIEWED"] = "UNREVIEWED"
+    electrical_coverage: Literal[False] = False
+    build_authorized: Literal[False] = False
+    source_hashes: Mapping[RepositoryPath, Digest] = Field(default_factory=dict)
+    netlist_sha256: Digest | None = None
+    native_summary: str | None = None
+    native_status: Literal["PASS", "FAIL"] | None = None
+    observed: NetlistContract | None = None
+    authored: NetlistContract | None = None
+    differences: tuple[ContractDifference, ...] = ()
+    issues: tuple[NonEmptyText, ...] = ()
+    next_actions: tuple[NonEmptyText, ...] = ()
+    commands: Mapping[Identifier, CommandEvidence] = Field(default_factory=dict)
+    receipt_dir: str | None = None

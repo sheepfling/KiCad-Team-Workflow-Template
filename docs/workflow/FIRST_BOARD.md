@@ -25,8 +25,24 @@ This is the shortest path from a fresh fork to a checked project island. Use
    it is not an electrical or manufacturing approval.
 
 4. Create and save the design under `projects/battery-board/kicad/`. Complete its
-   `project.json`, `tests/contract.json` and design notes; the generated skeleton is
-   intentionally incomplete and fails until it describes the real board. Development
+   `project.json` and design notes. Before authoring electrical expectations, use
+   an exact installed KiCad CLI to capture an **UNREVIEWED** netlist inventory:
+
+   ```sh
+   python -B -m tools.contract_coach --project-id battery-board --capture --format text
+   ```
+
+   The command creates a fresh ignored `build/contract-coach/` receipt; add
+   `--cli /path/to/kicad-cli` when the exact catalogued CLI is not on `PATH`. The receipt
+   retains the command log, source hashes, netlist and full text/JSON inventory.
+   Compare observed components, pins, nets and `PART_ID` values with requirements
+   and the schematic. Then independently author `tests/contract.json`; the coach
+   never writes it. If KiCad is available only through Docker, use an existing
+   hashed native summary once the contract permits a native run; local capture
+   currently needs an installed CLI.
+
+   The generated skeleton is intentionally incomplete and fails until it
+   describes the real board. Development
    and production contracts allow no ignored ERC or DRC checks. For a `pcb` project,
    KiCad 10.0.5 may initially ignore `single_global_label`, `four_way_junction`,
    `simulation_model_issue` and `footprint_filter`; enable them through Schematic
@@ -52,7 +68,16 @@ This is the shortest path from a fresh fork to a checked project island. Use
    If a check fails, run `python -B -m tools.template diagnose --project-id battery-board`
    and follow [the repair guide](DIAGNOSTICS.md). Add the native
    project's `summary.json` with `--native-report` to explain ERC, DRC and contract
-   failures.
+   failures. To compare an existing native netlist with the authored contract,
+   use:
+
+   ```sh
+   python -B -m tools.contract_coach --project-id battery-board --native-summary projects/battery-board/build/review-001/battery-board/summary.json --format text
+   ```
+
+   That command verifies the selected project, netlist artifact and current design
+   hashes before showing differences. Add `--detail full`, `--format json`, or a
+   new `--output build/contract-coach/review-001` receipt when more detail is needed.
 
 6. Commit only authored source, push a short-lived branch and open a pull request.
    Review the exact Actions commit and retained evidence before merging.

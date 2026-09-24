@@ -1,0 +1,274 @@
+"""Observed netlists help review an independent contract without authoring it."""
+from __future__ import annotations
+
+import json
+import shutil
+import subprocess
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+from tests.support import reference_root
+from tools.hwrepo.contract_coach import (
+    capture,
+    inspect_summary,
+    receipt_directory,
+    save_receipt,
+    text_report,
+)
+from tools.hwrepo.contracts import read_model, write_model
+from tools.hwrepo.discovery import load_config
+from tools.hwrepo.evidence import digest
+from tools.hwrepo.models import (
+    CheckEvidence,
+    CommandEvidence,
+    ProjectKind,
+    ProjectManifest,
+    ProjectTestContract,
+    ValidationSummary,
+)
+from tools.hwrepo.scaffold import new_project
+from tools.validate import hashes
+
+NETLIST = """<export>
+  <components>
+    <comp ref="R1"><value>1k</value><footprint>Pilot:R_Test</footprint></comp>
+    <comp ref="R3"><value>3k</value><footprint>Pilot:R_Test</footprint></comp>
+  </components>
+  <nets>
+    <net name="PILOT_A"><node ref="R1" pin="1"/><node ref="R3" pin="1"/></net>
+    <net name="PILOT_C"><node ref="R1" pin="2"/><node ref="R3" pin="2"/></net>
+  </nets>
+</export>
+"""
+
+
+def command(stdout: str = "", returncode: int = 0) -> CommandEvidence:
+    return CommandEvidence(
+        argv=("synthetic-kicad-cli",), started_utc="2026-09-24T00:00:00+00:00",
+        returncode=returncode, stdout=stdout,
+    )
+
+
+class FakeRunner:
+    def __init__(self, version: str = "10.0.5") -> None:
+        self.observed_version = version
+        self.exported = False
+
+    def version(self, _root: Path, _config: object) -> CommandEvidence:
+        return command(self.observed_version + "\n")
+
+    def export(self, _root: Path, _config: object, output: Path) -> CommandEvidence:
+        self.exported = True
+        output.write_text(NETLIST, encoding="utf-8")
+        return command()
+
+
+class ContractCoachTests(unittest.TestCase):
+    def setUp(self) -> None:
+        temporary = tempfile.TemporaryDirectory(prefix="contract-coach-")
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name).resolve() / "source"
+        shutil.copytree(reference_root(), self.root, ignore=shutil.ignore_patterns(".git"))
+        self.project_id = "controller"
+        self.config = load_config(self.root, f"examples/projects/{self.project_id}/project.json")
+        self.native = self.root / "build/native/controller"
+        self.native.mkdir(parents=True)
+        (self.native / "netlist.xml").write_text(NETLIST, encoding="utf-8")
+        write_model(self.native / "netlist.command.json", command())
+        current = hashes(self.root, self.config.source_roots)
+        self.summary = ValidationSummary(
+            timestamp_utc="2026-09-24T00:00:00+00:00", checked_commit="LOCAL_UNBOUND",
+            project_id=self.project_id, project_kind=ProjectKind.PCB,
+            checks={
+                "source_scope": CheckEvidence(status="PASS", source_hashes=current),
+                "source_unchanged": CheckEvidence(status="PASS", source_hashes=current),
+                "netlist": CheckEvidence(status="FAIL", returncode=0,
+                                         error="Independent contract differs"),
+            },
+            status="FAIL",
+            artifacts_sha256={
+                "netlist.xml": digest(self.native / "netlist.xml"),
+                "netlist.command.json": digest(self.native / "netlist.command.json"),
+            },
+        )
+        write_model(self.native / "summary.json", self.summary)
+
+    def test_failed_contract_check_still_yields_bound_unreviewed_inventory(self) -> None:
+        contract = self.root / "examples/projects/controller/tests/contract.json"
+        before = contract.read_bytes()
+        report = inspect_summary(self.root, self.project_id, self.native / "summary.json")
+        self.assertEqual(report.status, "READY_FOR_REVIEW", report.issues)
+        self.assertEqual(report.review_state, "UNREVIEWED")
+        self.assertFalse(report.electrical_coverage)
+        self.assertEqual(report.native_summary, str(self.native / "summary.json"))
+        self.assertEqual(report.native_status, "FAIL")
+        self.assertEqual({component.identifier for component in report.differences
+                          if component.kind == "component"}, {"R2", "R3"})
+        self.assertIn("UNREVIEWED component R3", text_report(report, "full"))
+        self.assertEqual(contract.read_bytes(), before)
+
+    def test_tampered_wrong_project_and_stale_source_are_blocked(self) -> None:
+        netlist = self.native / "netlist.xml"
+        netlist.write_text(NETLIST + "\n", encoding="utf-8")
+        report = inspect_summary(self.root, self.project_id, self.native)
+        self.assertEqual(report.status, "BLOCKED")
+        self.assertIn("artifact hash", report.issues[0])
+        self.assertIsNone(report.observed)
+        netlist.write_text(NETLIST, encoding="utf-8")
+
+        write_model(self.native / "summary.json", self.summary.model_copy(
+            update={"project_id": "passive-signal-reference"},
+        ))
+        self.assertIn("another project", inspect_summary(
+            self.root, self.project_id, self.native,
+        ).issues[0])
+        write_model(self.native / "summary.json", self.summary)
+
+        source = self.root / "examples/projects/controller/kicad/controller.kicad_sch"
+        source.write_bytes(source.read_bytes() + b"\n")
+        self.assertIn("source", inspect_summary(
+            self.root, self.project_id, self.native,
+        ).issues[0])
+
+    def test_command_evidence_must_be_hashed_and_successful(self) -> None:
+        command_path = self.native / "netlist.command.json"
+        command_path.write_text("{}", encoding="utf-8")
+        report = inspect_summary(self.root, self.project_id, self.native)
+        self.assertEqual(report.status, "BLOCKED")
+        self.assertIn("command evidence", report.issues[0])
+
+    def test_capture_exports_before_an_empty_contract_is_authored(self) -> None:
+        project_id = "passive-signal-reference"
+        config = load_config(self.root, f"examples/projects/{project_id}/project.json")
+        manifest_path = self.root / f"examples/projects/{project_id}/project.json"
+        manifest = read_model(manifest_path, ProjectManifest)
+        contract_path = manifest_path.parent / manifest.checks
+        contract = read_model(contract_path, ProjectTestContract)
+        self.assertEqual(contract.validation.components, {})
+        original = contract_path.read_bytes()
+        runner = FakeRunner(config.kicad_version)
+        output = receipt_directory(self.root, project_id, None)
+        report = capture(self.root, project_id, output, runner)
+        save_receipt(output, report)
+        self.assertEqual(report.status, "READY_FOR_REVIEW", report.issues)
+        self.assertTrue(runner.exported)
+        self.assertEqual(report.review_state, "UNREVIEWED")
+        self.assertTrue(report.differences)
+        self.assertTrue(all(item.difference == "observed_only" for item in report.differences))
+        self.assertEqual(contract_path.read_bytes(), original)
+        self.assertTrue((output / "netlist.xml").is_file())
+        self.assertTrue((output / "version.command.json").is_file())
+        self.assertTrue((output / "report.json").is_file())
+        self.assertTrue((output / "report.txt").is_file())
+
+    def test_capture_rejects_wrong_toolchain_and_unignored_receipt(self) -> None:
+        output = receipt_directory(self.root, self.project_id, None)
+        runner = FakeRunner("9.0.0")
+        report = capture(self.root, self.project_id, output, runner)
+        self.assertEqual(report.status, "BLOCKED")
+        self.assertFalse(runner.exported)
+        self.assertIn("Exact KiCad", report.issues[0])
+        with self.assertRaisesRegex(ValueError, "ignored build"):
+            receipt_directory(self.root, self.project_id, Path("projects/controller/docs/receipt"))
+
+    def test_capture_rejects_source_changed_during_export(self) -> None:
+        source = self.root / "examples/projects/controller/kicad/controller.kicad_sch"
+
+        class MutatingRunner(FakeRunner):
+            def export(self, root: Path, config: object, output: Path) -> CommandEvidence:
+                exported = super().export(root, config, output)
+                source.write_bytes(source.read_bytes() + b"\n")
+                return exported
+
+        output = receipt_directory(self.root, self.project_id, None)
+        report = capture(self.root, self.project_id, output, MutatingRunner(self.config.kicad_version))
+        self.assertEqual(report.status, "BLOCKED")
+        self.assertIn("changed during netlist capture", report.issues[0])
+        self.assertIsNone(report.observed)
+
+    def test_pcb_only_is_never_presented_as_electrical_coverage(self) -> None:
+        self.assertEqual(new_project(
+            self.root, "layout-only", ProjectKind.PCB_ONLY, "kicad-10.0.5",
+        ).status, "PASS")
+        report = inspect_summary(self.root, "layout-only", self.native)
+        self.assertEqual(report.status, "BLOCKED")
+        self.assertIn("PCB-only", report.issues[0])
+        self.assertFalse(report.electrical_coverage)
+
+    def test_cli_json_and_short_text_keep_observations_explicit(self) -> None:
+        base = (
+            sys.executable, "-B", "-m", "tools.contract_coach", "--root", str(self.root),
+            "--project-id", self.project_id, "--native-summary", str(self.native),
+        )
+        machine = subprocess.run(
+            (*base, "--format", "json"), cwd=self.root, capture_output=True,
+            text=True, check=False,
+        )
+        self.assertEqual(machine.returncode, 0, machine.stderr)
+        structured = json.loads(machine.stdout)
+        self.assertEqual(structured["review_state"], "UNREVIEWED")
+        self.assertEqual(structured["observed"]["components"]["R3"]["value"], "3k")
+        human = subprocess.run(
+            (*base, "--format", "text"), cwd=self.root, capture_output=True,
+            text=True, check=False,
+        )
+        self.assertEqual(human.returncode, 0, human.stderr)
+        self.assertIn("Observed: 2 components, 2 nets", human.stdout)
+        self.assertIn("UNREVIEWED", human.stdout)
+
+        receipt = self.root / "build/contract-coach/inspect-001"
+        retained = subprocess.run(
+            (*base, "--output", str(receipt), "--format", "json"),
+            cwd=self.root, capture_output=True, text=True, check=False,
+        )
+        self.assertEqual(retained.returncode, 0, retained.stderr)
+        self.assertTrue((receipt / "report.json").is_file())
+        self.assertEqual(json.loads(retained.stdout)["receipt_dir"], str(receipt))
+
+    def test_cli_capture_missing_executable_is_blocked_with_receipt(self) -> None:
+        result = subprocess.run(
+            (
+                sys.executable, "-B", "-m", "tools.contract_coach", "--root", str(self.root),
+                "--project-id", self.project_id, "--capture", "--cli", "missing-kicad-cli-test",
+                "--format", "json",
+            ),
+            cwd=self.root, capture_output=True, text=True, check=False,
+        )
+        self.assertEqual(result.returncode, 1, result.stderr)
+        report = json.loads(result.stdout)
+        self.assertEqual(report["status"], "BLOCKED")
+        self.assertTrue(Path(report["receipt_dir"], "report.json").is_file())
+
+    def test_cli_capture_runs_local_adapter_and_retains_command_evidence(self) -> None:
+        executable = self.root / "build/fake-kicad-cli"
+        executable.write_text(
+            f"#!{sys.executable}\n"
+            "import pathlib, sys\n"
+            "if sys.argv[1:] == ['version']:\n"
+            f"    print({self.config.kicad_version!r})\n"
+            "else:\n"
+            "    assert sys.argv[1:5] == ['sch', 'export', 'netlist', '--format']\n"
+            "    output = pathlib.Path(sys.argv[sys.argv.index('--output') + 1])\n"
+            f"    output.write_text({NETLIST!r}, encoding='utf-8')\n",
+            encoding="utf-8",
+        )
+        executable.chmod(0o755)
+        contract_path = self.root / "examples/projects/controller/tests/contract.json"
+        before = contract_path.read_bytes()
+        result = subprocess.run(
+            (
+                sys.executable, "-B", "-m", "tools.contract_coach", "--root", str(self.root),
+                "--project-id", self.project_id, "--capture", "--cli", str(executable),
+                "--format", "json",
+            ),
+            cwd=self.root, capture_output=True, text=True, check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        report = json.loads(result.stdout)
+        self.assertEqual(report["status"], "READY_FOR_REVIEW")
+        self.assertEqual(report["review_state"], "UNREVIEWED")
+        self.assertEqual(report["commands"]["netlist"]["returncode"], 0)
+        self.assertTrue(Path(report["receipt_dir"], "netlist.command.json").is_file())
+        self.assertEqual(contract_path.read_bytes(), before)

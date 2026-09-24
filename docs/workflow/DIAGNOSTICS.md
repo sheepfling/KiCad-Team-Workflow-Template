@@ -113,7 +113,7 @@ portable lane passes, but they must be resolved before the activity they name
 | `CAD_PATH` missing, embedded or case-mismatched target | Correct exact spelling/case or add the intended asset and verify it opens in KiCad. Do not add a dummy file. |
 | `TRACKED_GENERATED_OUTPUT`, `TRACKED_LOCAL_STATE`, `TRACKED_UNMANAGED_ARTIFACT` | Keep generated exports and local state under ignored `build/`; remove already tracked copies from the Git index with `git rm --cached -- <path>` after confirming their source of truth. Review any authored document or image placement before moving it. |
 | `UNREGISTERED_DESIGN` | Give a separate native design its own registered island; do not hide it in another project's input inventory. |
-| `EMPTY_COMPONENT_CONTRACT` | Write independently reviewed expected components and nets in `tests/contract.json`; compare with the native export without treating the export as authority. |
+| `EMPTY_COMPONENT_CONTRACT` | Run `tools.contract_coach --project-id <id> --capture` with the exact local KiCad CLI to inventory UNREVIEWED components and nets. Compare them with requirements, then write independent expectations in `tests/contract.json`. |
 | `EMPTY_NET_CONTRACT` | Review the empty net expectation; author real expected connectivity or record that the design is intentionally net-free. |
 | `PROJECT_TEST` | Read the failing assertion and requirement, repair the design or test fixture, then rerun the selected lane. |
 | `PART_ID_SCOPE` or `EXPORT_SETTINGS` | Complete these reviewed records before purchasing or manufacturing work; a portable pass does not imply release readiness. |
@@ -187,7 +187,13 @@ disabled-check inventory changed, enable the named checks in KiCad's Schematic
 Setup or Board Setup and resolve the new findings. Do not copy disabled defaults into
 a development contract to obtain a pass. A netlist mismatch requires a reviewed
 decision about the circuit and the independent contract; neither should be changed
-automatically to match the other. See [checks and CI](CHECKS_AND_CI.md) and
+automatically to match the other. `tools.contract_coach --project-id <id>
+--native-summary <project-summary.json> --detail full` verifies the native netlist
+hash and current declared design hashes, then shows every observed component and
+net beside a concise difference list. JSON output retains both full inventories
+for agents. A failed native contract comparison may still provide usable
+UNREVIEWED observations when the KiCad export itself succeeded; it does not turn
+the failed validation green. See [checks and CI](CHECKS_AND_CI.md) and
 [test authority](../../tests/README.md).
 
 ## Before a purchasing BOM or release export

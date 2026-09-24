@@ -32,6 +32,7 @@ Choose text for a concise terminal view and JSON for the complete typed result:
 | `tools.template list` | `--format text` shows selections and next commands | JSON by default; typed inventory |
 | `tools.template rescue --project-id <id>` | Brief local repair view, always unverified; `--detail full` expands it | `--format json` with `UNVERIFIED_GLOBAL` and no CI/release eligibility |
 | `tools.governance_audit` | `--format text` shows observed GitHub controls and next actions | JSON by default; `UNKNOWN` stays explicit |
+| `tools.contract_coach` | Short UNREVIEWED contract comparison; `--detail full` expands it | `--format json` |
 | Other `tools.template` commands; `tools.ci`, `tools.hardware`, `tools.sourcing`, `tools.metrics` | `--format text` | JSON by default |
 | `tools.release prepare` | Text by default | `--format json` or `--json` |
 | Other `tools.release` commands | `--format text` | JSON by default |
@@ -48,6 +49,7 @@ integration work, not a prerequisite for repository policy.
 | `impact`, `hwrepo/impact.py` | Plan affected PR project lanes from changed paths; broaden ambiguous/shared-tool changes to full scope |
 | `native_deps` | Prepare Linux wheels for the pinned container's Python, without requiring pip inside the image |
 | `validate`, `check_toolchain`, `fault_probe` | Adapt the pinned KiCad CLI, preserve source hashes and test deliberate native defects |
+| `contract_coach`, `hwrepo/contract_coach.py` | Capture or inspect a source-bound netlist, compare it with independently authored expectations and retain ignored review evidence |
 | `lint_registry`, `docs_policy` | Expose registry and Markdown policy |
 | `hardware` | Check products, generate ignored review views/schemas, create and verify snapshots |
 | `template`, `release`, `sourcing`, `metrics` | Expose environment and project diagnostics, adoption, release readiness, supplier snapshots and current policy metrics |
