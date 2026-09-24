@@ -57,6 +57,8 @@ Record actual decisions and evidence before changing a project to `production`:
 Use the [production profile](ASSURANCE_PROFILES.md), [GitHub governance](GITHUB_GOVERNANCE.md)
 and [release workflow](VERSIONING.md). Do not fill real-world approvals with template
 placeholders. Development checks do not establish manufacturing readiness.
+Use `python -B -m tools.governance_audit --format text` to inspect actual hosted
+controls before the team permission and desktop rehearsals.
 
 Before native editing, run `python -m tools.check_toolchain --toolchain <toolchain-id>`.
 A project-specific preflight for either Docker or an exact local KiCad CLI is

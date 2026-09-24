@@ -844,6 +844,32 @@ class TeamPolicy(StrictModel):
     rationale: NonEmptyText
 
 
+class HostedGovernanceCheck(StrictModel):
+    """One observed hosted control, with uncertainty preserved."""
+
+    id: Identifier
+    status: Literal["PASS", "NEEDS_SETUP", "UNKNOWN"]
+    expected: NonEmptyText
+    observed: NonEmptyText
+    source: NonEmptyText | None = None
+    next_action: NonEmptyText | None = None
+
+
+class HostedGovernanceReport(StrictModel):
+    """Read-only API observations, never team or hardware approval."""
+
+    schema_version: Literal["1"] = "1"
+    lane: Literal["HOSTED_GOVERNANCE_AUDIT"] = "HOSTED_GOVERNANCE_AUDIT"
+    build_authorized: Literal[False] = False
+    repository: NonEmptyText | None = None
+    default_branch: NonEmptyText | None = None
+    required_status_checks: tuple[NonEmptyText, ...] = ()
+    hosted_controls_status: Literal["PASS", "NEEDS_SETUP", "UNKNOWN"]
+    status: Literal["PASS", "NEEDS_SETUP", "UNKNOWN"]
+    checks: tuple[HostedGovernanceCheck, ...]
+    next_actions: tuple[NonEmptyText, ...] = ()
+
+
 class GovernanceLintReport(StrictModel):
     schema_version: Literal["1"] = "1"
     lane: Literal["STATIC_GOVERNANCE_LINT"] = "STATIC_GOVERNANCE_LINT"

@@ -75,6 +75,11 @@ Never commit imported practice projects, local KiCad state or generated working
 outputs. Follow the [source and output policy](docs/workflow/REPOSITORY_HYGIENE.md)
 and [BOM policy](docs/workflow/BOM_POLICY.md). A passing check verifies its
 declared scope; it does not approve an electrical design or manufacturing release.
+For an adopted GitHub repository, run the optional read-only
+`python -B -m tools.governance_audit --format json` to inspect hosted branch
+controls. Preserve `UNKNOWN` for inaccessible APIs and unverified real-team
+permissions; follow the [GitHub governance guide](docs/workflow/GITHUB_GOVERNANCE.md)
+for the human review and access rehearsals.
 Project discovery is one level below each configured root, such as
 `projects/<id>/`; nested project folders are not discovered. Use tags or
 registered products to group independent islands.

@@ -31,8 +31,39 @@ governance record's `branch_protection_evidence`. Test the actual configured rol
 and independent-review rule. Also rehearse a rejected check,
 conflict handoff, access revocation, and release restore before relying on it.
 
+## Inspect hosted controls without changing them
+
+From an adopted repository with GitHub CLI access, run:
+
+```sh
+python -B -m tools.governance_audit --format text
+python -B -m tools.governance_audit --repo OWNER/REPO --record projects/board/releases/governance.json --format json
+```
+
+The first command detects the current GitHub repository. Use `--repo` to inspect
+an explicit remote and `--record` to compare its default branch and exact required
+checks with a project governance record. The command only issues read requests and
+does not write an evidence file or change GitHub settings. JSON is the default
+for agents; `--format text` groups controls and next actions for an engineer.
+
+The report distinguishes `PASS` (observed), `NEEDS_SETUP` (an observed gap), and
+`UNKNOWN` (the API or human evidence is insufficient). Exit codes are 0, 1, and 2,
+respectively. `hosted_controls_status` isolates the settings check. The overall
+`status` stays `UNKNOWN` when settings pass because this command cannot verify
+real team permissions or review rehearsals. A 404 from the legacy branch-protection
+endpoint is `UNKNOWN` because the token may lack Administration:read; active
+[branch rules](https://docs.github.com/en/rest/repos/rules#get-rules-for-a-branch)
+can still prove specific controls. The audit checks CODEOWNERS in the supported
+[locations](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners),
+but a declared handle alone does not establish write access or a valid review drill.
+Confirm bypass exceptions, merge permissions, rejected checks, access revocation,
+and release restore with real actors before production adoption.
+
 ## Tool access
 
 Use `gh auth status` before trying to read or alter repository settings. A valid token
 with repository-administration scope and the actual reviewer/team identities are
 required to apply this policy; they are intentionally outside this template.
+The read-only audit can inspect active rules with metadata read access, while the
+legacy [branch-protection endpoint](https://docs.github.com/en/rest/branches/branch-protection#get-branch-protection)
+requires Administration:read. Missing API access is reported as `UNKNOWN`.
