@@ -16,8 +16,11 @@ to understand what belongs with each board and what is shared.
    Check Git status before and after opening it in the exact catalogued KiCad version.
 3. Run `python -B -m tools.template list --format text` to see valid project IDs,
    products, tags and toolchains. An adopted repository initially lists no projects.
-   Create one with `tools.template new-project`, choosing its ID, kind and toolchain.
-   It starts in `development`, visibly NOT FOR MANUFACTURE.
+   For a new design, follow [First board](FIRST_BOARD.md) and create an island
+   with `tools.template new-project`, choosing its ID, kind and toolchain. For an
+   existing design or an archive of boards, follow the [import workflow](IMPORT_WORKFLOW.md),
+   starting with its read-only inventory when there are multiple candidates.
+   Each new or imported island starts in `development`, visibly NOT FOR MANUFACTURE.
 4. Save its real source under `projects/<id>/kicad/`. Complete `project.json` and
    `tests/contract.json`; keep board requirements and decisions in its local docs.
 5. Use a short-lived branch and run `tools.verify --project <id>` while working on
