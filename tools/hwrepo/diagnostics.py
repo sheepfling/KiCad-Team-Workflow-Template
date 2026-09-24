@@ -196,7 +196,10 @@ def repository_guidance(issue: str, kicad_major: str | None = None) -> Diagnosti
                 "Find and include the intended asset or correct the reference. Do not create "
                 "a placeholder model solely to satisfy this check."
             )
-        elif "not in this project's required_inputs" in observed or "no inventoried inputs" in observed:
+        elif any(marker in observed for marker in (
+            "not in this project's required_inputs", "no inventoried inputs",
+            "outside this project's source_roots", "exposes unlisted files",
+        )):
             action = (
                 "If this is board-local, add the asset under this project's source_roots and "
                 "required_inputs. If multiple boards use it, move it into a registered "

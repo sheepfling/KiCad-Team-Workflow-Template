@@ -471,9 +471,9 @@ class ProductTests(unittest.TestCase):
         for value in ("C:/parts/private.pretty", "/home/parts/local.pretty", "${MY_LIBRARY}/part.pretty"):
             with self.subTest(value=value):
                 path.write_text(f'(uri "{value}")', encoding="utf-8")
-                self.assertTrue(cad_dependencies(self.temp, path, self.temp, "10", frozenset()))
+                self.assertTrue(cad_dependencies(self.temp, path, self.temp, "10", frozenset(), frozenset()))
         path.write_text('(uri "${KICAD10_FOOTPRINT_DIR}/Connector.pretty")', encoding="utf-8")
-        self.assertEqual(cad_dependencies(self.temp, path, self.temp, "10", frozenset()), [])
+        self.assertEqual(cad_dependencies(self.temp, path, self.temp, "10", frozenset(), frozenset()), [])
 
     def test_tracked_local_state_classification(self):
         for value in (

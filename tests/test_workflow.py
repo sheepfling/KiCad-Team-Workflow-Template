@@ -118,6 +118,26 @@ class ForkWorkflowTests(unittest.TestCase):
         self.assertEqual(report.status, "FAIL")
         self.assertTrue(any("shared_source_roots must match library_ids" in issue for issue in report.issues))
 
+    def test_library_table_cannot_expose_an_unscoped_parent_directory(self) -> None:
+        table = self.root / "examples/projects/arduino-uno-status-led/kicad/fp-lib-table"
+        table.write_text(
+            table.read_text(encoding="utf-8").replace(
+                "${KIPRJMOD}/../../../libraries/status-led/status-led.pretty",
+                "${KIPRJMOD}/../../../libraries",
+            ),
+            encoding="utf-8",
+        )
+        report = check_repository(self.root, ("arduino-uno-status-led",))
+        self.assertEqual(report.status, "FAIL")
+        self.assertTrue(any("outside this project's source_roots" in issue for issue in report.issues))
+
+    def test_library_table_directory_exposes_only_inventoried_files(self) -> None:
+        loose = self.root / "examples/libraries/status-led/status-led.pretty/Loose.kicad_mod"
+        loose.write_text("(footprint Loose)", encoding="utf-8")
+        report = check_repository(self.root, ("arduino-uno-status-led",))
+        self.assertEqual(report.status, "FAIL")
+        self.assertTrue(any("exposes unlisted files" in issue for issue in report.issues))
+
     def test_library_catalog_cannot_register_another_project_as_a_library(self) -> None:
         path = self.root / "catalog/libraries.json"
         catalog = read_model(path, LibrariesCatalog)
