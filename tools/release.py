@@ -69,7 +69,8 @@ def main() -> int:
     parser.add_argument("--release-id")
     parser.add_argument("--release-class", choices=[value.value for value in ReleaseClass], default="engineering_review")
     parser.add_argument("--cli", help="Use an installed pinned KiCad CLI; default uses Docker")
-    parser.add_argument("--portable", type=Path, help="Reuse a full portable report from this exact clean source")
+    parser.add_argument("--portable", type=Path,
+                        help="Reuse a full or exact-project release portable report from this clean source")
     parser.add_argument("--output", type=Path)
     parser.add_argument("--archive", type=Path)
     parser.add_argument("--destination", type=Path)

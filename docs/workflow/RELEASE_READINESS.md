@@ -13,10 +13,26 @@ python -B -m tools.release prepare --project battery-board --release-id battery-
 python -B -m tools.release check --manifest build/releases/battery-review-001/manifest.json
 ```
 
-The command runs the full portable pipeline and native checks in the project's
-pinned image. Use `--cli /path/to/kicad-cli` to use an installed exact version instead.
+The command runs portable policy, generation and project/product tests for exactly
+the selected release projects and their declared shared/product dependencies, then
+native checks in each project's pinned image. It does not spend time validating
+unrelated legacy islands. Use `--cli /path/to/kicad-cli` to use an installed exact
+version instead. The retained `portable.json` names its selected projects and
+hashes the entire clean source commit, so it cannot be mistaken for a full gate.
+Run `python -B -m tools.ci --format text` and the hosted full CI gate separately
+for repository-wide acceptance.
+
 Use `--portable build/portable/portable.json` only to reuse a full passing report
-from the same clean commit. Dirty, stale, missing or partial evidence fails.
+or a passing release-scoped report covering **exactly** this selection from the
+same clean commit. A plain `tools.ci --project` report has no release source
+binding and is not reusable release evidence. Dirty, stale, missing, mismatched
+or partial evidence fails.
+Project discovery still parses every project manifest, so malformed metadata
+anywhere must be repaired before any normal CI or release lane can run. A valid
+but failing legacy board or test suite outside the selected release scope does
+not block this board's preparation. Shared catalogs likewise retain global
+schema, duplicate-ID and path-safety checks; an unused catalog record's
+review-specific semantics cannot block an independent board.
 
 Outputs and the generated manifest live in ignored `build/releases/<id>/`. A new
 attempt needs a new ID; previous evidence is never overwritten. The default
@@ -24,7 +40,7 @@ attempt needs a new ID; previous evidence is never overwritten. The default
 synthetic fixtures. It does not approve a board for manufacture.
 
 The verifier checks the actual commit, source-file hashes, source cleanliness,
-selected projects, toolchain, report results, native artifact hashes and native
+the exact portable/native project scope, toolchain, report results, native artifact hashes and native
 ERC/DRC/netlist content. A manifest containing only self-declared `PASS` labels fails.
 Integrity checks detect missing or altered evidence; trusted CI and reviewed release
 publication establish who produced and approved it.

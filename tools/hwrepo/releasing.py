@@ -8,7 +8,7 @@ from pathlib import Path
 
 from .contracts import read_model, repo_path, write_model
 from .discovery import load_config, load_registry
-from .evidence import digest, evidence_path, source_state, verify_portable
+from .evidence import digest, evidence_path, source_state, verify_release_portable
 from .generation import expected_outputs
 from .markdown import release_review, write_markdown
 from .models import (
@@ -19,6 +19,7 @@ from .models import (
     PolicyIssue,
     ProjectManifest,
     ProjectRecord,
+    ProjectStaticPipelineReport,
     ReleaseArtifact,
     ReleaseArtifactKind,
     ReleaseClass,
@@ -28,10 +29,15 @@ from .models import (
     ReleaseManifest,
     ReleaseStatus,
     ReleaseVariant,
+    ScopedReleasePortableReport,
     ValidationSummary,
 )
-from .product import load_repository
-from .release import configured_toolchains, selected_products, selected_project_records
+from .release import (
+    configured_toolchains,
+    load_release_repository,
+    selected_products,
+    selected_project_records,
+)
 
 
 def reference(root: Path, path: Path) -> EvidenceFile:
@@ -98,7 +104,7 @@ def prepare(root: Path, release_id: str, project_ids: tuple[str, ...],
                                 status=ReleaseStatus.CANDIDATE, source_commit=source.commit,
                                 toolchain_id="pending", projects=project_ids, variants=variants,
                                 libraries=(), interfaces=(), artifacts=())
-    repository = load_repository(root)
+    repository = load_release_repository(root, candidate)
     findings: list[PolicyIssue] = list(repository.issues)
     products = selected_products(repository, candidate, findings)
     projects = selected_project_records(repository, products, project_ids)
@@ -113,14 +119,21 @@ def prepare(root: Path, release_id: str, project_ids: tuple[str, ...],
         raise ValueError("Prepare separate release candidates for different toolchains")
     output = repo_path(root, f"build/releases/{release_id}")
     output.mkdir(parents=True, exist_ok=False)
+    selected_ids = tuple(project.id for project in projects)
     if portable is None:
         portable = output / "portable.json"
-        report = static_pipeline(root, None)
-        write_model(portable, report)
+        checks = static_pipeline(root, list(selected_ids))
+        if not isinstance(checks, ProjectStaticPipelineReport):
+            raise ValueError("Selected release portable checks did not return a project report")
+        if source_state(root) != source:
+            raise ValueError("Source changed while running selected portable checks")
+        write_model(portable, ScopedReleasePortableReport(
+            source=source, projects=selected_ids, checks=checks,
+        ))
     else:
         portable = repo_path(root, portable.as_posix())
     portable_reference = reference(root, portable)
-    verify_portable(root, portable_reference, source)
+    verify_release_portable(root, portable_reference, source, selected_ids)
     dependencies: Path | None = None
     if cli is None:
         from ..native_deps import prepare as prepare_dependencies

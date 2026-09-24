@@ -18,6 +18,7 @@ from .hwrepo.models import (
     PartsCatalog,
     PartStatus,
     PcbValidationContract,
+    ProductRecord,
     ProjectKind,
     ProjectManifest,
     ReleaseClass,
@@ -160,13 +161,98 @@ def lint(
             status="FAIL",
         )
 
-    for interface in interfaces.values():
+    project_ids = tuple(projects) if selected is None else requested
+    selected_records = tuple(
+        projects[identifier] for identifier in project_ids if identifier in projects
+    )
+    if selected is None:
+        relevant_records = tuple(projects.values())
+        relevant_products: tuple[ProductRecord, ...] = ()
+        part_ids = set(parts)
+        interface_ids = set(interfaces)
+        library_ids = set(libraries)
+        toolchain_ids = set(toolchains)
+    else:
+        # A focused lane keeps shared-catalog schema and ID uniqueness global,
+        # but checks record semantics only where a selected board or one of its
+        # dependent products actually uses the record.
+        from .hwrepo.product import load_repository
+
+        related = load_repository(root, requested)
+        dependent_ids = set(requested)
+        selected_ids = frozenset(requested)
+        for member_ids in related.product_project_ids.values():
+            if not selected_ids.isdisjoint(member_ids):
+                dependent_ids.update(member_ids)
+        relevant_records = tuple(
+            projects[identifier] for identifier in sorted(dependent_ids) if identifier in projects
+        )
+        relevant_products = related.products
+        part_ids = {
+            part_id for project in relevant_records for part_id in project.component_identity.part_ids
+        }
+        interface_ids = {
+            identifier for project in relevant_records for identifier in project.interfaces
+        }
+        library_ids = {
+            identifier for project in relevant_records for identifier in project.library_ids
+        }
+        toolchain_ids: set[str] = set()
+        for project in relevant_records:
+            try:
+                manifest = read_model(repo_path(root, project.config), ProjectManifest)
+                toolchain_ids.add(manifest.toolchain_id)
+            except (OSError, ValueError) as exc:
+                issues.append(f"project {project.id}: invalid catalog dependency scope: {exc}")
+        for product in relevant_products:
+            interface_ids.update(
+                terminal.interface_id for terminal in product.terminals
+                if terminal.interface_id is not None
+            )
+            for assembly in product.assemblies:
+                if assembly.purchase_part is not None:
+                    part_ids.add(assembly.purchase_part)
+                part_ids.update(member.item for member in assembly.members if member.item in parts)
+        # An approved alternate is a real sourcing dependency of its part.
+        pending = list(part_ids)
+        while pending:
+            part = parts.get(pending.pop())
+            if part is None:
+                continue
+            for alternate_id in part.approved_alternates:
+                if alternate_id not in part_ids:
+                    part_ids.add(alternate_id)
+                    pending.append(alternate_id)
+
+    for identifier in sorted(interface_ids - interfaces.keys()):
+        issues.append(f"interface catalog: missing dependency {identifier}")
+    for identifier in sorted(library_ids - libraries.keys()):
+        issues.append(f"library catalog: missing dependency {identifier}")
+    for identifier in sorted(toolchain_ids - toolchains.keys()):
+        issues.append(f"toolchain catalog: missing dependency {identifier}")
+
+    # Catalog path safety is a repository-wide trust boundary even when an
+    # unused record's evidence and approval semantics are outside this lane.
+    for library in libraries.values():
+        for label, value in (
+            ("path", library.path),
+            ("provenance", library.provenance_path),
+            ("licensing", library.licensing_path),
+        ):
+            try:
+                repo_path(root, value)
+            except ValueError as exc:
+                issues.append(f"library {library.id}: unsafe {label}: {exc}")
+
+    for interface in (
+        interfaces[identifier] for identifier in sorted(interface_ids) if identifier in interfaces
+    ):
         if not interface.pins:
             issues.append(f"interface {interface.id}: needs a non-empty pins list")
         numbers = [pin.number for pin in interface.pins]
         if len(set(numbers)) != len(numbers):
             issues.append(f"interface {interface.id}: duplicate pin number")
-    for part in parts.values():
+    for part in (parts[identifier] for identifier in sorted(part_ids) if identifier in parts):
         alternates = set(part.approved_alternates)
         if len(alternates) != len(part.approved_alternates):
             issues.append(f"part {part.id}: duplicate approved alternate")
@@ -178,7 +264,9 @@ def lint(
                 issues.append(
                     f"part {part.id}: approved alternate {alternate_id} must be approved"
                 )
-    for library in libraries.values():
+    for library in (
+        libraries[identifier] for identifier in sorted(library_ids) if identifier in libraries
+    ):
         try:
             library_parts = Path(library.path).parts
             if not (
@@ -204,7 +292,9 @@ def lint(
                     issues.append(f"library {library.id}: {label} record hash does not match")
         except ValueError as exc:
             issues.append(f"library {library.id}: {exc}")
-    for toolchain in toolchains.values():
+    for toolchain in (
+        toolchains[identifier] for identifier in sorted(toolchain_ids) if identifier in toolchains
+    ):
         if not reviewed_value(toolchain.kicad_version):
             issues.append(f"toolchain {toolchain.id}: needs an exact KiCad version")
         if "@sha256:" not in toolchain.image:
@@ -213,13 +303,22 @@ def lint(
     if len(set(policy_classes)) != len(policy_classes) or set(policy_classes) != set(ReleaseClass):
         issues.append("release policies: need exactly one minimum assurance for every release class")
 
-    project_ids = tuple(projects) if selected is None else requested
-    declared = {project.project for project in projects.values()}
+    declared = {project.project for project in selected_records}
+    if selected is None:
+        discovery_roots = tuple(root / design_root for design_root in settings(root).project_roots)
+    else:
+        selected_roots: set[Path] = set()
+        for project in selected_records:
+            try:
+                selected_roots.add(repo_path(root, project.config).parent)
+            except ValueError as exc:
+                issues.append(f"project {project.id}: invalid project path: {exc}")
+        discovery_roots = tuple(selected_roots)
     discovered = {
         path.relative_to(root).as_posix()
-        for design_root in settings(root).project_roots
-        for path in (root / design_root).rglob("*.kicad_pro")
-        if (root / design_root).is_dir()
+        for directory in discovery_roots
+        for path in directory.rglob("*.kicad_pro")
+        if directory.is_dir()
         and not any(part.endswith("-backups") for part in path.parts)
     }
     if declared != discovered:

@@ -1310,3 +1310,16 @@ class ProjectVerificationReport(StrictModel):
     status: Literal["PASS", "FAIL", "ERROR"]
     next_actions: tuple[NonEmptyText, ...] = ()
     error: str | None = None
+
+class ScopedReleasePortableReport(StrictModel):
+    """Committed-source binding for the selected portable release lane.
+
+    This is deliberately a different type from StaticPipelineReport: a
+    selected lane can never masquerade as the repository-wide portable gate.
+    """
+
+    schema_version: Literal["1"] = "1"
+    scope: Literal["release_projects"] = "release_projects"
+    source: SourceState
+    projects: tuple[Identifier, ...]
+    checks: ProjectStaticPipelineReport

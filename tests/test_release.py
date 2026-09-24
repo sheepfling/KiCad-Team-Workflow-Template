@@ -37,8 +37,7 @@ from tools.hwrepo.models import (
     ReleaseVariant,
     SourceState,
 )
-from tools.hwrepo.product import load_repository
-from tools.hwrepo.release import check, selected_project_records
+from tools.hwrepo.release import check, load_release_repository, selected_project_records
 from tools.hwrepo.scaffold import new_project
 from tools.release import main as release_main
 
@@ -176,7 +175,7 @@ class ReleaseReadinessTests(unittest.TestCase):
         self.assertIn("RELEASE_PROJECT_KIND", {finding.code for finding in report.issues})
 
     def test_variant_release_includes_every_declared_product_project(self) -> None:
-        repository = load_repository(self.root)
+        repository = load_release_repository(self.root, self.manifest())
         selected = selected_project_records(repository, repository.products)
         self.assertEqual(
             {project.id for project in selected},
