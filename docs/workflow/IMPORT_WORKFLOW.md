@@ -23,8 +23,7 @@ is complete or a circuit is correct.
 python -B -m tools.template diagnose --source "/path/to/Old board.kicad_pro" --project-id battery-board --toolchain kicad-10.0.5 --format text
 python -B -m tools.template import-project --source "/path/to/Old board.kicad_pro" --project-id battery-board --toolchain kicad-10.0.5 --format text
 python -B -m tools.template diagnose --project-id battery-board
-python -B -m tools.ci --project battery-board --format text
-python -B -m tools.ci --matrix --format text
+python -B -m tools.verify --project battery-board
 ```
 
 `--root` selects a different candidate repository. The source argument names the
@@ -63,6 +62,17 @@ Native net names can include supply signs, buses and hierarchy; an unassigned
 footprint can be represented but still receives KiCad's own checks. An empty PCB
 contract cannot pass native validation. Add local `test_*.py` files for requirements
 that need executable assertions; see [test extension](../../tests/README.md).
+
+After authoring those expectations, run the selected board through its exact
+native toolchain. `tools.verify` retains an ignored receipt and gives repair
+guidance when a check fails:
+
+```sh
+python -B -m tools.verify --project battery-board --depth native
+```
+
+Use `python -B -m tools.ci --matrix --format text` only to preview the native
+lanes that CI will schedule; it does not validate the board.
 
 When the source has a `.kicad_pcb` but no matching `.kicad_sch`, import creates a
 `pcb_only` island. It preserves and inventories the board, runs native DRC and a PCB
