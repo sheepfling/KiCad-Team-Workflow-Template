@@ -41,7 +41,9 @@ unreviewed documentation.
 ## CI ownership
 
 The default `python -B -m tools.ci` static pipeline invokes this policy alongside
-typed repository/product checks, Ruff, Pyright and unit tests. GitHub Actions calls
-that central entry point; it does not duplicate Markdown rules in workflow YAML.
-Run the focused command when working only on documentation, then run the full
-static pipeline before review.
+typed repository/product checks, Ruff, Pyright and unit tests. The docs-only
+hosted lane calls `tools.docs_policy` directly; neither lane duplicates Markdown
+rules in workflow YAML.
+Run `python -B -m tools.docs_policy` while working only on documentation.
+Documentation-only PRs run this policy; main and full manual CI runs include it
+in the full static pipeline. A focused PR also runs it when Markdown changed.

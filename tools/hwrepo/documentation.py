@@ -54,8 +54,10 @@ def markdown_files(root: Path) -> tuple[Path, ...]:
         sorted(
             (
                 path
-                for path in root.rglob("*.md")
-                if not any(part in IGNORED_DIRECTORIES for part in path.relative_to(root).parts)
+                for path in root.rglob("*")
+                if path.is_file()
+                and path.suffix.casefold() == ".md"
+                and not any(part in IGNORED_DIRECTORIES for part in path.relative_to(root).parts)
             ),
             key=lambda path: label(path, root),
         )

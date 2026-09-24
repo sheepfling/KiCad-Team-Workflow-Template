@@ -9,6 +9,9 @@ python -B -m unittest discover -s tests -v
 python -B -m unittest tests.test_product -v
 # A board's checks and dependent product suites
 python -B -m tools.ci --project raspberry-pi-status-led
+# All boards in a product, or a tagged cohort
+python -B -m tools.ci --product status-indicator-system
+python -B -m tools.ci --tag status-led
 # Full repository and all test scopes
 python -B -m tools.ci
 ```
@@ -23,7 +26,16 @@ files cover board-specific requirements. The Raspberry Pi example's
 [firmware test](../examples/projects/raspberry-pi-status-led/tests/test_firmware.py)
 checks its actual GPIO choice and blink timing with a fake GPIO adapter.
 Product `tests/test_*.py` files cover integration requirements and run when any
-participating board is selected.
+participating board is selected. A focused lane runs selected project suites and
+their dependent product suites, along with the selected portable policy and
+generation checks. It does not rerun the shared root unit suite or quality tools.
+Use the full `tools.ci` command for changes to shared services and contracts.
+`--project`, `--product` and `--tag` can be repeated to select their union;
+`--exclude-tag` removes projects afterward. Tags live in each project's
+`project.json`; registered product membership lives in `catalog/products.json`.
+The [CI guide](../docs/workflow/CHECKS_AND_CI.md) explains how changed paths
+select PR lanes, how to request a focused manual hosted run, and why main
+pushes remain full.
 
 Add a `unittest.TestCase` in a `test_*.py` file. Each island runs in a separate process
 with the repository root as its working directory, so shared imports work and module

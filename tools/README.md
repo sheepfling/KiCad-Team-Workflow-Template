@@ -2,6 +2,17 @@
 
 Run every CLI from the repository root as `python -B -m tools.<command>`.
 `tools.ci` is the common local and hosted entry point. See the [command guide](../docs/workflow/CHECKS_AND_CI.md).
+Use `--project <id>` for one island, `--product <id>` for a registered product's
+members, or `--tag <tag>` for a manifest cohort. These include selectors form
+a union; `--exclude-tag <tag>` removes matches. The selected portable lane
+runs applicable project/product checks; the unselected lane runs the full
+shared regression and quality gate. `tools.ci --matrix` and `tools.ci --kicad`
+accept the same selectors for native work. Run
+`python -B -m tools.impact --base <ref> --head <ref>` to preview changed-file
+PR scope and why projects were chosen. For a manual hosted run, use
+`tools.impact --select-project <id>`, `--select-product <id>` or
+`--select-tag <tag>` to preview one focused selection; `--full` previews the
+default full run.
 The CLIs use `argparse`; a Typer dependency is not required for human output.
 Choose text for a concise terminal view and JSON for the complete typed result:
 
@@ -20,6 +31,7 @@ integration work, not a prerequisite for repository policy.
 | Module | Responsibility |
 | --- | --- |
 | `ci`, `ci_matrix`, `check_all` | Coordinate the portable gate, registry-driven matrix and native lanes |
+| `impact`, `hwrepo/impact.py` | Plan affected PR project lanes from changed paths; broaden ambiguous/shared-tool changes to full scope |
 | `native_deps` | Prepare Linux wheels for the pinned container's Python, without requiring pip inside the image |
 | `validate`, `check_toolchain`, `fault_probe` | Adapt the pinned KiCad CLI, preserve source hashes and test deliberate native defects |
 | `lint_registry`, `docs_policy` | Expose registry and Markdown policy |

@@ -14,20 +14,27 @@ nonzero on a failed check in either format.
 | --- | --- |
 | `python -B -m tools.ci` | Live discovery/registry, dependency/source hygiene, product policy, fresh generation, Markdown, Ruff, strict tool types, shared unit tests and every project/product Python suite |
 | `python -B -m tools.ci --project <id>` | Selected project inputs, shared dependency policy, products declaring that project, fresh applicable views and its project/dependent-product Python suites |
+| `python -B -m tools.ci --product <id>` | All projects registered as members of that product, plus their applicable product tests and policy checks |
+| `python -B -m tools.ci --tag <tag>` | Projects carrying that manifest tag and their applicable product tests and policy checks |
 | `python -B -m tools.ci --matrix` | One native lane per discovered manifest, using its catalogued toolchain |
 | `python -B -m tools.ci --kicad --project <id> --output <new-path>` | Native checks for the selected board, after registry, dependency/source hygiene and product preflight |
 
-Portable checks do not execute KiCad. A focused check does not replace the full gate
-before review. Native checks do not replace Python suites or physical engineering tests.
+Portable checks do not execute KiCad. The selected portable lane omits shared-tool
+unit tests, Ruff, Pyright and repository-wide Markdown policy; use the full command
+when changing shared tooling or policy. Native checks do not replace Python suites
+or physical engineering tests.
 
 ## Daily commands
 
 ```sh
 python -B -m tools.ci --project raspberry-pi-status-led --format text
+python -B -m tools.ci --product status-indicator-system --format text
 python -B -m tools.ci --tag status-led --format text
+python -B -m tools.ci --tag status-led --exclude-tag legacy --format text
 python -B -m tools.ci --exclude-tag legacy --format text
 python -B -m tools.ci --format text
 python -B -m tools.ci --matrix --format text
+python -B -m tools.ci --matrix --product status-indicator-system --format text
 python -B -m tools.ci --kicad --project controller --output examples/projects/controller/build/review-001 --format text
 python -B -m tools.hardware generate --format text
 python -B -m tools.template doctor --format text
@@ -36,9 +43,15 @@ python -B -m tools.template preflight --format text
 python -B -m tools.docs_policy
 ```
 
-Repeated IDs/tags are OR selections; exclusions apply afterward. A selection matching
-no projects fails. No selection means the full set. Custom project/product tests run
-in separate Python processes; add `test_*.py` files without editing the workflow.
+`--project`, `--product` and `--tag` may each be repeated. They select the union
+of IDs, registered product members and manifest tags; `--exclude-tag` removes
+matching projects afterward. For example, `--tag power --exclude-tag legacy`
+checks non-legacy power boards in an adopted repository. With only `--exclude-tag`,
+the starting set is all discovered projects. Unknown IDs/products/tags or a selection
+matching no projects fail. No selector means the full set. Tags belong in each
+`project.json`; product membership belongs in `catalog/products.json`. Custom
+project/product tests run in separate Python processes; add `test_*.py` files
+without editing the workflow.
 See [test extension](../../tests/README.md).
 
 Native output directories and review snapshots are write-once. Use a fresh path each
@@ -56,40 +69,86 @@ Create `projects/<id>/project.json` and its local source/contract files, or use
 selects discovery roots and shared catalogs; each manifest owns its metadata.
 Unregistered native files, duplicate IDs and misplaced project folders fail.
 
-Each shared-library consumer declares the exact shared files it needs. The full gate
-checks all consumers after a library change. Hosted native jobs likewise cover every
-discovered project; changed-file optimization is not implemented.
+Each shared-library consumer declares the exact shared files it needs. A change
+to a declared shared asset selects its consumers for hosted project and native
+checks. Run the full command when intentionally rehearsing every consumer.
+Discovery is one level below each configured project root: `projects/<id>/` and,
+before adoption, `examples/projects/<id>/`. A nested path such as
+`projects/power/battery-board/` is not a project island. Use tags for cohorts or
+a product record for cross-board integration instead of a second directory level.
+
+## Which scope to run
+
+The quick local loop is `tools.ci --project <id>` for portable checks, followed
+by `tools.ci --kicad --project <id> --output <fresh-path>` when native inputs
+change. A tag or product selects a larger group without naming each member.
+`tools.ci --matrix --project <id>` previews just the selected native job.
+Use `tools.ci` without a selector for a full portable rehearsal, especially
+after changing shared tooling, catalog policy, or release behavior.
+
+`tools.impact --base <ref> --head <ref> --format text` previews the PR scope
+from changed Git paths; use `--format json` for an agent or script. It reports
+which projects are selected and why. Direct project changes select that island,
+product changes select its member projects, and declared shared-library changes
+select their consumers. Ambiguous or shared-tool changes escalate to full scope.
+An engineer can therefore verify a board without rerunning unrelated historical
+projects on each edit, while still seeing when a change has broad impact.
+
+To preview a manual focused run, use
+`python -B -m tools.impact --select-project battery-board --format text`,
+`--select-product <product-id>` or `--select-tag <tag>`. Add
+`--exclude-tag <tag>` to remove a cohort; an empty or unknown selection fails.
+`python -B -m tools.impact --full --format text` previews full acceptance. The
+impact CLI prints a typed JSON plan by default for automation. Each manual
+selector chooses one project, product or tag; the local `tools.ci` command can
+combine multiple selectors when needed.
 
 ## Hosted execution
 
-Actions installs dependencies from `pyproject.toml`, runs the portable gate on
-Windows/macOS/Linux, and runs native validation in each project's digest-pinned KiCad
-image. The controller's native fault probes run only for its known reference path.
+Actions installs dependencies from `pyproject.toml`. Pull requests that change
+only project/product inputs run selected portable checks on Ubuntu and native
+validation only for affected projects in their digest-pinned KiCad images.
+If a focused PR also edits Markdown, it runs the Markdown policy as well.
+Documentation-only PRs run only that policy.
+Markdown explicitly referenced by a project or product contract is an engineering
+input and selects its affected native lanes even when it lives in `docs/`.
+Changes to common tools, catalogs, workflow configuration or unrecognized paths receive full
+portable coverage on Windows/macOS/Linux and all native lanes. Pushes to main
+always receive full coverage. In GitHub Actions, open **KiCad template acceptance**
+and choose **Run workflow** on the desired branch. The `focus` input defaults
+to `full`. For a fast hosted check, choose `project`, `product` or `tag`, enter
+its ID or tag in `value`, and optionally set `exclude_tag`. A focused manual
+run uses Ubuntu portable checks and selected native lanes; a full manual run
+uses all three portable operating systems, every native lane and the release
+rehearsal. The controller's native fault probes run only for its known reference
+path when that project is in scope.
 The template pins its direct runtime and development-tool dependencies in
 `pyproject.toml`; each direct dependency selects its published compatible transitive
 requirements. Update direct pins as a reviewed change and rerun the portable/native
 acceptance lanes.
 Dependabot opens bounded monthly Python and GitHub Actions update pull requests;
-these receive the same review and complete acceptance workflow as other tool changes.
-The final acceptance check requires the matrix, portable jobs, native jobs and a
-standalone release/restore rehearsal to pass. The rehearsal commits a disposable
+these change common dependencies or workflow files and receive full acceptance.
+The final acceptance check requires the jobs scheduled for its declared scope
+to pass; a skipped native lane is acceptable only when no project is in scope.
+Full runs with projects also require a standalone release/restore rehearsal. The rehearsal commits a disposable
 reference checkout, exports using pinned KiCad, prepares an engineering-review
 manifest, packages it and verifies an actual restore. It does not approve hardware.
-Native jobs start after project discovery and run alongside the portable OS jobs;
-the release rehearsal starts after native jobs, without waiting for Windows. This
-shortens PR turnaround while the final acceptance check still waits for all jobs.
-Adding projects increases portable inventory and project-test work, and adds one
-native job per project. Native jobs can run concurrently subject to hosted runner
-capacity, so elapsed time need not grow one-for-one with project count; total CI
-compute and any runner queue can still grow.
+Native jobs start after impact planning and run alongside the portable OS jobs;
+the full-scope release rehearsal starts after native jobs, without waiting for
+Windows. Adding projects increases the cost of a full run. A project-only PR adds
+work for its affected projects and their dependents, not every historical board.
+Native jobs can run concurrently subject to hosted runner capacity, so elapsed
+time need not grow one-for-one with project count; total CI compute and queue
+time can still grow.
 
-An initialized fork with no projects emits an empty matrix. Only that explicit
-condition allows native/release jobs to be skipped; the final check still requires
-portable policy success and states that no hardware was validated. Unknown project
-selectors and broken discovery still fail.
+An initialized fork with no projects emits an empty matrix. The final check still
+requires applicable policy success and states that no hardware was validated.
+Unknown project selectors and broken discovery still fail. A docs-only PR has
+no native matrix; its impact plan explains that decision.
 
-CI uploads shared schema/library exports, product-local generated views, and native
-review evidence, portable reports and the rehearsed package. Reports record the
+Full CI uploads shared schema/library exports, product-local generated views,
+native review evidence, portable reports and the rehearsed package. Focused
+CI retains selected portable and native review evidence. Reports record the
 observed source commit and file hashes. Dirty local reports remain useful for
 development but cannot supply release evidence. Configure artifact retention and required branch checks during
 [adoption](START_HERE.md); a configured workflow is not evidence of a hosted run.

@@ -76,6 +76,7 @@ def main() -> int:
     parser.add_argument("--cli", default="kicad-cli")
     parser.add_argument("--project", action="append", dest="projects")
     parser.add_argument("--tag", action="append", dest="tags")
+    parser.add_argument("--product", action="append", dest="products")
     parser.add_argument("--exclude-tag", action="append", dest="excluded_tags")
     parser.add_argument("--all", action="store_true", help="Check every declared project (the default).")
     args = parser.parse_args()
@@ -85,6 +86,7 @@ def main() -> int:
         project_ids=tuple(args.projects or ()),
         tags=tuple(args.tags or ()),
         excluded_tags=tuple(args.excluded_tags or ()),
+        product_ids=tuple(args.products or ()),
     )
     if args.all and selector.active:
         parser.error("--all cannot be combined with project selectors")

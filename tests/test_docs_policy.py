@@ -47,6 +47,14 @@ class DocumentationPolicyTests(unittest.TestCase):
         self.assertEqual(report.status, "PASS")
         self.assertEqual(report.documents, 2)
 
+    def test_uppercase_markdown_extension_is_checked(self) -> None:
+        self.write_policy()
+        self.write("README.md", "# Root\n\n[Review](docs/REVIEW.MD)\n")
+        self.write("docs/REVIEW.MD", "# Review\n\n[Broken](missing.md)\n")
+        report = check(self.root)
+        self.assertEqual(report.documents, 2)
+        self.assertIn("DOC102", {finding.code for finding in report.issues})
+
     def test_legal_text_keeps_upstream_format_but_unsafe_links_still_fail(self) -> None:
         self.write_policy()
         self.write("README.md", "# Root\n")

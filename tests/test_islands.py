@@ -19,6 +19,7 @@ from tools.hwrepo.models import (
     ProjectManifest,
     ProjectTestContract,
 )
+from tools.hwrepo.product import check as product_check
 from tools.hwrepo.project_tests import run_tests
 from tools.hwrepo.scaffold import new_project
 from tools.lint_registry import lint
@@ -121,6 +122,37 @@ class IslandTests(unittest.TestCase):
         self.write_test("examples/products/status-indicator-system", False)
         self.assertEqual(run_tests(self.root, ("controller",)).status, "PASS")
         self.assertEqual(run_tests(self.root, ("arduino-uno-status-led",)).status, "FAIL")
+
+    def test_focused_lane_ignores_an_unrelated_project_contract(self) -> None:
+        path = self.root / "examples/projects/arduino-uno-status-led/tests/contract.json"
+        path.write_text("{}", encoding="utf-8")
+
+        focused = project_static_pipeline(self.root, ("controller",))
+        self.assertEqual(focused.status, "PASS", focused.model_dump_json())
+        self.assertEqual(focused.product.status, "PASS")
+
+        # The full gate still validates every project, including the damaged one.
+        self.assertEqual(lint(self.root).status, "FAIL")
+        full_product = product_check(self.root)
+        self.assertEqual(full_product.status, "FAIL")
+        self.assertIn("PRODUCT_LOAD", {issue.code for issue in full_product.issues})
+
+    def test_focused_lane_checks_contracts_of_its_dependent_product(self) -> None:
+        path = self.root / "examples/projects/status-indicator-wiring/tests/contract.json"
+        path.write_text("{}", encoding="utf-8")
+
+        focused = project_static_pipeline(self.root, ("arduino-uno-status-led",))
+        self.assertEqual(focused.registry.status, "PASS", focused.registry.issues)
+        self.assertEqual(focused.product.status, "FAIL")
+        self.assertTrue(any(
+            issue.code == "PRODUCT_LOAD" and "status-indicator-wiring" in issue.message
+            for issue in focused.product.issues
+        ))
+
+    def test_product_check_fails_closed_on_unknown_selected_project(self) -> None:
+        report = product_check(self.root, selected_project_ids=("does-not-exist",))
+        self.assertEqual(report.status, "FAIL")
+        self.assertIn("PROJECT_SELECTION", {issue.code for issue in report.issues})
 
     def test_nested_test_files_cannot_silently_run_zero_tests(self) -> None:
         path = self.root / "examples/projects/controller/tests/nested"
