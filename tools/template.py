@@ -12,6 +12,7 @@ from .hwrepo.diagnostics import diagnose_import, diagnose_project, format_text
 from .hwrepo.doctor import doctor
 from .hwrepo.importing import import_project
 from .hwrepo.initialization import initialize
+from .hwrepo.inventory import format_inventory, inventory
 from .hwrepo.models import ProjectKind
 from .hwrepo.scaffold import new_project
 from .hwrepo.template import bootstrap, plan_upgrade, preflight
@@ -23,7 +24,7 @@ def main() -> int:
         "command",
         choices=(
             "doctor", "adopt", "init", "preflight", "bootstrap", "upgrade-plan",
-            "new-project", "import-project", "diagnose",
+            "new-project", "import-project", "diagnose", "list",
         ),
     )
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
@@ -120,6 +121,10 @@ def main() -> int:
         if args.project_id is None or args.toolchain is None:
             parser.error("new-project requires --project-id and --toolchain")
         result = new_project(args.root, args.project_id, ProjectKind(args.kind), args.toolchain)
+    elif args.command == "list":
+        result = inventory(args.root)
+        print(format_inventory(result) if args.format == "text" else result.model_dump_json(indent=2))
+        return 0 if result.status == "PASS" else 1
     elif args.command == "preflight":
         result = preflight(args.root)
     elif args.command == "bootstrap":

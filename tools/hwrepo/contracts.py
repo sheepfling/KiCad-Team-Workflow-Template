@@ -33,11 +33,14 @@ def read_model(path: Path, model: type[Model]) -> Model:
     # This first decode exists solely to fail duplicate keys/non-finite numbers.
     # Pydantic's JSON decoder then preserves JSON's valid array/enum semantics
     # while applying strict scalar validation and producing immutable tuples.
-    json.loads(
-        document,
-        object_pairs_hook=_unique_object,
-        parse_constant=_invalid_number,
-    )
+    try:
+        json.loads(
+            document,
+            object_pairs_hook=_unique_object,
+            parse_constant=_invalid_number,
+        )
+    except ValueError as exc:
+        raise ValueError(f"{path}: {exc}") from exc
     try:
         return model.model_validate_json(document, strict=True)
     except ValidationError as exc:

@@ -8,43 +8,63 @@ project identity and branch names to the adopted repository.
 ## 01 / Get set up once
 
 Install Git, Python 3.11+ and the repository's approved KiCad build. Follow the
-[Python environment setup](../../README.md#first-run-setup) before running checks. Clone your repository, keeping the complete project and its adjacent libraries together. Replace `REPOSITORY_URL` and `REVIEW_BRANCH` below with the repository and branch assigned for the work. Confirm the default branch and the example's availability with the maintainer.
+[Python environment setup](../../README.md#first-run-setup) before running
+checks. Clone your repository, keeping the complete project and its adjacent
+libraries together. Replace `REPOSITORY_URL` below with the assigned repository.
+Confirm the default branch and assignment with the maintainer.
 
 ```sh
 git clone "REPOSITORY_URL" kicad-project
 cd kicad-project
 git fetch origin
-git switch --track "origin/REVIEW_BRANCH"
+git switch main
+git pull --ff-only origin main
 ```
 
-For a first rehearsal, open `examples/projects/controller/kicad/controller.kicad_pro`. Do not change an unrecognized library path or discard a load warning to continue. The worked fixture is for learning the workflow; adopted engineering work belongs under `projects/`.
+Find your assigned project and its approved toolchain with
+`python -B -m tools.template list --format text`. A fresh adopted repository
+has no live project yet; follow [First board](FIRST_BOARD.md) to create one.
+Adoption removes reference examples from live project discovery. To rehearse
+the `controller` fixture, use a separate **uninitialized template checkout**
+and [reference-project rehearsal](../../examples/README.md). Do not change an
+unrecognized library path or discard a load warning to continue.
 
 ## 02 / Start a change
 
 Obtain the project assignment first. Assignment and handoff are team procedures; configure hosted protections and ownership for the adopted repository. Close KiCad and account for all uncommitted changes before switching branches.
 
-After the initial adoption change has been accepted:
+After the initial adoption change has been accepted, start a work branch from
+the current `main`:
 
 ```sh
 git switch main
 git pull --ff-only origin main
-git switch -c work/controller-ISSUE-description
+git switch -c work/battery-board-ISSUE-description
 ```
 
 Never use reset/clean or force push as a routine way to make those commands succeed. When continuing tomorrow, return to the existing branch and existing PR. Pulling that branch does not incorporate newer `main` automatically.
 
 ## 03 / Edit and check in KiCad
 
-Start with a non-electrical drawing-text change. Keep the whole schematic/PCB/library set coherent; saving a schematic does not automatically update the PCB. Run ERC and DRC and investigate every finding. The supplied fixture has no accepted exclusions.
+For a first change to an existing, assigned board, start with non-electrical
+drawing text. Keep the whole schematic/PCB/library set coherent; saving a
+schematic does not automatically update the PCB. Run ERC and DRC and investigate
+every finding. For a newly scaffolded board, first save its actual KiCad source
+and complete the independent test contract. The scaffold intentionally fails
+checks until its design inputs are present.
 
 Save and close KiCad before running the reproducible checker from the repository root:
 
 ```sh
-python -B -m tools.ci --kicad --project controller --output build/review-001
+python -B -m tools.ci --project battery-board --format text
+python -B -m tools.ci --kicad --project battery-board --output projects/battery-board/build/review-001 --format text
 ```
 
-Replace `controller` with the assigned project ID in an adopted repository.
-Choose a new evidence directory each time. A missing tool, unexpected version, new board scope, dependency problem or electrical/parity finding is a failure, not permission to skip the check. The independent netlist contract deliberately detects fixture connectivity/value changes; changing that contract is itself reviewable engineering work.
+Replace `battery-board` with the assigned project ID in every command and path.
+Choose a new evidence directory each time. A missing tool, unexpected version,
+new board scope, dependency problem or electrical/parity finding is a failure,
+not permission to skip the check. The independent test contract records reviewed
+expectations; changing it is itself reviewable engineering work.
 
 ## 04 / Save, share and request review
 
@@ -52,7 +72,7 @@ Save changes in KiCad; inspect `git status` and `git diff`; stage only intended 
 
 ```sh
 git status --short
-git add projects/<project-id>
+git add projects/battery-board
 git diff --cached
 git commit -m "Describe the intended engineering change"
 git push -u origin HEAD

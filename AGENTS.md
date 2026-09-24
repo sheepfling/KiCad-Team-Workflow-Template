@@ -8,6 +8,9 @@ This file is for coding agents and engineers using an agent. Start with the
 
 - Confirm the branch, checkout status and project ID before editing. Each
   `projects/<id>/` island owns its KiCad source, requirements, docs and tests.
+  Run `python -B -m tools.template list --format json` to discover registered
+  project, product, tag and toolchain IDs. Its input-presence state is not a
+  validation result; use the selected CI command shown in the inventory.
   Shared policy and automation live under `tools/`, `catalog/` and `tests/`.
   For shared tooling changes, use the [tool map](tools/README.md),
   [test guide](tests/README.md) and [scripting standard](docs/workflow/SCRIPTING_STANDARD.md).
