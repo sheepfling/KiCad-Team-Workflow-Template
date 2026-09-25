@@ -49,6 +49,15 @@ and commit reviewed source through normal Git before export preparation.
   project identity, source hashes and netlist artifact evidence; its components
   and nets are explicitly `UNREVIEWED`. It never edits `tests/contract.json` or
   establishes electrical coverage. Keep optional receipts under ignored `build/`.
+- For a PCB's 3D handoff, run
+  `python -B -m tools.visualize --project <id> --check-models --format json`
+  to inspect placed-footprint model coverage and candidate repository assets.
+  Repair paths and assign reviewed models in the authoritative KiCad source;
+  then run `python -B -m tools.visualize --project <id>` to produce top/angled
+  PNGs, STEP and GLB in a fresh ignored receipt. A successful export can still
+  have `models.status=REVIEW`; inspect the actual geometry and follow the
+  [3D workflow](docs/workflow/THREE_D_WORKFLOW.md). The manual **KiCad 3D preview**
+  Action provides a focused hosted run without slowing routine PR lanes.
 
 ## Diagnose, repair, verify
 

@@ -7,12 +7,12 @@ import shlex
 import xml.etree.ElementTree as ET
 from collections import Counter
 from contextlib import nullcontext
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Literal
 
 from .contracts import read_model, repo_path
 from .diagnostic_journal import DiagnosticJournal
-from .discovery import load_config, load_registry
+from .discovery import load_config, load_registry, settings
 from .importing import import_project
 from .models import (
     DiagnosticFinding,
@@ -23,8 +23,10 @@ from .models import (
     ProjectKind,
     ProjectManifest,
     ProjectStaticPipelineReport,
+    ToolchainsCatalog,
     ValidationSummary,
 )
+from .repository import cad_dependencies
 from .selection import ProjectSelector, resolve_project_ids
 
 IMPORT_GUIDE = "docs/workflow/IMPORT_WORKFLOW.md"
@@ -118,6 +120,37 @@ def diagnose_import(
                 import_guidance(issue), IMPORT_GUIDE)
         for issue in preview.issues
     ]
+    if preview.status == "PASS":
+        toolchains = read_model(
+            repo_path(root, settings(root).catalogs.toolchains), ToolchainsCatalog,
+        )
+        toolchain = next(item for item in toolchains.toolchains if item.id == toolchain_id)
+        major = toolchain.kicad_version.split(".")[0]
+        copied = frozenset(preview.copied_sha256)
+        source_roots: set[str] = set()
+        for name in copied:
+            parent = PurePosixPath(name).parent
+            while parent != PurePosixPath("."):
+                source_roots.add(parent.as_posix())
+                parent = parent.parent
+        source_dir = source.parent.resolve()
+        for name in sorted(copied):
+            path = source_dir / name
+            if path.suffix not in {".kicad_pcb", ".kicad_mod"} and path.name not in {
+                "sym-lib-table", "fp-lib-table",
+            }:
+                continue
+            for issue in cad_dependencies(
+                source_dir, path, source_dir, major, copied,
+                frozenset(source_roots), exposed_inputs=copied,
+            ):
+                guidance = repository_guidance(issue, major)
+                location = f"{source_dir}/{guidance.location}"
+                findings.append(finding(
+                    "BLOCKING", "CAD_PATH", location, guidance.observed,
+                    guidance.action + " Repair the original source, then preview import again.",
+                    IMPORT_GUIDE,
+                ))
     if preview.excluded:
         counts = Counter(preview.excluded.values())
         actions = {
@@ -147,7 +180,7 @@ def diagnose_import(
             ))
     command = (
         "python -B -m tools.template "
-        + ("diagnose" if preview.status == "FAIL" else "import-project")
+        + ("diagnose" if any(row.severity == "BLOCKING" for row in findings) else "import-project")
         + f" --root {quote_argument(str(root))} --source {quote_argument(str(source))} "
         + f"--project-id {quote_argument(project_id)} "
         + f"--toolchain {quote_argument(toolchain_id)}"

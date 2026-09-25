@@ -1,0 +1,75 @@
+name: KiCad 3D preview
+
+on:
+  workflow_dispatch:
+    inputs:
+      project_id:
+        description: Registered PCB or PCB-only project ID to render
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  preview:
+    name: Render ${{ inputs.project_id }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install policy tooling
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install --disable-pip-version-check .
+      - name: Generate selected 3D preview
+        shell: bash
+        timeout-minutes: 55
+        env:
+          PROJECT_ID: ${{ inputs.project_id }}
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          set +e
+          .venv/bin/python -B -m tools.visualize \
+            --project "$PROJECT_ID" --runner container \
+            --output build/3d-preview --format text \
+            > build/3d-preview.stdout.txt 2> build/3d-preview.stderr.txt
+          status=$?
+          set -e
+          mkdir -p build/3d-preview
+          mv build/3d-preview.stdout.txt build/3d-preview/cli.stdout.txt
+          mv build/3d-preview.stderr.txt build/3d-preview/cli.stderr.txt
+          cat build/3d-preview/cli.stdout.txt
+          cat build/3d-preview/cli.stderr.txt >&2
+          exit "$status"
+      - name: Show model coverage and export paths
+        if: always()
+        shell: bash
+        run: |
+          if test -f build/3d-preview/visualization.txt; then
+            {
+              echo '## KiCad 3D preview'
+              echo '```text'
+              cat build/3d-preview/visualization.txt
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Retain 3D preview and failure evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: 3d-preview-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            build/3d-preview/
+            build/3d-preview.stdout.txt
+            build/3d-preview.stderr.txt
+          if-no-files-found: warn
+          retention-days: 30

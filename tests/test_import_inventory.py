@@ -52,6 +52,7 @@ class ImportInventoryTests(unittest.TestCase):
         self.assertTrue(all(item.preview.dry_run and item.preview.status == "PASS"
                             for item in report.candidates))
         self.assertIn("--source '", report.candidates[0].next_command)
+        self.assertIn("tools.template diagnose", report.candidates[0].next_command)
         self.assertIn("build/old.kicad_pro", report.skipped_local_state)
         self.assertEqual({path: path.read_bytes() for path in before}, before)
         self.assertFalse((reference_root() / "projects/power-board").exists())
