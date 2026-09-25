@@ -379,6 +379,10 @@ display:inline-block;border-radius:20px;background:#edf3ef;padding:3px 8px;margi
 ul{padding-left:21px}li{margin:5px 0;overflow-wrap:anywhere}pre{white-space:pre-wrap;overflow-wrap:anywhere;
 font-size:12px;background:#f3f6f4;padding:14px;border-radius:8px;max-height:360px;overflow:auto}
 summary{cursor:pointer;font-size:13px;font-weight:650}details{margin:16px 0}a{color:#245d49}
+.step-views{display:grid;gap:12px;margin:16px 0}.step-pair{border:1px solid #d7e2dc;border-radius:10px;padding:12px}
+.step-pair h3{margin:0 0 8px;font-size:16px}.step-images{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.step-images figure{margin:0;min-width:0}.step-images figcaption{font-size:12px;font-weight:650;margin-bottom:5px}
+.step-images img{display:block;width:100%;height:auto;border-radius:4px}
 [hidden]{display:none!important}footer{color:#647970;font-size:12px;margin-top:26px}
 @media(max-width:620px){main{padding:24px 16px 50px}h1{font-size:31px}section{padding:19px}
 .actions>*{flex:1;text-align:center}.row{grid-template-columns:40px minmax(0,1fr)}}
@@ -492,6 +496,22 @@ $('find-cad').addEventListener('click',async()=> {
   renderSourceLimits(source,plan,ready);
   if(ready) {sourcingReview=review.review_id; sourcingSource=source; $('import-cad').disabled=false; $('check-step').disabled=false;}
 });
+function renderStepViews(parent) {
+  const gallery=element('div',undefined,'step-views');
+  for(const pose of ['top','turned','bottom','angled']) {
+    const pair=element('div',undefined,'step-pair'), images=element('div',undefined,'step-images');
+    pair.append(element('h3',pose[0].toUpperCase()+pose.slice(1)));
+    for(const kind of ['wrl','step']) {
+      const figure=element('figure'), image=element('img');
+      image.src='step/'+kind+'-'+pose+'.png';
+      image.alt=kind.toUpperCase()+' '+pose+' placement on the same test footprint';
+      figure.append(element('figcaption',kind==='wrl' ? 'Paired WRL' : 'Raw STEP'),image);
+      images.append(figure);
+    }
+    pair.append(images); gallery.append(pair);
+  }
+  parent.append(gallery);
+}
 $('check-step').addEventListener('click',async()=> {
   if(!sourcingReview || busy) return;
   $('step-results').replaceChildren();
@@ -504,9 +524,10 @@ $('check-step').addEventListener('click',async()=> {
     'STEP review could not finish; see the finding below.',ready ? 'good' : 'error');
   const parent=$('step-results');
   if(ready) {
-    const link=element('a','Open STEP / WRL comparison','button secondary');
+    parent.append(element('p','Compare the same pads in each view. Select the full-page gallery for larger images and the disposable STEP assembly.','subtle small'));
+    renderStepViews(parent);
+    const link=element('a','Open full-page comparison and STEP assembly','button secondary');
     link.href='step/index.html'; parent.append(link);
-    parent.append(element('p','Check body, contacts, height and pin-one orientation in every view. This does not add STEP to the project library.','subtle small'));
   }
   notes(parent,report.issues); receipt(parent,report);
 });

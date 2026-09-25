@@ -102,6 +102,8 @@ class FormTests(unittest.TestCase):
         self.assertIn('Find CAD for a part', html)
         self.assertIn('Add CAD to this project', html)
         self.assertIn('Check STEP alignment', html)
+        self.assertIn('renderStepViews(parent)', html)
+        self.assertIn("['top','turned','bottom','angled']", html)
         self.assertIn('Expected manufacturer part number (optional)', html)
         self.assertIn("action('source-cad','source-status'", html)
         self.assertIn("action('import-cad','source-status'", html)

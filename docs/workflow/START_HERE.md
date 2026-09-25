@@ -38,10 +38,12 @@ response, add [electrical analysis](ELECTRICAL_ANALYSIS.md) to the board workflo
 When an import or check fails, follow [diagnose and repair](DIAGNOSTICS.md) for a
 project-local finding, concrete next action and the relevant source of authority.
 
-When choosing components or preparing a build, follow [parts to order](PARTS_TO_ORDER.md).
-Run `python -B -m tools.parts --project <id>` for a searchable parts checklist,
-missing-details guidance and a grouped BOM. Save board quantity and spare preferences
-once; complete the reviewed part identities to generate a DigiKey upload file.
+When choosing components, run `python -B -m tools.parts --project <id> --assist`.
+The [first-part walkthrough](CAD_SOURCING.md) covers exact CAD lookup, paired
+STEP/WRL views and the KiCad update. For a searchable parts checklist and grouped
+BOM, run `python -B -m tools.parts --project <id>` and follow
+[parts to order](PARTS_TO_ORDER.md). Save board quantity and spare preferences once;
+complete reviewed part identities to generate a DigiKey upload file.
 
 No product model or production governance record is needed to start a standalone
 board. Add shared libraries through explicit dependencies. Add a product only when
