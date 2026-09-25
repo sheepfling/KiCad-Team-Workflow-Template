@@ -1,11 +1,16 @@
 # Choose parts and prepare an order
 
 Open one local page to resolve the models paired with your existing PCB footprints,
-choose reviewed catalog parts, and prepare an order file:
+fetch exact-part CAD, choose reviewed catalog parts, and prepare an order file:
 
 ```sh
 python -B -m tools.parts --project my-board --assist
 ```
+
+The **Find CAD for a part** card imports an exact LCSC part into project-local
+libraries, including its paired WRL model. See [CAD sourcing](CAD_SOURCING.md) for
+the one-time setup, identity and pin checks, and KiCad chooser workflow. Imported
+CAD is available for design review; it is not an approved purchasing record.
 
 The assistant scans automatically, shows each component and the proposed source
 diff, and lets you add matched models with one button. It uses the assigned
@@ -36,8 +41,8 @@ when you prefer to open the printed address yourself.
 Part identity and CAD availability are different. The catalog picker still needs
 reviewed manufacturer/MPN records; an electrical value such as `1k` cannot identify
 a unique purchasable component. The bundled training catalog deliberately has no
-production approvals. Exact-MPN CAD retrieval from an external provider is not
-connected in this implementation. DigiKey product lookup and CAD-provider APIs
+production approvals. Exact LCSC CAD retrieval is connected through the pinned EasyEDA converter;
+arbitrary-MPN retrieval from other CAD providers is not connected. DigiKey product lookup and CAD-provider APIs
 require their own access setup; DigiKey's separate myLists BOM handoff does not
 require an API key. See the [provider and endpoint map](PARTS_PROVIDERS.md) for the
 implemented path, account-free options and proposed connections. The automatic

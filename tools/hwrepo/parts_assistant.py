@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import re
 import secrets
 import sys
 import threading
@@ -17,6 +18,8 @@ from .contract_coach import AutoNetlistRunner, NetlistRunner, project_context
 from .contracts import repo_path
 from .evidence import digest
 from .models import (
+    CadImportReport,
+    CadSourcingReview,
     DigiKeyHandoffResult,
     PartPickerReport,
     PartSelectionAssignment,
@@ -63,8 +66,20 @@ class Form:
 
     def review(self) -> str:
         if len(self.fields) != 1 or self.fields[0][0] != "review" or not self.fields[0][1].strip():
-            raise ValueError("Provide the order review shown on this page")
+            raise ValueError("Provide the review shown on this page")
         return self.fields[0][1]
+
+    def cad_source(self) -> tuple[str, str | None]:
+        values = dict(self.fields)
+        if set(values) != {"id", "expected_mpn"}:
+            raise ValueError("Provide an LCSC part number and optional expected MPN")
+        supplier_id, expected_mpn = values["id"], values["expected_mpn"]
+        if re.fullmatch(r"C[1-9][0-9]*", supplier_id) is None or len(supplier_id) > 32:
+            raise ValueError("Use an exact LCSC part number such as C2040")
+        if (len(expected_mpn) > 200 or expected_mpn != expected_mpn.strip()
+                or any(ord(char) < 32 or ord(char) == 127 for char in expected_mpn)):
+            raise ValueError("Expected MPN must be exact text without padding or control characters")
+        return supplier_id, expected_mpn or None
 
     def assignments(self) -> tuple[PartSelectionAssignment, ...]:
         if not self.fields or any(not name.startswith("part.") for name, _ in self.fields):
@@ -92,6 +107,8 @@ class Assistant:
     token: str = field(default_factory=lambda: secrets.token_urlsafe(32))
     lock: threading.Lock = field(default_factory=threading.Lock)
     cad_plan: Path | None = None
+    sourced_plan: Path | None = None
+    sourcing_review_id: str | None = None
     picker: PartPickerReport | None = None
     selection_plan: Path | None = None
     selection_diff: Path | None = None
@@ -101,6 +118,8 @@ class Assistant:
 
     def invalidate(self) -> None:
         self.cad_plan = None
+        self.sourced_plan = None
+        self.sourcing_review_id = None
         self.picker = None
         self.selection_plan = None
         self.selection_diff = None
@@ -110,6 +129,39 @@ class Assistant:
         self.order = None
         self.downloads.clear()
         self.handoff_result = None
+
+    def source_cad(self, supplier_id: str, expected_mpn: str | None) -> CadSourcingReview:
+        from .cad_library import plan
+        from .cad_source import fetch
+
+        self.sourced_plan = None
+        self.sourcing_review_id = None
+        source = fetch(self.root, supplier_id, new_receipt(self.root, self.project_id, None),
+                       expected_mpn=expected_mpn)
+        import_plan = None
+        review_id = secrets.token_urlsafe(24)
+        if source.status == "READY":
+            if source.bundle is None or source.bundle_directory is None:
+                raise ValueError("The CAD provider returned an incomplete bundle; find the part again")
+            import_plan = plan(self.root, self.project_id, Path(source.bundle_directory),
+                               new_receipt(self.root, self.project_id, None))
+            if import_plan.status == "PLAN" and import_plan.plan_path is not None:
+                self.sourced_plan = Path(import_plan.plan_path)
+                self.sourcing_review_id = review_id
+        return CadSourcingReview(source=source, import_plan=import_plan, review_id=review_id)
+
+    def import_cad(self, review: str) -> CadImportReport:
+        from .cad_library import apply
+
+        if self.sourced_plan is None or self.sourcing_review_id is None:
+            raise ValueError("Find a part and review its CAD before adding it to the project")
+        if review != self.sourcing_review_id:
+            raise ValueError("A newer CAD review replaced this page; find the part again before adding it")
+        # The form only identifies the server-held plan; it never supplies a path.
+        path = self.sourced_plan
+        self.invalidate()
+        return apply(self.root, self.project_id, path,
+                     new_receipt(self.root, self.project_id, None))
 
     def scan(self) -> StrictModel:
         from .auto_cad import plan
@@ -240,6 +292,11 @@ class Assistant:
         return content
 
     def execute(self, action: str, form: Form) -> StrictModel:
+        if action == "source-cad":
+            supplier_id, expected_mpn = form.cad_source()
+            return self.source_cad(supplier_id, expected_mpn)
+        if action == "import-cad":
+            return self.import_cad(form.review())
         if action == "select":
             return self.choose(form.assignments())
         if action == "order":
@@ -276,7 +333,7 @@ outline-offset:3px}input,select{font:inherit;color:inherit;border:1px solid #b6c
 padding:9px;background:white;max-width:100%}input[type=number]{width:112px}.quantities{display:flex;
 gap:18px;flex-wrap:wrap;margin:20px 0}label{font-size:13px;font-weight:600;display:grid;gap:6px}
 .status{border-radius:8px;background:#edf3ef;padding:12px 15px;margin:18px 0;overflow-wrap:anywhere}
-.error{background:#fff1e7;color:#85451c}.good{background:#e4f1e9;color:#22533c}.rows{margin:18px 0}
+.error{background:#fff1e7;color:#85451c}.good{background:#e4f1e9;color:#22533c}.rows{margin:18px 0;overflow-wrap:anywhere}
 .row{display:grid;grid-template-columns:56px minmax(0,1fr);gap:12px;border-top:1px solid #e0e7e3;
 padding:15px 0}.ref{font-weight:750}.row p{font-size:13px;color:#5d716b;overflow-wrap:anywhere}
 .row select{width:100%;margin-top:8px}.pill{font-size:11px;font-weight:750;letter-spacing:.04em;
@@ -330,6 +387,87 @@ function receipt(parent, report) {
   const path=report.receipt_directory || report.receipt_dir;
   if(path) { const details=element('details'); details.append(element('summary','Saved review details'),element('p',path,'subtle small')); parent.append(details); }
 }
+let sourcingReview = null;
+let sourcingSource = null;
+function clearSourcingReview() {
+  sourcingReview=null; sourcingSource=null; $('import-cad').disabled=true;
+  $('source-results').replaceChildren();
+}
+function renderSourceIdentity(source) {
+  const bundle=source && source.bundle;
+  if(bundle) $('source-results').append(element('strong',bundle.manufacturer+' · '+bundle.mpn),
+    element('p',source.supplier_id+' · '+bundle.package));
+}
+function renderSourceLimits(source, report, ready) {
+  const parent=$('source-results'), bundle=source && source.bundle, check=report && report.check;
+  const issues=[...new Set([...(bundle && bundle.issues || []),...(source && source.issues || []),
+    ...(check && check.issues || []),...(report && report.issues || [])])];
+  const details=element('details'); details.append(element('summary','Source and review limits'));
+  if(bundle) {
+    details.append(element('p','Converted with easyeda2kicad '+bundle.converter_version+
+      (source.cache_hit ? ' · reused downloaded files' : ''),'subtle small'));
+    if(bundle.source_url) details.append(element('p','Source: '+bundle.source_url,'subtle small'));
+    if(bundle.retrieved_at) details.append(element('p','Retrieved: '+bundle.retrieved_at,'subtle small'));
+  }
+  notes(ready ? details : parent,issues);
+  if(bundle || ready && issues.length) parent.append(details);
+}
+function renderCadImport(report, applied=false) {
+  const parent=$('source-results');
+  if(report.symbol_id) parent.append(element('p','KiCad symbol: '+report.symbol_id));
+  if(report.footprint_id) parent.append(element('p','Paired footprint: '+report.footprint_id,'subtle small'));
+  const check=report.check;
+  if(check) {
+    const models=check.model_references || [];
+    const modelLabel=models.some(reference=>reference.toLowerCase().endsWith('.wrl')) ? 'WRL model included' : models.length+' model references';
+    parent.append(element('p',(check.symbol_pins || []).length+' symbol pins · '+
+      (check.footprint_pads || []).length+' numbered pads · '+modelLabel));
+    parent.append(element('p','Checks compare files and pin numbers. STEP export is not verified; review actual fit, dimensions and polarity.','subtle small'));
+  }
+  if(report.files && report.files.length) {
+    const details=element('details'); details.append(element('summary',applied ? 'Added project files' : 'Project files to add or update'));
+    notes(details,report.files); parent.append(details);
+  }
+  if(report.diff) { const details=element('details'); details.append(element('summary','Exact source changes'),element('pre',report.diff)); parent.append(details); }
+  if(applied && report.symbol_id) {
+    parent.append(element('p','In KiCad, press A in the schematic and choose '+report.symbol_id+
+      '. Wire the symbol, then use Update PCB from Schematic (F8) to add its assigned footprint.'));
+  }
+  receipt(parent,report);
+}
+['source-id','source-mpn'].forEach(id=>$(id).addEventListener('input',()=> {
+  clearSourcingReview(); message('source-status','Find the part again to review the updated choice.');
+}));
+$('find-cad').addEventListener('click',async()=> {
+  if(busy) return;
+  clearSourcingReview();
+  const form=new URLSearchParams({id:$('source-id').value.trim(),expected_mpn:$('source-mpn').value.trim()});
+  const review=await action('source-cad','source-status','Finding the exact part and preparing its CAD library…',form);
+  if(!review) return;
+  const source=review.source, plan=review.import_plan;
+  const ready=source.status==='READY' && plan && plan.status==='PLAN' && plan.plan_path;
+  message('source-status',ready ? 'CAD is ready to review. Check the identity and file changes, then add it to this project.' :
+    'This part needs attention before its CAD can be added.',ready ? 'good' : 'error');
+  renderSourceIdentity(source);
+  if(plan) renderCadImport(plan);
+  else receipt($('source-results'),source);
+  renderSourceLimits(source,plan,ready);
+  if(ready) {sourcingReview=review.review_id; sourcingSource=source; $('import-cad').disabled=false;}
+});
+$('import-cad').addEventListener('click',async()=> {
+  if(!sourcingReview) return;
+  const review=sourcingReview, source=sourcingSource; sourcingReview=null; sourcingSource=null; $('import-cad').disabled=true;
+  clearOrderView();
+  const report=await action('import-cad','source-status','Adding the reviewed CAD library to this project…',new URLSearchParams({review}));
+  invalidateOtherViews(); $('apply-cad').disabled=true;
+  $('cad-results').replaceChildren(); message('cad-status','Scan again after updating and saving the board.');
+  if(!report) return;
+  $('source-results').replaceChildren();
+  const applied=report.status==='APPLIED';
+  renderSourceIdentity(source); renderCadImport(report,applied); renderSourceLimits(source,report,applied);
+  message('source-status',applied ? 'The CAD library is available in this project. Choose the symbol in KiCad to use it.' :
+    'The CAD library was not added. Find the part again after resolving the issues below.',applied ? 'good' : 'error');
+});
 function renderCad(report) {
   $('cad-results').replaceChildren();
   const applied=report.status === 'APPLIED';
@@ -361,7 +499,7 @@ function invalidateOtherViews() {
   message('order-status','Prepare a fresh order list after changing the board.');
 }
 $('apply-cad').addEventListener('click',async()=> {
-  clearOrderView();
+  clearSourcingReview(); clearOrderView();
   const report=await action('apply','cad-status','Adding the reviewed model pairs…');
   if(report) { renderCad(report); invalidateOtherViews(); }
 });
@@ -407,7 +545,7 @@ $('preview-selection').addEventListener('click',async()=> {
   if(report) await renderSelection(report);
 });
 $('apply-selection').addEventListener('click',async()=> {
-  clearOrderView();
+  clearSourcingReview(); clearOrderView();
   const report=await action('apply-selection','parts-status','Saving the reviewed selections…');
   if(report) { await renderSelection(report); $('apply-cad').disabled=true; $('order-downloads').replaceChildren(); message('order-status','Prepare a fresh order list from the saved parts.'); }
 });
@@ -461,20 +599,27 @@ def render_html(project_id: str, preferences: PurchasingPreferences, nonce: str)
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Finish your board · {escape(project_id)}</title><style nonce="{escape(nonce, quote=True)}">{STYLE}</style>
 </head><body><main><header><div class="eyebrow">Parts assistant · {escape(project_id)}</div>
-<h1>Finish your board</h1><p class="subtle">Add matching 3D models, choose your parts, and prepare an order.</p>
+<h1>Finish your board</h1><p class="subtle">Find component CAD, add matching 3D models, and prepare an order.</p>
 <p id="working" class="subtle small" role="status" hidden>Working locally. Keep this page open.</p></header>
-<section aria-labelledby="cad-heading"><div class="heading"><span class="step">1</span><div>
+<section aria-labelledby="source-heading"><div class="heading"><span class="step">1</span><div>
+<h2 id="source-heading">Find CAD for a part</h2><p class="subtle">Enter an exact LCSC part number to get its symbol, footprint and available 3D model. No supplier login is needed.</p></div></div>
+<div class="quantities"><label>LCSC part number<input id="source-id" type="text" placeholder="C2040" maxlength="32" autocomplete="off" spellcheck="false"></label>
+<label>Expected manufacturer part number (optional)<input id="source-mpn" type="text" maxlength="200" autocomplete="off" spellcheck="false"></label></div>
+<div class="actions"><button id="find-cad">Find CAD</button><button id="import-cad" disabled>Add CAD to this project</button></div>
+<div id="source-status" class="status" role="status" hidden></div><div id="source-results" class="rows"></div>
+<p class="subtle small">Adds a project library for you to choose in KiCad. Existing placed components and connections stay as saved; catalog approval is separate.</p></section>
+<section aria-labelledby="cad-heading"><div class="heading"><span class="step">2</span><div>
 <h2 id="cad-heading">Populate the 3D board</h2><p class="subtle">Find models paired with your existing footprints.
 Their original alignment settings stay with them.</p></div></div>
 <div id="cad-status" class="status" role="status">Checking the board…</div><div id="cad-results" class="rows"></div>
 <div class="actions"><button id="scan" class="secondary">Scan again</button><button id="apply-cad" disabled>Add matched models</button></div></section>
-<section aria-labelledby="parts-heading"><div class="heading"><span class="step">2</span><div>
+<section aria-labelledby="parts-heading"><div class="heading"><span class="step">3</span><div>
 <h2 id="parts-heading">Choose orderable parts</h2><p class="subtle">Pick from the reviewed choices available for each component.</p></div></div>
 <div id="parts-status" class="status" role="status" hidden></div><div id="parts-results" class="rows"></div>
 <div id="selection-results"></div><div class="actions"><button id="load-parts" class="secondary">Load part choices</button>
 <button id="preview-selection" class="secondary" disabled>Review selected parts</button>
 <button id="apply-selection" disabled>Save selected parts</button></div></section>
-<section aria-labelledby="order-heading"><div class="heading"><span class="step">3</span><div>
+<section aria-labelledby="order-heading"><div class="heading"><span class="step">4</span><div>
 <h2 id="order-heading">Prepare the order</h2><p class="subtle">Set your build quantity. The list includes the larger of percentage spares or minimum extras.</p></div></div>
 <div class="quantities"><label>Boards<input id="boards" type="number" min="1" step="1" value="{preferences.boards}"></label>
 <label>Extra parts (%)<input id="spare_percent" type="number" min="0" max="100" step="1" value="{preferences.spare_percent}"></label>

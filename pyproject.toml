@@ -13,6 +13,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+cad = ["easyeda2kicad==1.0.1"]
 dev = [
   "pyright==1.1.411",
   "nodeenv==1.10.0",

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import shlex
 from pathlib import Path
 
 from .hwrepo.contract_coach import (
@@ -54,12 +55,16 @@ def main() -> int:
     mode.add_argument("--assist", action="store_true", help="Open one local page for automatic CAD, parts and ordering")
     mode.add_argument("--auto-models", action="store_true", help="Automatically resolve paired footprint models and preview their import")
     mode.add_argument("--cad-plan", type=Path, help="Apply a previously reviewed automatic CAD plan")
+    mode.add_argument("--source-cad", metavar="LCSC_ID", help="Fetch and check an exact LCSC part, then preview its project-local CAD import")
+    mode.add_argument("--import-cad", type=Path, help="Apply a previously reviewed sourced CAD import plan")
     mode.add_argument("--picker", action="store_true",
                       help="Open the guided catalog choices workflow in a local review page")
     mode.add_argument("--selection", type=Path,
                       help="Preview a downloaded selection, or apply the resulting locked map")
     mode.add_argument("--sync-models", action="store_true",
                       help="Preview model assignments from saved parts after KiCad's F8 update")
+    parser.add_argument("--expected-mpn", help="Require the CAD provider to report this exact manufacturer part number")
+    parser.add_argument("--refresh-cad", action="store_true", help="Explicitly fetch a fresh source snapshot with --source-cad")
     parser.add_argument("--port", type=count, default=0, help="Local assistant port (default: choose an available port)")
     parser.add_argument("--no-browser", action="store_true", help="Print assistant URL without opening a browser")
     parser.add_argument("--apply", action="store_true",
@@ -71,11 +76,15 @@ def main() -> int:
     parser.add_argument("--output", type=Path, help="Fresh receipt directory below ignored build/")
     parser.add_argument("--format", choices=("text", "json"), default="text")
     args = parser.parse_args()
+    if (args.expected_mpn is not None or args.refresh_cad) and args.source_cad is None:
+        parser.error("--expected-mpn and --refresh-cad require --source-cad")
+    if args.import_cad is not None and not args.apply:
+        parser.error("--import-cad requires --apply; inspect the source diff before importing")
     if args.port > 65535:
         parser.error("--port must be 0–65535")
     if not args.assist and (args.port or args.no_browser):
         parser.error("--port and --no-browser require --assist")
-    if args.assist or args.auto_models or args.cad_plan is not None:
+    if args.assist or args.auto_models or args.cad_plan is not None or args.source_cad is not None or args.import_cad is not None:
         if any(value is not None for value in (args.native_summary, args.preferences, args.boards, args.spare_percent, args.spare_minimum)) or args.runner != "auto" or args.cli != "kicad-cli":
             parser.error("Assistant and automatic CAD modes manage their own inputs; set order quantities in the assistant")
         if args.assist and (args.output is not None or args.format != "text" or args.apply):
@@ -91,8 +100,8 @@ def main() -> int:
     ):
         parser.error("--runner and --cli apply only to fresh capture")
     mutation = args.selection is not None or args.sync_models
-    if args.apply and args.selection is None and args.cad_plan is None:
-        parser.error("--apply requires a previously previewed --selection map or --cad-plan")
+    if args.apply and args.selection is None and args.cad_plan is None and args.import_cad is None:
+        parser.error("--apply requires a previously previewed --selection map, --cad-plan or --import-cad")
     if args.native_summary is not None and (mutation or args.init_preferences is not None):
         parser.error("--native-summary applies only to the picker or order review")
     if mutation and (args.runner != "auto" or args.cli != "kicad-cli"):
@@ -109,6 +118,55 @@ def main() -> int:
             from .hwrepo.parts_assistant import serve
             serve(root, args.project, port=args.port, open_browser=not args.no_browser)
             return 0
+        if args.source_cad is not None or args.import_cad is not None:
+            from .hwrepo import cad_library, cad_source
+            from .hwrepo.models import CadSourcingReview
+            output = new_receipt(root, args.project, args.output)
+            if args.source_cad is not None:
+                sourced = cad_source.fetch(root, args.source_cad, output,
+                    expected_mpn=args.expected_mpn, refresh=args.refresh_cad)
+                planned = None
+                if sourced.status == "READY" and sourced.bundle_directory is not None:
+                    planned = cad_library.plan(root, args.project, Path(sourced.bundle_directory),
+                                               new_receipt(root, args.project, None))
+                review = CadSourcingReview(source=sourced, import_plan=planned, review_id=str(output))
+                (output / "cad-review.json").write_text(review.model_dump_json(indent=2) + "\n", encoding="utf-8")
+                if args.format == "json":
+                    print(review.model_dump_json(indent=2))
+                else:
+                    print(f"{sourced.status}: CAD source {sourced.supplier_id}")
+                    if sourced.bundle is not None:
+                        print(f"Provider reports: {sourced.bundle.manufacturer} {sourced.bundle.mpn}")
+                        print(f"Package: {sourced.bundle.package}")
+                        print("Using a verified local cache" if sourced.cache_hit else "Saved a frozen provider snapshot")
+                    for issue in sourced.issues:
+                        print(issue)
+                    if planned is not None:
+                        print(f"{planned.status}: project CAD import")
+                        for issue in planned.issues:
+                            print(issue)
+                        if planned.check is not None:
+                            print(f"Symbol pins: {', '.join(planned.check.symbol_pins)}")
+                            print(f"Footprint pads: {', '.join(planned.check.footprint_pads)}")
+                        if planned.plan_path is not None:
+                            print(f"Review: {planned.receipt_directory}")
+                            command = shlex.join(("python", "-B", "-m", "tools.parts", "--root", str(root),
+                                                  "--project", args.project, "--import-cad", planned.plan_path, "--apply"))
+                            print("Then: " + command)
+                    print(f"Receipt: {output}")
+                return 0 if sourced.status == "READY" and planned is not None and planned.status == "PLAN" else 1
+            assert args.import_cad is not None
+            imported = cad_library.apply(root, args.project, args.import_cad, output)
+            if args.format == "json":
+                print(imported.model_dump_json(indent=2))
+            else:
+                print(f"{imported.status}: CAD import for {args.project}")
+                for issue in imported.issues:
+                    print(issue)
+                if imported.status == "APPLIED":
+                    print(f"Choose {imported.symbol_id} in KiCad (A); its footprint follows Update PCB from Schematic (F8).")
+                print(f"Receipt: {imported.receipt_directory}")
+            return 0 if imported.status == "APPLIED" else 1
         if args.auto_models or args.cad_plan is not None:
             from .hwrepo import auto_cad
             output = new_receipt(root, args.project, args.output)

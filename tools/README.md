@@ -26,8 +26,9 @@ For a legacy directory with several projects, `tools.template scan-imports`
 previews each candidate without copying it. JSON retains per-file hashes and
 exclusion reasons; import one accepted project at a time.
 Start with `tools.parts --project <id> --assist` for one local page that resolves
-paired CAD automatically, reviews source changes, chooses parts and produces order
-files. `--auto-models` exposes automatic CAD previews to scripts.
+exact LCSC CAD, resolves paired board models, reviews source changes, chooses parts
+and produces order files. See [CAD sourcing](../docs/workflow/CAD_SOURCING.md) for
+setup and `--source-cad` / `--import-cad` scripting. `--auto-models` exposes automatic CAD previews to scripts.
 For file-based component selection, use `tools.parts --project <id> --picker` to choose
 reviewed catalog parts in a local page. `--selection <download>` previews changes;
 `--selection <locked-file> --apply` applies them. Use `--sync-models` after KiCad's
@@ -72,6 +73,7 @@ integration work, not a prerequisite for repository policy.
 | `hardware` | Check products, generate ignored review views/schemas, create and verify snapshots |
 | `template`, `release`, `sourcing`, `metrics` | Expose environment and project diagnostics, adoption, release readiness, supplier snapshots and current policy metrics |
 | `governance_audit`, `hwrepo/hosted_governance.py` | Read GitHub branch controls and CODEOWNERS without changing hosted settings |
+| `hwrepo/cad_source.py`, `hwrepo/cad_library.py` | Frozen exact-part provider retrieval, offline conversion and checked project-local CAD library imports |
 | `hwrepo/digikey_handoff.py` | Explicit, account-free myLists BOM handoff with a validated review link and no automatic POST retries |
 | `hwrepo/models.py`, `hwrepo/contracts.py` | Own typed serialized contracts and JSON/path adapters |
 | `hwrepo/discovery.py`, `hwrepo/project_tests.py`, `hwrepo/scaffold.py`, `hwrepo/importing.py` | Resolve local manifests, run isolated island test suites and create or import project islands |

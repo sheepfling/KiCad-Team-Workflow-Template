@@ -7,9 +7,12 @@ from __future__ import annotations
 
 import json
 from pathlib import Path, PurePosixPath, PureWindowsPath
-from typing import TypeVar
+from typing import TYPE_CHECKING, TypeVar
 
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, TypeAdapter, ValidationError
+
+if TYPE_CHECKING:
+    from .models import CadProviderIdentity
 
 Model = TypeVar("Model", bound=BaseModel)
 
@@ -132,3 +135,36 @@ def update_project_manifest_parts(
     updated = json.dumps(raw, indent=2, ensure_ascii=False) + "\n"
     ProjectManifest.model_validate_json(updated, strict=True)
     return updated
+
+
+def parse_easyeda_identity(document: str) -> CadProviderIdentity:
+    """Project vendor JSON into the exact fields used by the offline CAD adapter."""
+    from .models import CadProviderIdentity
+
+    raw = json.loads(document, object_pairs_hook=_unique_object, parse_constant=_invalid_number)
+    try:
+        if raw["success"] is not True:
+            raise ValueError("The CAD provider did not return a successful component lookup")
+        result = raw["result"]
+        parameters = result["dataStr"]["head"]["c_para"]
+        shapes = TypeAdapter(list[str]).validate_python(
+            result["packageDetail"]["dataStr"]["shape"], strict=True,
+        )
+        models = [shape.removeprefix("SVGNODE~") for shape in shapes if shape.startswith("SVGNODE~")]
+        if len(models) != 1:
+            raise ValueError("The provider footprint must have exactly one paired 3D model")
+        node = json.loads(models[0], object_pairs_hook=_unique_object, parse_constant=_invalid_number)
+        if not isinstance(node["attrs"], dict):
+            raise TypeError("The provider model attributes have an unsupported format")
+        return CadProviderIdentity.model_validate({
+            "supplier_id": result["lcsc"]["number"],
+            "component_supplier_id": parameters["Supplier Part"],
+            "manufacturer": parameters["Manufacturer"],
+            "mpn": parameters["Manufacturer Part"],
+            "package": parameters["package"],
+            "symbol_name": parameters["name"],
+            "model_uuid": node["attrs"]["uuid"],
+            "model_title": node["attrs"].get("title", ""),
+        }, strict=True)
+    except (KeyError, IndexError, TypeError) as error:
+        raise ValueError("The CAD provider returned incomplete or unsupported component metadata") from error
