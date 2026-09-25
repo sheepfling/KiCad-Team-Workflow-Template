@@ -145,12 +145,22 @@ independent fixture catalogs. Close KiCad before native checks.
 
 ## BOMs and releases
 
-For a new user's parts workflow, run
-`python -B -m tools.parts --project battery-board --assist`. [Fetch exact-part CAD](docs/workflow/CAD_SOURCING.md), resolve paired CAD
-automatically, choose reviewed catalog parts, preview and apply changes, and
-prepare the order files in one local page. Update the PCB in KiCad when a selected
-footprint needs replacing. The plain command without `--assist` creates an offline
-BOM and purchasing checklist.
+For a new user's parts workflow, start with your registered project ID and
+open the local assistant:
+
+```sh
+python -B -m tools.template list --format text
+python -B -m tools.parts --project battery-board --assist
+```
+
+Replace `battery-board` with an ID from the first command. The assistant can
+fetch an exact LCSC part, show paired STEP/WRL alignment views, add its reviewed
+project-local CAD, find 3D models for placed footprints, and prepare part choices
+and order files. The STEP comparison needs Docker running; other native
+board checks need Docker or a matching local KiCad CLI. Follow the [first-part walkthrough](docs/workflow/CAD_SOURCING.md)
+for button-by-button instructions and recovery steps. Update the PCB in KiCad
+when a selected footprint needs replacing. The plain command without `--assist`
+creates an offline BOM and purchasing checklist.
 Follow [choose parts and prepare an order](docs/workflow/PARTS_TO_ORDER.md) for
 saved preferences, model synchronization and DigiKey upload. The training catalog
 has no production choices; add reviewed part/CAD records before using the picker

@@ -7,32 +7,55 @@ provider is EasyEDA through the pinned community converter
 account is required. This connection uses community web endpoints; availability
 and CAD coverage are not a vendor service guarantee.
 
-## One-time setup and everyday use
+## First part: run the assistant
 
-From the repository's Python environment, install the optional CAD importer:
+Complete [first-run Python setup](../../README.md#first-run-setup) from the
+repository root. The `cad` extra is required; the README's `.[dev,cad]` command
+installs it. You also need a registered board. Find its exact ID with:
 
 ```sh
-python -m pip install -e '.[cad]'
+python -B -m tools.template list --format text
+```
+
+If that command lists no projects, [create a board](FIRST_BOARD.md) or
+[import an existing design](IMPORT_WORKFLOW.md) first. Replace `my-board` below
+with the listed ID. Start the local page with one command:
+
+```sh
 python -B -m tools.parts --project my-board --assist
 ```
 
-Replace `my-board` with your registered project ID. In **Find CAD for a part**:
+The page opens in your browser. If it does not, open the loopback URL printed
+by the command. Keep the terminal open while using it. The STEP
+comparison also needs Docker Desktop or Docker Engine running; check the daemon
+with `docker info`. The first comparison may download the project's pinned KiCad
+image. CAD lookup and library import can run without Docker; other native
+board checks may need Docker or an exact local KiCad CLI.
 
-1. Enter the exact LCSC number, such as `C2040`. If you know the manufacturer part
-   number, enter it too; a mismatch blocks the fetch.
-2. Select **Find CAD**. Review the provider-reported manufacturer, MPN, package,
-   pin/pad checks, model limits and proposed files.
-3. If the provider supplied STEP, select **Check STEP alignment**. Open the
-   paired WRL/STEP views and compare the body, contacts, pin-one mark, height
-   and pad placement. The gallery includes a disposable STEP assembly; it does
-   not install STEP or approve mechanical fit.
-4. Save and close the design in KiCad before **Add CAD to this project**. The
-   importer adds the local libraries, their table entries and the project input
-   inventory. It does not replace existing schematic symbols, pads or nets.
-5. Reopen the project. Press **A** in KiCad's schematic editor and choose the exact
-   symbol shown by the assistant. Its footprint is already assigned. **Update PCB
-   from Schematic (F8)** brings that footprint to the board. Use KiCad to position
-   and route it, then inspect the actual 3D view.
+In **Find CAD for a part**:
+
+1. Enter an exact LCSC number, such as `C2040`. If you know the manufacturer's
+   part number, enter it too. **Find CAD** checks the supplier identity, pin/pad
+   consistency and proposed project files.
+2. Read the reported manufacturer, MPN, package and source limits. A mismatch or
+   incomplete CAD stays blocked. A ready review enables the next two buttons.
+3. Select **Check STEP alignment** when the provider has a STEP file. The page
+   shows paired WRL/STEP top, turned, bottom and angled views on the same
+   disposable footprint. Compare body, contacts, pin-one mark, height and pad
+   placement; open the full-page comparison for larger views and its disposable
+   STEP assembly. `REVIEW` means your visual check is still needed.
+4. Save and close the design in KiCad, then select **Add CAD to this project**.
+   This adds project-local libraries and table entries. It does not replace
+   existing schematic symbols, pads or nets.
+5. Reopen the project. Press **A** in KiCad's schematic editor, choose the exact
+   imported symbol, and wire it. **Update PCB from Schematic (F8)** brings its
+   assigned footprint to the board. Position and route it, inspect the actual
+   board in KiCad's 3D viewer, and run the selected native check.
+
+If STEP is unavailable, its comparison reports `BLOCKED`; a complete WRL library
+can still be imported for visualization. The tool never installs an unreviewed
+STEP model or approves mechanical fit. Follow the [3D board workflow](THREE_D_WORKFLOW.md)
+for the placed-board handoff.
 
 For a previously placed generic symbol, choose its intended manufacturer part and
 review pin functions before replacing it. Equal pin numbers alone do not prove
@@ -75,32 +98,45 @@ license does not establish rights to every supplier CAD asset; no shared-library
 or manufacturing approval is granted by import. Follow the [library policy](LIBRARIES.md)
 when promoting project-local assets to a shared library.
 
-## Scripted use and recovery
+## Command-line use and recovery
+
+For a source-bound STEP comparison without opening the assistant:
 
 ```sh
 python -B -m tools.parts --project my-board --check-step C2040 --expected-mpn RP2040
-python -B -m tools.parts --project my-board --source-cad C2040 --expected-mpn RP2040 --format json
-python -B -m tools.parts --project my-board --import-cad build/parts/REVIEW/cad-import-plan.json --apply --format json
 ```
 
-Open `index.html` in the receipt printed by `--check-step`; inspect every paired
-view and the disposable assembly before deciding whether the STEP model can be
-used for mechanical work. `--check-step` has a nonzero exit if the exact source,
-STEP file, pinned KiCad run or output evidence is unavailable.
+The command prints the fresh ignored `build/parts/` receipt and its `index.html`
+gallery. It exits nonzero if the exact source, STEP file, pinned KiCad run or
+output evidence is unavailable. Use `--format json` for a typed report with
+source hashes, command evidence, artifact hashes and explicit false values
+for `alignment_verified` and `physical_fit_verified`.
 
-Use the exact `plan_path` returned by `--source-cad`. Receipts and the immutable
-cache stay under ignored `build/`; applied CAD becomes declared project-local
-source. Add `--refresh-cad` to `--source-cad` or `--check-step` only when
-intentionally requesting a fresh provider snapshot. It preserves older snapshots and still requires a new
-preview before import.
+To preview a project-library import from a terminal, run:
 
-If the provider is unavailable, an existing intact cache can still be used. A
-missing or incompatible converter gives a setup command. A corrupt cache, identity
-mismatch, absent model or pin mismatch stays blocked with a concrete finding;
-the tool does not substitute a similarly named part or fabricate a model. Save the
-receipt when reporting an issue. After importing, run
-`python -B -m tools.verify --project my-board`; after using the part in a design,
-run the selected native check and inspect the new BOM/3D outputs.
+```sh
+python -B -m tools.parts --project my-board --source-cad C2040 --expected-mpn RP2040
+```
+
+Read its exact source diff and run the `Then:` command it prints to apply the
+locked plan. Do not type an example plan path or edit the generated plan. The
+normal lookup reuses an intact frozen cache when available. Use `--refresh-cad`
+with `--source-cad` or `--check-step` only when intentionally requesting a fresh
+provider snapshot; it preserves older snapshots and requires another review.
+
+| If you see | Next step |
+| --- | --- |
+| No project ID in `tools.template list` | Create or import a board; this command needs a registered island. |
+| `Find CAD` reports a converter setup issue | Activate the repository Python environment and install `.[dev,cad]` from the root. |
+| Exact LCSC/MPN mismatch or missing model | Check the chosen part number against its manufacturer data. The tool will not substitute another part or invent geometry. |
+| STEP review reports no source STEP | Use the WRL model for visualization if its library plan is ready; obtain a reviewed STEP model before a mechanical handoff. |
+| Pinned KiCad command fails | Run `docker info`, start Docker if needed, and open the named `*.command.json` in the printed receipt. |
+| A source or cache changed after review | Find the exact part again, inspect the new report, and repeat the review. |
+
+After importing, run `python -B -m tools.verify --project my-board --depth native`.
+Run it again after placing the part on the PCB, and inspect the actual board's
+new BOM and 3D outputs. Keep run receipts under ignored `build/` and
+durable design decisions under the project's `docs/` directory.
 
 Other provider options and their connection state are recorded in the
 [provider map](PARTS_PROVIDERS.md).

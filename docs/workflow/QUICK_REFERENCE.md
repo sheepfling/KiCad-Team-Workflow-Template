@@ -16,6 +16,12 @@ main and hand back the assignment.
 
 On conflict, missing libraries, new tool versions or unexpected changes: stop, preserve work and ask the maintainer with branch, SHA, status and error. Never guess ours/theirs.
 
+For a first part, run `python -B -m tools.template list --format text` to find
+your board ID, then `python -B -m tools.parts --project <project-id> --assist`.
+Use **Find CAD**, **Check STEP alignment**, and **Add CAD to this project** in that
+order. The comparison needs Docker and still requires visual review. See the
+[CAD first-part walkthrough](CAD_SOURCING.md) for setup and recovery.
+
 For a failed board check, run `python -B -m tools.template diagnose --project-id <project-id>`.
 Start with its short repair queue; use `--detail full` for every finding or
 `--format json` for an agent or script. Open the printed `build/diagnostics/`
