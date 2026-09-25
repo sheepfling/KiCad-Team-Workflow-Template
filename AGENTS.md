@@ -44,6 +44,18 @@ This file is for coding agents and engineers using an agent. Start with the
   and nets are explicitly `UNREVIEWED`. It never edits `tests/contract.json` or
   establishes electrical coverage. Keep optional receipts under ignored `build/`.
 
+- For component selection or purchasing preparation, run
+  `python -B -m tools.parts --project <id> --format json` to capture exact native
+  evidence and produce a parts checklist. Use `--native-summary` for existing
+  source-bound evidence, or `--init-preferences <path>` to create editable defaults
+  without capture. Project `docs/purchasing.json` records board/spare preferences
+  and explicitly reviewed DigiKey SKUs. Repair catalog identities, declared
+  `component_identity.part_ids`, KiCad `PART_ID` fields and footprints at their
+  sources. Do not invent purchasing identities or approve training placeholders.
+  `READY_FOR_ORDER_REVIEW` means metadata is complete, not live stock, price,
+  electrical, physical or release approval. Keep receipts under ignored `build/`
+  and follow [parts to order](docs/workflow/PARTS_TO_ORDER.md).
+
 ## Diagnose, repair, verify
 
 1. Read the first blocking group and its source location. If the cause is

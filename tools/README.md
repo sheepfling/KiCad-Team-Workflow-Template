@@ -25,6 +25,11 @@ default full run.
 For a legacy directory with several projects, `tools.template scan-imports`
 previews each candidate without copying it. JSON retains per-file hashes and
 exclusion reasons; import one accepted project at a time.
+For component selection and purchasing, use `tools.parts --project <id>` for an
+offline checklist, grouped BOM and conditional DigiKey upload CSV. The
+[parts-to-order guide](../docs/workflow/PARTS_TO_ORDER.md) covers KiCad bulk fields,
+saved board/spare preferences and supplier review. Outputs stay in fresh ignored
+`build/parts/` receipts; the command does not modify CAD or place an order.
 The CLIs use `argparse`; a Typer dependency is not required for human output.
 Choose text for a concise terminal view and JSON for the complete typed result:
 
@@ -36,6 +41,7 @@ Choose text for a concise terminal view and JSON for the complete typed result:
 | `tools.template rescue --project-id <id>` | Brief local repair view, always unverified; `--detail full` expands it | `--format json` with `UNVERIFIED_GLOBAL` and no CI/release eligibility |
 | `tools.governance_audit` | `--format text` shows observed GitHub controls and next actions | JSON by default; `UNKNOWN` stays explicit |
 | `tools.contract_coach` | Short UNREVIEWED contract comparison; `--detail full` expands it | `--format json` |
+| `tools.parts --project <id>` | Text by default plus a searchable HTML checklist in the receipt | `--format json` |
 | Other `tools.template` commands; `tools.ci`, `tools.hardware`, `tools.sourcing`, `tools.metrics` | `--format text` | JSON by default |
 | `tools.release prepare` | Text by default | `--format json` or `--json` |
 | Other `tools.release` commands | `--format text` | JSON by default |
@@ -48,6 +54,7 @@ integration work, not a prerequisite for repository policy.
 | Module | Responsibility |
 | --- | --- |
 | `verify` | One-board portable/native run, exact runner choice, and a fresh logged repair receipt |
+| `parts`, `hwrepo/parts_workflow.py`, `hwrepo/purchasing.py` | Source-bound parts checklist, saved purchasing preferences, board/spare quantities and conditional DigiKey upload files |
 | `ci`, `ci_matrix`, `check_all` | Coordinate the portable gate, registry-driven matrix and native lanes |
 | `impact`, `hwrepo/impact.py` | Plan affected PR project lanes from changed paths; broaden ambiguous/shared-tool changes to full scope |
 | `native_deps` | Prepare Linux wheels for the pinned container's Python, without requiring pip inside the image |

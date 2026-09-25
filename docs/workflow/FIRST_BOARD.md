@@ -85,6 +85,12 @@ This is the shortest path from a fresh fork to a checked project island. Use
    `tools.ci --kicad --project battery-board` remains available when you need
    direct control of the lower-level native lane.
 
+   To choose exact components and prepare purchasing quantities, follow
+   [parts to order](PARTS_TO_ORDER.md). Run
+   `python -B -m tools.parts --project battery-board` for a checklist of missing
+   `PART_ID` values, footprints and catalog details, then save build/spare preferences
+   and generate a DigiKey upload file when the metadata is complete.
+
 6. Commit only authored source, push a short-lived branch and open a pull request.
    Review the exact Actions commit and retained evidence before merging.
 
