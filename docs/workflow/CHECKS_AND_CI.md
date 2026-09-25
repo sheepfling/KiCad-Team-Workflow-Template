@@ -205,6 +205,10 @@ when the exact declared KiCad CLI is installed. A failed doctor names a missing
 Docker daemon or version mismatch before native work starts. The manual commands
 below remain available for reproducing individual CI setup stages.
 
+Linked Git worktrees are supported: the Python validation and release/export
+runners mount shared Git metadata read-only and retain the worktree's own commit
+and index. Docker needs access to both the worktree and its shared Git directory.
+
 The official pinned images do not include pip. `tools.native_deps` probes the image's
 Python version and uses host pip to prepare compatible Linux x86 wheels from
 `pyproject.toml` in an ignored directory. The image itself remains unchanged.

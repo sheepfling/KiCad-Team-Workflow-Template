@@ -47,6 +47,9 @@ your terminal. Configure the client's launch environment to include the actual
 Docker executable directory when necessary, then reconnect and rerun `doctor`.
 On a standard macOS Docker Desktop installation, that directory may be
 `/Applications/Docker.app/Contents/Resources/bin`; verify it on the host.
+For a linked Git worktree, native verification and release/export runners also
+mount its shared Git metadata read-only, preserving the selected worktree's commit
+and index. Docker must be able to read both the worktree and that metadata directory.
 
 The transport is local stdio. There is no HTTP listener or hosted account to set
 up. Start a separate configuration for each checkout. The repository root, import

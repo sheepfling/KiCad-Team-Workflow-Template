@@ -6,6 +6,7 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
+from .container_git import git_metadata_mounts
 from .contracts import read_model, repo_path, write_model
 from .discovery import load_config, load_registry
 from .evidence import digest, evidence_path, source_state, verify_release_portable
@@ -73,7 +74,8 @@ def run_native(root: Path, project: ProjectRecord, output: Path, cli: str | None
     argv = ("docker", "run", "--rm", "--platform", "linux/amd64", *user,
                     "--entrypoint", "python3", "-e", "HOME=/tmp/kicad-release",
                     "-e", "PYTHONDONTWRITEBYTECODE=1", "-e", f"PYTHONPATH=/work/{dependencies.as_posix()}",
-                    "-v", f"{root}:/work", "-w", "/work", config.image, "-B", "-m", *command,
+                    "-v", f"{root}:/work", *git_metadata_mounts(root),
+                    "-w", "/work", config.image, "-B", "-m", *command,
                     "--root", "/work", "--output", output.relative_to(root).as_posix())
     started = datetime.now(UTC).isoformat()
     output.parent.mkdir(parents=True, exist_ok=True)

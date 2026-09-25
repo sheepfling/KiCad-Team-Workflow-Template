@@ -12,6 +12,7 @@ from typing import Literal
 
 from .check_all import check_all
 from .ci import project_static_pipeline
+from .hwrepo.container_git import git_metadata_mounts
 from .hwrepo.contracts import read_model
 from .hwrepo.diagnostic_journal import DiagnosticJournal
 from .hwrepo.diagnostics import diagnose_project, format_text
@@ -69,7 +70,8 @@ def container_command(
     command.extend((
         "--entrypoint", "python3", "-e", "HOME=/tmp/kicad-template",
         "-e", "PYTHONDONTWRITEBYTECODE=1", "-e", f"PYTHONPATH=/work/{deps}",
-        "--mount", f"type=bind,source={root},target=/work", "-w", "/work", image,
+        "--mount", f"type=bind,source={root},target=/work", *git_metadata_mounts(root),
+        "-w", "/work", image,
         "-B", "-m", "tools.ci", "--kicad", "--project", project_id,
         "--output", output,
     ))
