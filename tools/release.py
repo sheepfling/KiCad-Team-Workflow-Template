@@ -86,6 +86,8 @@ def main() -> int:
     args = parser.parse_args()
     if args.json and (args.command != "prepare" or args.format is not None):
         parser.error("--json is only for prepare and cannot be combined with --format")
+    if args.variant and args.command != "prepare":
+        parser.error("--variant selects a product during prepare; export uses --assembly-variant")
     if args.assembly_variant is not None and args.command != "export":
         parser.error("--assembly-variant is only for export; prepare uses product board_variants")
     root = args.root.resolve()

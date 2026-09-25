@@ -49,7 +49,8 @@ def main() -> int:
         "--runner", choices=("auto", "local", "container"), default="auto",
         help="Native runner for doctor or convert-pcb; auto prefers an exact local CLI, then Docker",
     )
-    parser.add_argument("--source", type=Path, help="Existing .kicad_pro file to import")
+    parser.add_argument("--source", type=Path,
+                        help="Native .kicad_pro for import/diagnose, or foreign board file for convert-pcb")
     parser.add_argument("--input-format", choices=("auto", "pads", "altium", "eagle", "cadstar",
                                                     "fabmaster", "pcad", "solidworks"),
                         help="Foreign PCB format for convert-pcb (default: auto)")

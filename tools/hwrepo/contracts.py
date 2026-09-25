@@ -77,6 +77,8 @@ def kicad_variant_names(path: Path) -> tuple[str, ...]:
         if not isinstance(value, str) or not value.strip():
             raise ValueError(f"{path}: schematic.variants contains a nameless entry")
         names.append(value)
+    if len({name.casefold() for name in names}) != len(names):
+        raise ValueError(f"{path}: schematic.variants has duplicate names")
     return tuple(names)
 
 

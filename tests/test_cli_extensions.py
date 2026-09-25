@@ -21,6 +21,7 @@ from tools.hwrepo.foreign_pcb import ForeignPcbReport, convert_pcb
 from tools.hwrepo.models import (
     CommandEvidence,
     EnvironmentCheck,
+    ReleaseArtifactKind,
     ReleaseExportSettings,
     ReleaseVariant,
     TemplateDoctorReport,
@@ -31,6 +32,7 @@ from tools.hwrepo.release import (
     selected_board_variants,
     verify_board_population,
 )
+from tools.hwrepo.releasing import artifact_kind
 from tools.hwrepo.three_d import _specifications
 
 
@@ -79,6 +81,18 @@ class ExportExtensionTests(unittest.TestCase):
             project.write_text(json.dumps({"schematic": {"variants": []}}))
             with self.assertRaisesRegex(ValueError, "not declared"):
                 require_declared_variant(project, "Pilot A")
+            project.write_text(json.dumps({"schematic": {"variants": ["Pilot A", "pilot a"]}}))
+            with self.assertRaisesRegex(ValueError, "duplicate names"):
+                require_declared_variant(project, "Pilot A")
+
+    def test_release_artifacts_identify_review_packet_and_bom(self) -> None:
+        output = Path("/release")
+        self.assertEqual(artifact_kind(output / "exports/board/review/schematic.pdf", output),
+                         ReleaseArtifactKind.SCHEMATIC_EXPORT)
+        self.assertEqual(artifact_kind(output / "exports/board/review/pcb.pdf", output),
+                         ReleaseArtifactKind.PCB_EXPORT)
+        self.assertEqual(artifact_kind(output / "exports/board/assembly/bom.csv", output),
+                         ReleaseArtifactKind.BOM)
 
     def test_review_outputs_require_real_pdf_json_and_supplier_archives(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

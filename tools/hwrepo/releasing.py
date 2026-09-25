@@ -206,12 +206,16 @@ def artifact_kind(path: Path, output: Path) -> ReleaseArtifactKind:
     relative = path.relative_to(output)
     if path.name == "review.md":
         return ReleaseArtifactKind.REVIEW_RECORD
+    if path.name.endswith("bom.csv"):
+        return ReleaseArtifactKind.BOM
+    if "review" in relative.parts and path.name == "schematic.pdf":
+        return ReleaseArtifactKind.SCHEMATIC_EXPORT
+    if "review" in relative.parts and path.name == "pcb.pdf":
+        return ReleaseArtifactKind.PCB_EXPORT
     if "fabrication" in relative.parts:
         return ReleaseArtifactKind.FABRICATION_PACKAGE
     if "assembly" in relative.parts:
         return ReleaseArtifactKind.ASSEMBLY_PACKAGE
-    if path.name.endswith("bom.csv"):
-        return ReleaseArtifactKind.BOM
     if "schematic" in relative.parts and path.suffix == ".svg":
         return ReleaseArtifactKind.SCHEMATIC_EXPORT
     if path.name == "pcb.svg":

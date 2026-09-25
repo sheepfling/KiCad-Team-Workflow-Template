@@ -61,6 +61,10 @@ def render_text(report: ForeignPcbReport) -> str:
         lines.append(f"KiCad report: {report.native_summary.mapped_layers} mapped layers, "
                      f"{len(report.native_summary.errors)} errors, "
                      f"{len(report.native_summary.warnings)} warnings")
+        for warning in report.native_summary.warnings[:3]:
+            lines.append(f"KiCad warning: {warning}")
+        if len(report.native_summary.warnings) > 3:
+            lines.append("More warnings: open kicad-import-report.json in the receipt")
     if report.error:
         lines.append(f"Finding: {report.error}")
     for action in report.next_actions:
