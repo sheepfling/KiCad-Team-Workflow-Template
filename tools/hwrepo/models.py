@@ -12,6 +12,7 @@ from pydantic import (
     ConfigDict,
     Field,
     StringConstraints,
+    field_validator,
     model_validator,
 )
 
@@ -1617,3 +1618,98 @@ class ModelPopulationReport(StrictModel):
     )
     next_commands: tuple[NonEmptyText, ...] = ()
     error: str | None = None
+class PurchasingSchemaModel(StrictModel):
+    schema_version: Literal["1"] = "1"
+
+    @field_validator("schema_version", mode="before")
+    @classmethod
+    def exact_schema_version(cls, value: str) -> str:
+        if type(value) is not str or value != "1":
+            raise ValueError("Unsupported purchasing schema version")
+        return value
+
+
+class PurchasingPreferences(PurchasingSchemaModel):
+    """User-selected quantities and exact supplier IDs; no sourcing authority."""
+
+    boards: PositiveCount = 1
+    spare_percent: Annotated[int, Field(ge=0, le=100)] = 0
+    spare_minimum: NonNegativeCount = 0
+    digikey_skus: Mapping[Identifier, Annotated[str, StringConstraints(min_length=1)]] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def exact_supplier_identifiers(self) -> PurchasingPreferences:
+        for identifier in self.digikey_skus.values():
+            if identifier != identifier.strip() or any(
+                ord(character) < 32 or ord(character) == 127 for character in identifier
+            ):
+                raise ValueError("DigiKey identifiers must be exact text without padding or control characters")
+        return self
+
+
+class PurchasingComponent(StrictModel):
+    reference: Identifier
+    value: str
+    footprint: str
+    part_id: str | None = None
+    dnp: bool = False
+    exclude_from_bom: bool = False
+
+
+class PurchasingLine(StrictModel):
+    part_id: Identifier
+    revision: Identifier
+    manufacturer: NonEmptyText
+    mpn: NonEmptyText
+    footprint: NonEmptyText
+    references: tuple[Identifier, ...]
+    per_board: PositiveCount
+    required: PositiveCount
+    spares: NonNegativeCount
+    quantity: PositiveCount
+    order_number: NonEmptyText
+    order_number_kind: Literal["MPN", "DigiKey"]
+    search_url: NonEmptyText
+
+
+class PurchasingFinding(StrictModel):
+    code: Identifier
+    references: tuple[Identifier, ...] = ()
+    message: NonEmptyText
+    action: NonEmptyText
+
+
+class PurchasingPlan(PurchasingSchemaModel):
+    """Metadata readiness for human ordering review, never electrical approval."""
+
+    schema_version: Literal["1"] = "1"
+    status: Literal["NEEDS_PARTS", "READY_FOR_ORDER_REVIEW"]
+    preferences: PurchasingPreferences
+    components: tuple[PurchasingComponent, ...]
+    lines: tuple[PurchasingLine, ...]
+    findings: tuple[PurchasingFinding, ...]
+    excluded_references: tuple[Identifier, ...] = ()
+    purchase_authorized: Literal[False] = False
+    build_authorized: Literal[False] = False
+
+
+class PurchasingReport(PurchasingSchemaModel):
+    """Source-bound local parts assistant receipt."""
+
+    schema_version: Literal["1"] = "1"
+    lane: Literal["PARTS_TO_ORDER"] = "PARTS_TO_ORDER"
+    project_id: Identifier
+    status: Literal["BLOCKED", "NEEDS_PARTS", "READY_FOR_ORDER_REVIEW"]
+    purchase_authorized: Literal[False] = False
+    build_authorized: Literal[False] = False
+    plan: PurchasingPlan | None = None
+    source_hashes: Mapping[RepositoryPath, Digest] = Field(default_factory=dict)
+    input_hashes: Mapping[RepositoryPath, Digest] = Field(default_factory=dict)
+    netlist_sha256: Digest | None = None
+    native_status: Literal["PASS", "FAIL"] | None = None
+    selected_runner: Literal["local", "container"] | None = None
+    issues: tuple[NonEmptyText, ...] = ()
+    next_actions: tuple[NonEmptyText, ...] = ()
+    receipt_dir: str
+    artifacts: tuple[str, ...] = ()
+    evidence: ContractCoachReport | None = None

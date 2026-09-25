@@ -37,3 +37,24 @@ their `PART_ID` values to the controlled catalog for a purchasing BOM. Manufactu
 MPN and part revision come from that catalog. Assembly population comes from the
 schematic's DNP/exclude-from-BOM settings; supplier quotes remain a separate sourcing
 snapshot. See the complete [prepare/package/restore path](RELEASE_READINESS.md).
+
+## Working purchasing checklist
+
+Use [parts to order](PARTS_TO_ORDER.md) and `tools.parts --project <id>` for a fresh
+source-bound checklist and grouped BOM under ignored `build/parts/`. It uses native
+fitted references and declared catalog `PART_ID` records. The optional
+`docs/purchasing.json` inside the project island is authored input: it records board
+count, spare settings and reviewed DigiKey SKUs. Command-line overrides do not
+rewrite it. Catalog manufacturer/MPN identity and schematic population remain
+authoritative; a supplier SKU does not replace either.
+
+The order CSV is emitted only when all fitted parts pass purchasing metadata
+checks. Training placeholders, missing footprints and missing or unreviewed part
+identities block it. DNP and exclude-from-BOM symbols remain visible without order
+quantities. Spares are calculated per grouped part as the larger of the rounded-up
+percentage of fitted pieces or the configured minimum; they are not cumulative.
+
+`READY_FOR_ORDER_REVIEW` is a metadata result. Supplier matching, stock, price,
+packaging, electrical suitability, physical fit and release approvals still require
+their own evidence. Generated CSVs are working views; keep exact approved purchasing
+and assembly outputs in the retained build/release package when freezing a revision.
