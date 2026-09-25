@@ -62,3 +62,20 @@ package is published, update a project's exact tooling pin through a pull
 request that runs its focused and full acceptance lanes. This lets private
 project repositories receive fixes without copying Python source or silently
 changing the rules used for an earlier check.
+
+## Tooling configuration and package versions
+
+The extracted tooling keeps this template layout as its default. Projects can provide a declarative
+`kicad-tooling.toml` to relocate catalogs, scaffold inputs, workflow guides, and project creation
+paths. Its discovery catalog supports bounded nesting while preserving unique project identities and
+source ownership. CLI and MCP consume the same configuration. These adapters belong to the external
+package; this template's current in-tree commands retain their existing behavior. See the tooling
+[configuration guide](https://github.com/sheepfling/KiCad-Tooling/blob/codex/tooling-split/docs/CONFIGURATION.md)
+for the current migration implementation.
+
+Tooling package versions come from Git tags through `setuptools-scm`; the installed
+command reports that version from package metadata. Project KiCad pins and this
+template's policy version remain separate. New KiCad major versions require an
+explicit compatibility declaration and native acceptance before adoption. The
+package CI checks both wheel installation and rebuilding a source distribution
+outside Git; it does not publish to PyPI.
