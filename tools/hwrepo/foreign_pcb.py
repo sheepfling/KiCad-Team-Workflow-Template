@@ -8,7 +8,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from ..check_toolchain import cli_executable, toolchain
 from .contract_coach import docker_prefix, pinned_image, run_command
@@ -35,9 +35,9 @@ class ForeignPcbReport(StrictModel):
     status: Literal["PASS", "FAIL"]
     review_required: Literal[True] = True
     build_authorized: Literal[False] = False
-    project_id: Identifier
-    toolchain_id: Identifier
-    input_format: ForeignFormat
+    project_id: str
+    toolchain_id: str
+    input_format: str
     source_file: str
     source_sha256: Digest | None = None
     run_directory: str
@@ -49,6 +49,16 @@ class ForeignPcbReport(StrictModel):
     next_command: str | None = None
     next_actions: tuple[str, ...] = ()
     error: str | None = None
+
+    @model_validator(mode="after")
+    def successful_selection_is_valid(self) -> ForeignPcbReport:
+        if self.status == "PASS" and (
+            re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", self.project_id) is None
+            or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", self.toolchain_id) is None
+            or self.input_format not in ForeignFormat.__args__
+        ):
+            raise ValueError("Successful conversion needs valid project, toolchain and format IDs")
+        return self
 
 
 def render_text(report: ForeignPcbReport) -> str:
@@ -84,10 +94,6 @@ def convert_pcb(
 ) -> ForeignPcbReport:
     """Never touch the source or register a project; require a separate reviewed import."""
     root = root.resolve()
-    if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", project_id) is None:
-        raise ValueError("Project ID must use letters, digits, periods, underscores or hyphens")
-    if input_format not in ForeignFormat.__args__:
-        raise ValueError(f"Unknown foreign PCB format: {input_format}")
     journal = DiagnosticJournal(root, project_id, label="convert-pcb")
     source = source.absolute()
     source_hash: str | None = None
@@ -101,6 +107,13 @@ def convert_pcb(
     actions: tuple[str, ...] = ()
     status: Literal["PASS", "FAIL"] = "FAIL"
     try:
+        with journal.stage("project-selection"):
+            if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", project_id) is None:
+                raise ValueError("Project ID must use letters, digits, periods, underscores or hyphens")
+            if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", toolchain_id) is None:
+                raise ValueError("Toolchain ID must use letters, digits, periods, underscores or hyphens")
+            if input_format not in ForeignFormat.__args__:
+                raise ValueError(f"Unknown foreign PCB format: {input_format}")
         with journal.stage("source-and-toolchain"):
             if source.is_symlink() or not source.is_file() or source.suffix == ".kicad_pcb":
                 raise ValueError("Select one existing non-KiCad PCB file (not a symlink or native board)")

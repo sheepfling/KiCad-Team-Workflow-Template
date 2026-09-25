@@ -230,6 +230,37 @@ class ForeignPcbConversionTests(unittest.TestCase):
         self.assertTrue((Path(report.run_directory) / "events.log").is_file())
         self.assertFalse((self.root / "projects/vendor-board").exists())
 
+    def test_invalid_project_id_still_returns_typed_json_and_a_receipt(self) -> None:
+        for project_id in ("bad/id", "with space", ""):
+            with self.subTest(project_id=project_id):
+                result = subprocess.run((
+                    sys.executable, "-B", "-m", "tools.template", "convert-pcb",
+                    "--root", str(self.root), "--project-id", project_id,
+                    "--toolchain", "kicad-10.0.5", "--source", str(self.source),
+                    "--format", "json",
+                ), capture_output=True, text=True, check=False)
+                self.assertEqual(result.returncode, 1, result.stderr)
+                report = ForeignPcbReport.model_validate_json(result.stdout)
+                self.assertEqual(report.status, "FAIL")
+                self.assertEqual(report.project_id, project_id)
+                self.assertIn("Project ID", report.error)
+                self.assertTrue((Path(report.run_directory) / "events.log").is_file())
+        self.assertFalse((self.root / "projects/vendor-board").exists())
+
+    def test_invalid_toolchain_id_still_returns_typed_json_and_a_receipt(self) -> None:
+        result = subprocess.run((
+            sys.executable, "-B", "-m", "tools.template", "convert-pcb",
+            "--root", str(self.root), "--project-id", "vendor-board",
+            "--toolchain", "bad/id", "--source", str(self.source),
+            "--format", "json",
+        ), capture_output=True, text=True, check=False)
+        self.assertEqual(result.returncode, 1, result.stderr)
+        report = ForeignPcbReport.model_validate_json(result.stdout)
+        self.assertEqual(report.status, "FAIL")
+        self.assertEqual(report.toolchain_id, "bad/id")
+        self.assertIn("Toolchain ID", report.error)
+        self.assertTrue((Path(report.run_directory) / "events.log").is_file())
+
 
 if __name__ == "__main__":
     unittest.main()
