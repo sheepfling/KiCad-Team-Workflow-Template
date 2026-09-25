@@ -25,11 +25,17 @@ default full run.
 For a legacy directory with several projects, `tools.template scan-imports`
 previews each candidate without copying it. JSON retains per-file hashes and
 exclusion reasons; import one accepted project at a time.
-For component selection and purchasing, use `tools.parts --project <id>` for an
-offline checklist, grouped BOM and conditional DigiKey upload CSV. The
-[parts-to-order guide](../docs/workflow/PARTS_TO_ORDER.md) covers KiCad bulk fields,
-saved board/spare preferences and supplier review. Outputs stay in fresh ignored
-`build/parts/` receipts; the command does not modify CAD or place an order.
+Start with `tools.parts --project <id> --assist` for one local page that resolves
+paired CAD automatically, reviews source changes, chooses parts and produces order
+files. `--auto-models` exposes automatic CAD previews to scripts.
+For file-based component selection, use `tools.parts --project <id> --picker` to choose
+reviewed catalog parts in a local page. `--selection <download>` previews changes;
+`--selection <locked-file> --apply` applies them. Use `--sync-models` after KiCad's
+PCB update when footprints needed replacing or adding. The plain
+`tools.parts --project <id>` command reads source to make an offline checklist,
+grouped BOM and conditional DigiKey upload CSV. Follow the
+[parts-to-order guide](../docs/workflow/PARTS_TO_ORDER.md); receipts stay in ignored
+`build/parts/`, and ordering remains a separate human action.
 For catalog-derived BOMs, harness schedules and review views, run
 `tools.hardware generate`. It accepts the same repeatable `--project`, `--product`,
 `--tag` and `--exclude-tag` selectors as MCP `generate_views`. Includes form a
@@ -57,8 +63,8 @@ Choose text for a concise terminal view and JSON for the complete typed result:
 | `tools.template convert-pcb --source <file> --project-id <id> --toolchain <id>` | Conversion status, receipt and review steps | `--format json` with source/output hashes, commands and import preview |
 | `tools.governance_audit` | `--format text` shows observed GitHub controls and next actions | JSON by default; `UNKNOWN` stays explicit |
 | `tools.contract_coach` | Short UNREVIEWED contract comparison; `--detail full` expands it | `--format json` |
+| `tools.parts --project <id>` | Text and HTML checklist; `--picker` offers reviewed parts, `--selection` previews, `--apply` writes the locked edits | `--format json` |
 | `tools.visualize --project <id>` | 3D model audit and export paths; `--init-model-map` drafts explicit assignments, `--map-models` previews source edits and `--apply` writes reviewed edits | `--format json` |
-| `tools.parts --project <id>` | Text by default plus a searchable HTML checklist in the receipt | `--format json` |
 | Other `tools.template` commands; `tools.ci`, `tools.hardware`, `tools.sourcing`, `tools.metrics` | `--format text` | JSON by default |
 | `tools.release prepare` | Text by default | `--format json` or `--json` |
 | Other `tools.release` commands | `--format text` | JSON by default |
@@ -76,10 +82,10 @@ package; reviewed source commits still use normal Git.
 | --- | --- |
 | `surface`, `hwrepo/surface.py` | Compare CLI/MCP workflow coverage and fail on undocumented interface drift; see [tool surfaces](../docs/workflow/TOOL_SURFACES.md) |
 | `mcp` | Optional local stdio workflow adapter: fixed checkout, diagnosis, reviewed edits, checks, exports and engineering review packaging with separate startup capabilities |
-| `parts`, `hwrepo/parts_workflow.py`, `hwrepo/purchasing.py` | Source-bound parts checklist, saved purchasing preferences, board/spare quantities and conditional DigiKey upload files |
 | `electrical`, `hwrepo/electrical.py`, `hwrepo/electrical_runner.py`, `hwrepo/spice.py` | Check reviewed ground-pin coverage, power budgets and source-bound ngspice power/frequency cases; see [electrical analysis](../docs/workflow/ELECTRICAL_ANALYSIS.md) |
 | `hwrepo/electrical_setup.py`, `hwrepo/electrical_doctor.py` | Initialize pending requirements without overwriting them, capture review hashes and preflight exact simulator readiness |
 | `verify` | One-board portable/native/electrical run, exact runner choice, and a fresh logged repair receipt |
+| `parts`, `hwrepo/part_picker.py`, `hwrepo/parts_workflow.py`, `hwrepo/purchasing.py` | Source-bound part selection and reviewed source updates, purchasing preferences, board/spare quantities and conditional DigiKey upload files |
 | `ci`, `ci_matrix`, `check_all` | Coordinate the portable gate, registry-driven matrix and native lanes |
 | `impact`, `hwrepo/impact.py` | Plan affected PR project lanes from changed paths; broaden ambiguous/shared-tool changes to full scope |
 | `native_deps` | Prepare Linux wheels for the pinned container's Python, without requiring pip inside the image |
@@ -93,9 +99,12 @@ package; reviewed source commits still use normal Git.
 | `hwrepo/mcp_server.py`, `hwrepo/mcp_files.py`, `hwrepo/mcp_workflow.py` | Register fixed MCP capabilities, bound source/artifact access and explicit edits, and adapt the diagnosis/export/review services |
 | `hwrepo/models.py`, `hwrepo/contracts.py` | Own typed serialized contracts and file/path adapters |
 | `hwrepo/discovery.py`, `hwrepo/project_tests.py`, `hwrepo/scaffold.py`, `hwrepo/importing.py`, `hwrepo/foreign_pcb.py` | Resolve local manifests, run isolated island test suites, create/import islands and stage foreign boards for review |
+| `hwrepo/digikey_handoff.py` | Explicit, account-free myLists BOM handoff with a validated review link and no automatic POST retries |
 | `hwrepo/doctor.py`, `hwrepo/adoption.py` | Check local prerequisites and run one-command fresh-fork adoption |
 | Other `hwrepo/` modules | Implement named policy and generation services behind the CLIs |
 
 Add substantial rules to the appropriate service and behavioral coverage to
 [tests](../tests/README.md). New projects and variants are records, not new scripts.
-Outputs belong in ignored locations and must never rewrite native design source.
+Outputs belong in ignored locations. Native-source changes use an explicit,
+hash-bound preview/apply workflow; generated review files are never edited back
+into the design.

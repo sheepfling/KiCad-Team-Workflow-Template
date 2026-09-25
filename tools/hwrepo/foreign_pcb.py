@@ -4,11 +4,8 @@ from __future__ import annotations
 import hashlib
 import re
 import shlex
-from collections.abc import Mapping
 from pathlib import Path
 from typing import Literal
-
-from pydantic import Field, model_validator
 
 from ..check_toolchain import cli_executable, toolchain
 from .contract_coach import docker_prefix, pinned_image, run_command
@@ -18,47 +15,11 @@ from .doctor import NativeRunner, doctor
 from .importing import import_project
 from .models import (
     CommandEvidence,
-    Digest,
-    Identifier,
+    ForeignFormat,
+    ForeignPcbReport,
     KiCadForeignImportSummary,
     ProjectImportReport,
-    StrictModel,
 )
-
-ForeignFormat = Literal["auto", "pads", "altium", "eagle", "cadstar", "fabmaster", "pcad", "solidworks"]
-
-
-class ForeignPcbReport(StrictModel):
-    """Conversion evidence is intentionally weaker than an accepted native design."""
-
-    schema_version: Literal["1"] = "1"
-    status: Literal["PASS", "FAIL"]
-    review_required: Literal[True] = True
-    build_authorized: Literal[False] = False
-    project_id: str
-    toolchain_id: str
-    input_format: str
-    source_file: str
-    source_sha256: Digest | None = None
-    run_directory: str
-    runner: Literal["none", "local", "container"] = "none"
-    commands: Mapping[Identifier, CommandEvidence] = Field(default_factory=dict)
-    native_summary: KiCadForeignImportSummary | None = None
-    board_sha256: Digest | None = None
-    import_preview: ProjectImportReport | None = None
-    next_command: str | None = None
-    next_actions: tuple[str, ...] = ()
-    error: str | None = None
-
-    @model_validator(mode="after")
-    def successful_selection_is_valid(self) -> ForeignPcbReport:
-        if self.status == "PASS" and (
-            re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", self.project_id) is None
-            or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", self.toolchain_id) is None
-            or self.input_format not in ForeignFormat.__args__
-        ):
-            raise ValueError("Successful conversion needs valid project, toolchain and format IDs")
-        return self
 
 
 def render_text(report: ForeignPcbReport) -> str:

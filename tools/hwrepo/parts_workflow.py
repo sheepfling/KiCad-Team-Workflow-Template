@@ -145,8 +145,8 @@ def prepare(
         artifacts = write_csvs(output, purchase_plan)
         actions = (
             "Open index.html for component details and the next repair steps.",
-            ("Update PART_ID in KiCad's Symbol Fields Table and assign the reviewed footprint; "
-             "keep approved manufacturer/MPN records in the part catalog."),
+            (f"Choose reviewed part/footprint/model bindings with: python -B -m tools.parts "
+             f"--project {project_id} --picker. Keep approved identities in the part catalog."),
             ("Rerun this command after saving changes. Review supplier matches, packaging, "
              "stock and price in DigiKey myLists before ordering."),
         )

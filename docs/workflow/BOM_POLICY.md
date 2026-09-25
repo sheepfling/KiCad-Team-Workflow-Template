@@ -58,3 +58,28 @@ percentage of fitted pieces or the configured minimum; they are not cumulative.
 packaging, electrical suitability, physical fit and release approvals still require
 their own evidence. Generated CSVs are working views; keep exact approved purchasing
 and assembly outputs in the retained build/release package when freezing a revision.
+
+## Reviewed part selection
+
+The [parts picker](PARTS_TO_ORDER.md) applies explicit selections from approved
+catalog CAD bindings. Its browser download is an intermediate proposal under
+ignored `build/` or the user's downloads; it is not a second parts catalog or a
+release approval. Preview binds the chosen catalog, model assets and design to a
+locked selection. Only the explicit apply step changes authored schematic/PCB
+fields, manifest part declarations and the default project purchasing preferences.
+Review those source changes in Git; never commit disposable picker pages, selection
+locks or diffs as design authority. Keep any durable engineering rationale with the
+board's docs and the controlled catalog/library source.
+
+The catalog owns manufacturer/MPN and the reviewed symbol, value, footprint and
+model binding. Apply copies `PART_ID`, `Manufacturer`, `MPN` and `Datasheet` into
+the selected schematic and matching placed PCB footprint; those fields mirror the
+reviewed catalog, not a new source of identity. Schematic DNP and BOM exclusions
+still own population. An apply can
+copy the reviewed catalog DigiKey SKU into `docs/purchasing.json` while preserving
+board and spare quantities. It retires a replaced part declaration and saved SKU
+only after the last schematic use disappears; unrelated declarations and overrides
+remain. Independent electrical expectations are never rewritten by selection:
+review requirement changes before updating the contract and rerunning native checks.
+Supplier availability and price remain separate dated observations. Regenerate the working BOM after selection, KiCad PCB synchronization
+and verification; retain the exact approved outputs at release.

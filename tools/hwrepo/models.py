@@ -1,6 +1,7 @@
 """Typed, strict records for repository inputs, policy outputs and generated views."""
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 from datetime import date
 from enum import Enum
@@ -11,6 +12,7 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    RootModel,
     StringConstraints,
     field_validator,
     model_validator,
@@ -62,6 +64,25 @@ class PartStatus(str, Enum):
     APPROVED = "approved"
 
 
+class PartCadBinding(StrictModel):
+    """Reviewed symbol, value, package and source model for one catalog part."""
+
+    symbol_id: NonEmptyText
+    value: NonEmptyText
+    footprint: Annotated[str, StringConstraints(pattern=r"^[^:\r\n]+:[^:\r\n]+$")]
+    model: RepositoryPath
+    digikey_sku: Annotated[str, StringConstraints(min_length=1)] | None = None
+
+    @model_validator(mode="after")
+    def exact_sku(self) -> PartCadBinding:
+        if self.digikey_sku is not None and (
+            self.digikey_sku != self.digikey_sku.strip()
+            or any(ord(char) < 32 or ord(char) == 127 for char in self.digikey_sku)
+        ):
+            raise ValueError("DigiKey SKU must be exact text without padding or control characters")
+        return self
+
+
 class PartRecord(StrictModel):
     id: Identifier
     revision: Identifier
@@ -74,6 +95,7 @@ class PartRecord(StrictModel):
     lifecycle: NonEmptyText
     status: PartStatus
     approved_alternates: tuple[Identifier, ...] = ()
+    cad: PartCadBinding | None = None
 
 
 class PartsCatalog(StrictModel):
@@ -1729,6 +1751,42 @@ class PurchasingPlan(PurchasingSchemaModel):
     build_authorized: Literal[False] = False
 
 
+class DigiKeyHandoffQuantity(StrictModel):
+    quantity: PositiveCount
+
+
+class DigiKeyHandoffPart(StrictModel):
+    requested_part_number: NonEmptyText = Field(alias="requestedPartNumber")
+    quantities: Annotated[tuple[DigiKeyHandoffQuantity, ...], Field(min_length=1)]
+    customer_reference: str = Field(alias="customerReference")
+    notes: str
+
+
+class DigiKeyHandoffPayload(RootModel[tuple[DigiKeyHandoffPart, ...]]):
+    """DigiKey's third-party API accepts a root array of order lines."""
+
+    model_config = ConfigDict(strict=True, frozen=True)
+
+
+class DigiKeyHandoffUrl(RootModel[str]):
+    """DigiKey returns a JSON string, validated as an allowed URL by the adapter."""
+
+    model_config = ConfigDict(strict=True, frozen=True)
+
+
+class DigiKeyHandoffReply(StrictModel):
+    single_use_url: Annotated[
+        str, StringConstraints(pattern=r"^https://www\.digikey\.com/short/[a-z0-9]{7,8}$"),
+    ]
+
+
+class DigiKeyHandoffResult(StrictModel):
+    status: Literal["READY", "BLOCKED", "ERROR"]
+    single_use_url: str | None = None
+    issues: tuple[NonEmptyText, ...] = ()
+    purchase_authorized: Literal[False] = False
+
+
 class PurchasingReport(PurchasingSchemaModel):
     """Source-bound local parts assistant receipt."""
 
@@ -2072,3 +2130,193 @@ class ElectricalInputInventory(StrictModel):
     source_sha256: Mapping[RepositoryPath, Digest]
     model_sha256: Mapping[RepositoryPath, Digest]
     next_actions: tuple[NonEmptyText, ...]
+
+
+class PartCadComponent(StrictModel):
+    reference: Identifier
+    symbol_id: str
+    value: str
+    footprint: str
+    part_id: str | None = None
+    source_path: RepositoryPath
+    uuid: NonEmptyText
+    dnp: bool = False
+    exclude_from_bom: bool = False
+
+
+class PartSourceEdit(StrictModel):
+    path: RepositoryPath
+    before: str | None
+    after: str
+
+
+class PartCadChanges(StrictModel):
+    edits: tuple[PartSourceEdit, ...] = ()
+    pending_references: tuple[Identifier, ...] = ()
+    issues: tuple[NonEmptyText, ...] = ()
+
+
+class PartSelectionAssignment(StrictModel):
+    reference: Identifier
+    part_id: Identifier
+
+
+class PartSelectionMap(PurchasingSchemaModel):
+    project_id: Identifier
+    preconditions: Mapping[RepositoryPath, Digest | None]
+    assignments: tuple[PartSelectionAssignment, ...] = ()
+    locked: bool = False
+    after_hashes: Mapping[RepositoryPath, Digest] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def unique_assignments(self) -> PartSelectionMap:
+        references = [item.reference for item in self.assignments]
+        if len(references) != len(set(references)):
+            raise ValueError("Part selection repeats a component reference")
+        return self
+
+
+class PartPickerItem(StrictModel):
+    component: PartCadComponent
+    choice_ids: tuple[Identifier, ...] = ()
+    issues: tuple[NonEmptyText, ...] = ()
+
+
+class PartPickerReport(PurchasingSchemaModel):
+    lane: Literal["PART_PICKER"] = "PART_PICKER"
+    status: Literal["READY", "NEEDS_CATALOG", "BLOCKED"]
+    project_id: Identifier
+    items: tuple[PartPickerItem, ...] = ()
+    choices: tuple[PartRecord, ...] = ()
+    selection_template: PartSelectionMap | None = None
+    issues: tuple[NonEmptyText, ...] = ()
+    receipt_dir: str
+    evidence: ContractCoachReport | None = None
+    purchase_authorized: Literal[False] = False
+    build_authorized: Literal[False] = False
+
+
+class PartSelectionReport(PurchasingSchemaModel):
+    lane: Literal["PART_SELECTION"] = "PART_SELECTION"
+    status: Literal["PLAN", "APPLIED", "APPLIED_NEEDS_PCB_UPDATE", "BLOCKED"]
+    project_id: Identifier
+    edits: tuple[PartSourceEdit, ...] = ()
+    pending_references: tuple[Identifier, ...] = ()
+    locked_map: str | None = None
+    issues: tuple[NonEmptyText, ...] = ()
+    next_commands: tuple[NonEmptyText, ...] = ()
+    receipt_dir: str
+    purchase_authorized: Literal[False] = False
+    build_authorized: Literal[False] = False
+
+
+class AutoCadItem(StrictModel):
+    reference: NonEmptyText
+    footprint: str
+    status: Literal["READY", "ALREADY_PRESENT", "NEEDS_REVIEW"]
+    detail: NonEmptyText
+
+
+class AutoCadPlan(StrictModel):
+    schema_version: Literal["1"] = "1"
+    project_id: Identifier
+    preconditions: dict[RepositoryPath, Digest | None]
+    after_hashes: dict[RepositoryPath, Digest]
+
+
+class AutoCadAsset(StrictModel):
+    source: NonEmptyText
+    sha256: Digest
+    destination: RepositoryPath
+
+
+class AutoCadProvenance(StrictModel):
+    schema_version: Literal["1"] = "1"
+    footprint: NonEmptyText
+    source: NonEmptyText
+    source_sha256: Digest
+    models: tuple[AutoCadAsset, ...]
+    alignment_basis: Literal["matching_pad_geometry_and_authored_model_transforms"] = (
+        "matching_pad_geometry_and_authored_model_transforms"
+    )
+    physical_fit_verified: Literal[False] = False
+
+
+class AutoCadReport(StrictModel):
+    schema_version: Literal["1"] = "1"
+    project_id: Identifier
+    status: Literal["PLAN", "APPLIED", "NEEDS_REVIEW", "BLOCKED"]
+    items: tuple[AutoCadItem, ...] = ()
+    files: tuple[RepositoryPath, ...] = ()
+    issues: tuple[str, ...] = ()
+    plan_path: str | None = None
+    receipt_directory: str
+    diff: str = ""
+    build_authorized: Literal[False] = False
+
+
+class SupplierHandoffPlan(StrictModel):
+    """Reviewed, source-bound BOM payload for one explicit supplier submission."""
+
+    schema_version: Literal["1"] = "1"
+    supplier: Literal["digikey"] = "digikey"
+    project_id: Identifier
+    parts_report: RepositoryPath
+    report_sha256: Digest
+    payload: DigiKeyHandoffPayload
+    payload_sha256: Digest
+    source_hashes: Mapping[RepositoryPath, Digest]
+    preconditions: Mapping[RepositoryPath, Digest | None]
+    purchase_authorized: Literal[False] = False
+    build_authorized: Literal[False] = False
+
+
+class SupplierHandoffReport(StrictModel):
+    schema_version: Literal["1"] = "1"
+    status: Literal["PREPARED", "SENT", "UNCERTAIN", "BLOCKED"]
+    project_id: Identifier
+    supplier: Literal["digikey"] = "digikey"
+    handoff: RepositoryPath
+    handoff_sha256: Digest
+    payload_sha256: Digest
+    attempt_receipt: RepositoryPath | None = None
+    single_use_url: NonEmptyText | None = None
+    issues: tuple[NonEmptyText, ...] = ()
+    purchase_authorized: Literal[False] = False
+    build_authorized: Literal[False] = False
+
+
+ForeignFormat = Literal["auto", "pads", "altium", "eagle", "cadstar", "fabmaster", "pcad", "solidworks"]
+
+
+class ForeignPcbReport(StrictModel):
+    """Conversion evidence is intentionally weaker than an accepted native design."""
+
+    schema_version: Literal["1"] = "1"
+    status: Literal["PASS", "FAIL"]
+    review_required: Literal[True] = True
+    build_authorized: Literal[False] = False
+    project_id: str
+    toolchain_id: str
+    input_format: str
+    source_file: str
+    source_sha256: Digest | None = None
+    run_directory: str
+    runner: Literal["none", "local", "container"] = "none"
+    commands: Mapping[Identifier, CommandEvidence] = Field(default_factory=dict)
+    native_summary: KiCadForeignImportSummary | None = None
+    board_sha256: Digest | None = None
+    import_preview: ProjectImportReport | None = None
+    next_command: str | None = None
+    next_actions: tuple[str, ...] = ()
+    error: str | None = None
+
+    @model_validator(mode="after")
+    def successful_selection_is_valid(self) -> ForeignPcbReport:
+        if self.status == "PASS" and (
+            re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", self.project_id) is None
+            or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", self.toolchain_id) is None
+            or self.input_format not in ForeignFormat.__args__
+        ):
+            raise ValueError("Successful conversion needs valid project, toolchain and format IDs")
+        return self

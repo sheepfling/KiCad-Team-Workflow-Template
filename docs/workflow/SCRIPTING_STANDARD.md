@@ -26,8 +26,9 @@ use a typed Python name plus an explicit serialization alias.
 
 1. Define serialized contracts in tools/hwrepo/models.py, including schema version,
    closed enums, identifiers, units and nullability.
-2. Decode with read_model(path, Model), never json.loads() in application code. It
-   rejects duplicate keys and non-finite values before Pydantic validates shape.
+2. Decode files with read_model(path, Model), or network response text with
+   parse_model(document, Model), never json.loads() in application code. Both
+   reject duplicate keys and non-finite values before Pydantic validates shape.
 3. Serialize only validated models via model_dump_json(by_alias=True) or typed
    output helpers. Generated JSON schemas come from the Pydantic model, not a
    second handwritten schema evaluator.

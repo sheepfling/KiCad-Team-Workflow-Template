@@ -69,17 +69,16 @@ and commit reviewed source through normal Git before export preparation.
   For a named KiCad component population, pass `--assembly-variant <name>`;
   the name must already be declared in the project's `.kicad_pro`.
 
-- For component selection or purchasing preparation, run
-  `python -B -m tools.parts --project <id> --format json` to capture exact native
-  evidence and produce a parts checklist. Use `--native-summary` for existing
-  source-bound evidence, or `--init-preferences <path>` to create editable defaults
-  without capture. Project `docs/purchasing.json` records board/spare preferences
-  and explicitly reviewed DigiKey SKUs. Repair catalog identities, declared
-  `component_identity.part_ids`, KiCad `PART_ID` fields and footprints at their
-  sources. Do not invent purchasing identities or approve training placeholders.
-  `READY_FOR_ORDER_REVIEW` means metadata is complete, not live stock, price,
-  electrical, physical or release approval. Keep receipts under ignored `build/`
-  and follow [parts to order](docs/workflow/PARTS_TO_ORDER.md).
+- For component selection, run `python -B -m tools.parts --project <id> --picker`.
+  Choose only reviewed catalog CAD bindings; `--selection <download>` previews
+  diffs and writes a locked selection for `--selection <locked> --apply`.
+  Missing/different PCB footprints require KiCad F8 and then `--sync-models`;
+  repair existing different model assignments in KiCad. The plain `--project`
+  command reads source to create a purchasing checklist and conditional DigiKey
+  CSV. Never invent part identities, equivalents or catalog approvals. Keep
+  receipts under ignored `build/`, recheck native source after applying, and follow
+  [parts to order](docs/workflow/PARTS_TO_ORDER.md). Purchasing metadata readiness
+  does not establish live stock, price, electrical or physical approval.
 
 - For grounding, power and high-frequency requirements, follow the
   [electrical analysis workflow](docs/workflow/ELECTRICAL_ANALYSIS.md). Author independent

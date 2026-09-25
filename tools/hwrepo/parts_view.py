@@ -80,8 +80,8 @@ def render_html(report: PurchasingReport) -> str:
 <div class="card"><span class="label">Details to resolve</span><span class="number">{len(plan.findings)}</span></div>
 </div><section><h2>Your path to an order</h2><div class="steps">
 <div class="step"><small>01 / SELECT</small><h3>Give every fitted part an identity</h3>
-<p>Choose a reviewed catalog part. In KiCad, use Edit Symbol Fields to set its PART_ID,
-and Assign Footprints to select its physical package.</p></div>
+<p>Open the parts picker to choose a reviewed part, footprint, 3D model and supplier number together.</p>
+<p><code>python -B -m tools.parts --project {title} --picker</code></p></div>
 <div class="step"><small>02 / COUNT</small><h3>Save build preferences</h3>
 <p>This plan uses {prefs.boards} board(s), with {prefs.spare_percent}% extras or at least
 {prefs.spare_minimum} spare(s) per part, whichever is larger. Percentage spares round up.</p></div>
