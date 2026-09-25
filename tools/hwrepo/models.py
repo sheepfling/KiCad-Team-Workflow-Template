@@ -1713,3 +1713,58 @@ class PurchasingReport(PurchasingSchemaModel):
     receipt_dir: str
     artifacts: tuple[str, ...] = ()
     evidence: ContractCoachReport | None = None
+
+
+class McpPurchasingPreferencesResult(StrictModel):
+    schema_version: Literal["1"] = "1"
+    build_authorized: Literal[False] = False
+    purchase_authorized: Literal[False] = False
+    status: Literal["CREATED", "UPDATED"]
+    project_id: Identifier
+    path: RepositoryPath
+    before_sha256: Digest | None = None
+    after_sha256: Digest
+    readback_sha256: Digest
+    preferences: PurchasingPreferences
+
+
+SurfaceAlignment = Literal["aligned", "partial", "cli_only", "mcp_only"]
+
+
+class ToolCliSnapshot(StrictModel):
+    module: NonEmptyText
+    commands: tuple[NonEmptyText, ...] = ()
+    options: tuple[NonEmptyText, ...] = ()
+
+
+class ToolMcpSnapshot(StrictModel):
+    name: Identifier
+    parameters: tuple[Identifier, ...] = ()
+
+
+class ToolSurfaceMapping(StrictModel):
+    id: Identifier
+    cli: tuple[NonEmptyText, ...] = ()
+    mcp: tuple[Identifier, ...] = ()
+    alignment: SurfaceAlignment
+    reason: NonEmptyText
+    gaps: tuple[NonEmptyText, ...] = ()
+
+
+class ToolSurfacesCatalog(StrictModel):
+    schema_version: Literal["1"] = "1"
+    cli: tuple[ToolCliSnapshot, ...]
+    mcp: tuple[ToolMcpSnapshot, ...]
+    capabilities: tuple[ToolSurfaceMapping, ...]
+
+
+class ToolSurfaceReport(StrictModel):
+    schema_version: Literal["1"] = "1"
+    build_authorized: Literal[False] = False
+    status: Literal["PASS", "FAIL"]
+    mcp_verification: Literal["LIVE", "STATIC_ONLY", "UNAVAILABLE"]
+    cli: tuple[ToolCliSnapshot, ...]
+    mcp: tuple[ToolMcpSnapshot, ...]
+    capabilities: tuple[ToolSurfaceMapping, ...]
+    issues: tuple[PolicyIssue, ...] = ()
+    notes: tuple[NonEmptyText, ...] = ()

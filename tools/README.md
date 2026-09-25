@@ -59,6 +59,7 @@ package; reviewed source commits still use normal Git.
 | Module | Responsibility |
 | --- | --- |
 | `verify` | One-board portable/native run, exact runner choice, and a fresh logged repair receipt |
+| `surface`, `hwrepo/surface.py` | Compare CLI/MCP workflow coverage and fail on undocumented interface drift; see [tool surfaces](../docs/workflow/TOOL_SURFACES.md) |
 | `mcp` | Optional local stdio workflow adapter: fixed checkout, diagnosis, reviewed edits, checks, exports and engineering review packaging with separate startup capabilities |
 | `parts`, `hwrepo/parts_workflow.py`, `hwrepo/purchasing.py` | Source-bound parts checklist, saved purchasing preferences, board/spare quantities and conditional DigiKey upload files |
 | `ci`, `ci_matrix`, `check_all` | Coordinate the portable gate, registry-driven matrix and native lanes |

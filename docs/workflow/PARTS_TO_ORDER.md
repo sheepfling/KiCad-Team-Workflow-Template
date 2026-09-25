@@ -193,3 +193,40 @@ returns exit code `0` when ready for order review and `1` when parts or evidence
 need attention; invalid command arguments return `2`. A purchasing checklist does
 not replace `tools.verify`, ERC/DRC review or the full shared gate after catalog or
 tooling changes.
+
+## Use the MCP workflow
+
+The optional [local MCP adapter](MCP.md) exposes the same purchasing service.
+Discover the selected board with `list_projects` and read this guide through
+`read_document` using `parts-to-order`, or `kicad://docs/parts-to-order`.
+`inspect_tool_surfaces` shows which CLI operations have MCP tools, their capability
+gates and explicit reasons for CLI-only operations; its catalog is also available
+through `python -B -m tools.surface`.
+
+Call `prepare_parts` with `project_id` and a new `view_id`. Enable
+`--allow-exports` and supply a checkout-relative `native_summary` to reuse saved
+source-bound evidence without native execution. Keep `runner` at `auto` when
+reusing a summary. If no summary is supplied, also enable `--allow-checks` for fresh
+capture; choose `auto`, `local` or `container`. MCP always uses the fixed approved
+runner selection and stores the new receipt at `build/parts/<view_id>`.
+
+Optional `boards`, `spare_percent` and `spare_minimum` override the current run.
+The default preferences file remains the selected project's
+`docs/purchasing.json`. An alternate `preferences` path must be checkout-relative
+and under that project's `docs/` as JSON, or a managed `build/` artifact. Use
+`read_artifact` for the report and CSV files; open the generated `index.html` in a
+browser to use its search and review links.
+
+Enable `--allow-edits` for `save_parts_preferences`. Pass the selected `project_id`
+and a typed `preferences` object in the format above. The tool writes only the
+fixed `docs/purchasing.json` path in that island. Omit `expected_sha256` for its
+first creation. For an update, read `docs/purchasing.json` with `read_project_file`,
+review the saved values and pass the returned digest as `expected_sha256`.
+Stale updates fail; the response includes the saved typed preferences and verified
+readback digest. The ordinary preview/apply text-edit tools enforce the same
+preferences schema.
+
+A completed purchasing checklist keeps `purchase_authorized: false` and
+`build_authorized: false`. It retains the native validation status separately, so
+purchasing metadata may be ready while electrical validation still fails. The MCP
+tools prepare local review files; they do not contact a supplier or place an order.

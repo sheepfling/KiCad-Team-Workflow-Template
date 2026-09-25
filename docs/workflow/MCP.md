@@ -62,11 +62,11 @@ operation; enabling project creation does not enable edits to an existing design
 
 | Startup capability | Tools enabled | Files or execution affected |
 | --- | --- | --- |
-| Default | Discovery, guidance, source/artifact reads, import scanning and preview, edit preview, saved contract inspection, model-population preview, rescue and import diagnosis, release/package verification | Reads bounded repository data. Model-population preview, rescue and import diagnosis create ignored diagnostic receipts. Package verification temporarily restores the archive. |
+| Default | Discovery, tool-surface inventory, guidance, source/artifact reads, import scanning and preview, edit preview, saved contract inspection, model-population preview, rescue and import diagnosis, release/package verification | Reads bounded repository data. Model-population preview, rescue and import diagnosis create ignored diagnostic receipts. Package verification temporarily restores the archive. |
 | `--allow-writes` | `new_project`, `import_project` | Creates a new project island; refuses an existing destination. |
-| `--allow-edits` | `apply_project_edit`, `apply_model_population` | Applies a reviewed text replacement or explicit model-assignment plan after source hash checks. |
+| `--allow-edits` | `apply_project_edit`, `apply_model_population`, `save_parts_preferences` | Applies a reviewed source change or saves typed purchasing preferences with stale-write protection. |
 | `--allow-checks` | `check_project`, `diagnose_project`, `capture_contract`, `check_scope` | Executes repository checks and creates ignored receipts. Native work also runs KiCad or Docker. |
-| `--allow-exports` | `generate_views`, `package_release`, `restore_package` | Creates generated review views and new package/restore outputs in the checkout's ignored build area. |
+| `--allow-exports` | `generate_views`, `prepare_parts`, `package_release`, `restore_package` | Creates generated review views, purchasing receipts from saved evidence and new package/restore outputs in the checkout's ignored build area. Fresh parts capture also requires checks. |
 | Both `--allow-checks` and `--allow-exports` | `export_project`, `export_3d`, `prepare_review` | Executes checks/native tooling and creates fresh exports, 3D views or an engineering review candidate. |
 
 Checks execute trusted repository code, including project and product tests.
@@ -90,6 +90,11 @@ the team's release process for approvals and retained storage.
    native readiness for the selected board before native work.
 4. Read `first-board`, `diagnostics` or `import-workflow` through `read_document`.
 
+Use `inspect_tool_surfaces` to compare the shared CLI and MCP operation catalog;
+`python -B -m tools.surface` exposes the same inventory from a terminal. The catalog
+records intentional CLI-only operations and helps catch capability drift as tools
+are added. Read `tool-surfaces` for the parity-check workflow.
+
 Discovery's `INPUTS_PRESENT` state describes file presence. It does not establish
 that a board passes checks. Doctor describes prerequisites, and an import preview
 describes eligible source files; neither establishes electrical correctness.
@@ -97,6 +102,7 @@ describes eligible source files; neither establishes electrical correctness.
 | Tool | Arguments and use |
 | --- | --- |
 | `list_projects` | No arguments. List project, product, tag and toolchain inventory. |
+| `inspect_tool_surfaces` | No arguments. Inspect the CLI/MCP operation catalog, capability gates and recorded reasons for CLI-only operations. |
 | `get_project` | `project_id`. Return the selected inventory row, manifest and test contract. |
 | `doctor` | Optional `project_id`, `toolchain_id` and `runner`; `native` defaults to `false`. Inspect setup and native runner readiness. |
 | `read_document` | `name`. Read a named workflow guide. |
@@ -110,7 +116,7 @@ Workflow documents are also resources at `kicad://docs/{name}`, for example
 `kicad://docs/first-board`. Available names are `start-here`, `first-board`,
 `diagnostics`, `import-workflow`, `contributor-guide`, `checks-and-ci`, `mcp`,
 `bom-policy`, `release-readiness`, `release-storage`, `project-kinds`, `libraries`,
-`authority-model`, `assurance-profiles` and `three-d-workflow`.
+`authority-model`, `assurance-profiles`, `three-d-workflow`, `parts-to-order` and `tool-surfaces`.
 
 ## Scan, preview and import existing designs
 
@@ -272,6 +278,55 @@ bodies can leave an incomplete assembly view even after a successful export.
 Inspection and export preserve authored source. Only the explicitly enabled
 `apply_model_population` step attaches the reviewed model references.
 
+## Prepare a parts list and remember purchasing preferences
+
+| Tool | Arguments and use |
+| --- | --- |
+| `prepare_parts` | `project_id`, `view_id`; optional `native_summary`, `preferences`, `boards`, `spare_percent`, `spare_minimum` and `runner`. Prepare a local purchasing checklist and order-review CSVs with `--allow-exports`. Fresh native capture also requires `--allow-checks`. |
+| `save_parts_preferences` | `project_id`, typed `preferences`; optional `expected_sha256`. Save the selected island's fixed `docs/purchasing.json` with `--allow-edits`. |
+
+Start with [parts to order](PARTS_TO_ORDER.md). Supply an existing source-bound
+`native_summary` from a native receipt to prepare without executing KiCad; keep
+`runner` at its default `auto` in this mode. Without a summary, enable both checks
+and exports so the tool can capture a fresh netlist using `auto`, `local` or
+`container`. A tool call cannot select an executable or arbitrary output directory.
+
+Use a fresh `view_id`. Outputs stay under `build/parts/<view_id>`: `index.html`,
+`report.json`, `report.txt`, `bom.csv` and, only when metadata is complete,
+`digikey.csv`. Read the JSON and CSV through artifact tools and open the HTML file
+in a browser for the searchable checklist. Summary and alternate preference paths
+are checkout-relative. Preferences may come from the selected island's `docs/`
+JSON files or managed `build/` artifacts; another project's authored preferences and
+linked paths are rejected. With no alternate, the service reads the selected project's
+`docs/purchasing.json` if present. Quantity arguments override only that run.
+
+For example, supply this typed `preferences` argument:
+
+```json
+{
+  "schema_version": "1",
+  "boards": 10,
+  "spare_percent": 10,
+  "spare_minimum": 3,
+  "digikey_skus": {}
+}
+```
+
+Omit `expected_sha256` only when creating a new preferences file. Before updating
+an existing file, use `read_project_file` with `path: "docs/purchasing.json"`,
+review the current preferences and supply its SHA-256. The result returns the
+saved preferences and matching write/readback hashes. The text edit tools also
+validate the purchasing schema. Reviewed DigiKey SKUs are explicit choices;
+this workflow never selects substitutes, queries live availability or places orders.
+
+`READY_FOR_ORDER_REVIEW` establishes purchasing metadata completeness. Its
+`purchase_authorized` and `build_authorized` remain false, and an independent native
+validation failure stays visible as `native_status: FAIL`. Repair `NEEDS_PARTS`
+findings at the catalog, declared component IDs and KiCad fields; `BLOCKED` evidence
+requires fresh capture or an input repair. Review supplier matches, packaging,
+stock and price separately before uploading an order file. See the parts guide
+for board-count/spare calculations and the DigiKey upload settings.
+
 ## Export and prepare an engineering review
 
 Commit the reviewed source through normal Git and leave the checkout clean before
@@ -342,8 +397,9 @@ and authorize only the needed external import directory.
    normal Git. For PCB mechanical review, call `inspect_3d_models`, complete reviewed
    model assignments through preview/apply or KiCad, rerun checks after source changes,
    and use `export_3d` with a fresh `view_id`; inspect its actual
-   geometry and model-coverage findings. Keep generated receipts and exports ignored;
-   MCP does not create this source commit.
+   geometry and model-coverage findings. Use `prepare_parts` for purchasing metadata
+   review, retaining electrical and sourcing findings as separate decisions. Keep
+   generated receipts and exports ignored; MCP does not create this source commit.
 7. Call `export_project` with a fresh `export_id`. Read the retained native command
    results and inspect the actual exports. Call `diagnose_project` again with the
    exported native assembly BOM as `bom` and the still-current project summary from

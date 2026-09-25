@@ -32,12 +32,12 @@ DEFAULT_TOOLS = {
     "list_projects", "get_project", "doctor", "read_document", "preview_import",
     "scan_imports", "diagnose_import", "rescue_project", "list_artifacts", "read_artifact",
     "read_project_file", "preview_project_edit", "inspect_contract", "check_release", "verify_package",
-    "inspect_3d_models", "preview_model_population",
+    "inspect_3d_models", "preview_model_population", "inspect_tool_surfaces",
 }
 CHECK_TOOLS = {"check_project", "diagnose_project", "capture_contract", "check_scope"}
 WRITE_TOOLS = {"new_project", "import_project"}
-EXPORT_TOOLS = {"package_release", "restore_package", "generate_views"}
-EDIT_TOOLS = {"apply_project_edit", "apply_model_population"}
+EXPORT_TOOLS = {"package_release", "restore_package", "generate_views", "prepare_parts"}
+EDIT_TOOLS = {"apply_project_edit", "apply_model_population", "save_parts_preferences"}
 NATIVE_EXPORT_TOOLS = {"export_project", "prepare_review", "export_3d"}
 DOCUMENTS = {
     "start-here": "START_HERE.md",
@@ -55,6 +55,8 @@ DOCUMENTS = {
     "authority-model": "AUTHORITY_MODEL.md",
     "assurance-profiles": "ASSURANCE_PROFILES.md",
     "three-d-workflow": "THREE_D_WORKFLOW.md",
+    "parts-to-order": "PARTS_TO_ORDER.md",
+    "tool-surfaces": "TOOL_SURFACES.md",
 }
 
 
@@ -396,6 +398,8 @@ class McpTests(unittest.IsolatedAsyncioTestCase):
             "package_release": {"manifest": "build/manifest.json", "package_id": "try-one"},
             "restore_package": {"archive": "build/review.zip", "restore_id": "try-one"},
             "generate_views": {"view_id": "try-one"},
+            "prepare_parts": {"project_id": "controller", "view_id": "try-one"},
+            "save_parts_preferences": {"project_id": "controller", "preferences": {}},
             "apply_model_population": {"project_id": "controller", "plan": "build/plan.json"},
         }
         before = snapshot(self.root)
@@ -410,8 +414,9 @@ class McpTests(unittest.IsolatedAsyncioTestCase):
             self.root, allow_checks=True, allow_writes=True, allow_edits=True, allow_exports=True,
         ), mode="legacy") as client:
             tools = {tool.name: tool for tool in (await client.list_tools()).tools}
-            self.assertEqual(len(tools), 31)
-            self.assertEqual(len((await client.list_resources()).resources), 15)
+            self.assertEqual(set(tools), DEFAULT_TOOLS | CHECK_TOOLS | WRITE_TOOLS
+                             | EXPORT_TOOLS | EDIT_TOOLS | NATIVE_EXPORT_TOOLS)
+            self.assertEqual(len((await client.list_resources()).resources), len(DOCUMENTS))
             for name in CHECK_TOOLS | NATIVE_EXPORT_TOOLS | EDIT_TOOLS:
                 self.assertFalse(tools[name].annotations.read_only_hint, name)
             for name in ("read_artifact", "preview_project_edit", "scan_imports", "inspect_contract", "inspect_3d_models"):

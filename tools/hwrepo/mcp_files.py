@@ -20,6 +20,7 @@ from .models import (
     McpFileContent,
     ProjectManifest,
     ProjectTestContract,
+    PurchasingPreferences,
     ToolchainsCatalog,
 )
 
@@ -203,13 +204,13 @@ def project_file_path(root: Path, project_id: str, value: str) -> Path:
     parts = path.relative_to(island).parts
     if any(part.startswith(".") or part.casefold() in FORBIDDEN_SOURCE_PARTS for part in parts):
         raise ValueError("Local state, build outputs, releases and hidden paths are not editable source")
-    allowed = (value in {"project.json", "tests/contract.json", "README.md"}
+    allowed = (value in {"project.json", "tests/contract.json", "README.md", "docs/purchasing.json"}
                or (parts[0] == "docs" and path.suffix.lower() == ".md")
                or path.suffix.lower() in CAD_TEXT_SUFFIXES
                or path.name in {"fp-lib-table", "sym-lib-table"})
     if not allowed:
         raise ValueError("Only authored KiCad text, project.json, tests/contract.json and "
-                         "project Markdown documentation are available")
+                         "docs/purchasing.json and project Markdown documentation are available")
     if not path.is_file() or path.stat().st_mode & 0o111:
         raise ValueError("Select an existing non-executable source file")
     return path
@@ -251,6 +252,9 @@ def _validate_edit(root: Path, project_id: str, path: Path,
         manifest = read_model(repo_path(island, "project.json"), ProjectManifest)
         if contract.validation.kind is not manifest.kind:
             raise ValueError("Test contract kind must match the project")
+        return "JSON_MODEL"
+    if relative == "docs/purchasing.json":
+        parse_model_text(text, PurchasingPreferences)
         return "JSON_MODEL"
     if path.suffix.lower() == ".kicad_pro":
         try:

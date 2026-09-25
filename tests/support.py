@@ -56,5 +56,9 @@ def reference_root() -> Path:
         SOURCE_ROOT / "catalog/documentation-policy.json",
         destination / "catalog/documentation-policy.json",
     )
+    shutil.copy2(
+        SOURCE_ROOT / "catalog/tool-surfaces.json",
+        destination / "catalog/tool-surfaces.json",
+    )
     initialize_git(destination)
     return destination

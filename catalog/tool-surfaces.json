@@ -1,0 +1,1023 @@
+{
+  "schema_version": "1",
+  "cli": [
+    {
+      "module": "tools.check_all",
+      "commands": [],
+      "options": [
+        "--all",
+        "--cli",
+        "--exclude-tag",
+        "--output",
+        "--product",
+        "--project",
+        "--root",
+        "--tag"
+      ]
+    },
+    {
+      "module": "tools.check_toolchain",
+      "commands": [],
+      "options": [
+        "--cli",
+        "--root",
+        "--toolchain"
+      ]
+    },
+    {
+      "module": "tools.ci",
+      "commands": [],
+      "options": [
+        "--cli",
+        "--exclude-tag",
+        "--fault-probes",
+        "--format",
+        "--jobs",
+        "--kicad",
+        "--manifest",
+        "--matrix",
+        "--metrics",
+        "--output",
+        "--product",
+        "--project",
+        "--release",
+        "--root",
+        "--tag"
+      ]
+    },
+    {
+      "module": "tools.ci_matrix",
+      "commands": [],
+      "options": [
+        "--exclude-tag",
+        "--product",
+        "--project",
+        "--root",
+        "--tag"
+      ]
+    },
+    {
+      "module": "tools.contract_coach",
+      "commands": [],
+      "options": [
+        "--capture",
+        "--cli",
+        "--detail",
+        "--format",
+        "--native-summary",
+        "--output",
+        "--project-id",
+        "--root",
+        "--runner"
+      ]
+    },
+    {
+      "module": "tools.docs_policy",
+      "commands": [],
+      "options": [
+        "--root"
+      ]
+    },
+    {
+      "module": "tools.fault_probe",
+      "commands": [],
+      "options": [
+        "--output"
+      ]
+    },
+    {
+      "module": "tools.governance_audit",
+      "commands": [],
+      "options": [
+        "--format",
+        "--record",
+        "--repo",
+        "--root"
+      ]
+    },
+    {
+      "module": "tools.hardware",
+      "commands": [
+        "check",
+        "generate",
+        "snapshot",
+        "verify-snapshot"
+      ],
+      "options": [
+        "--format",
+        "--output",
+        "--release",
+        "--root"
+      ]
+    },
+    {
+      "module": "tools.impact",
+      "commands": [],
+      "options": [
+        "--base",
+        "--exclude-tag",
+        "--format",
+        "--full",
+        "--head",
+        "--path",
+        "--root",
+        "--select-product",
+        "--select-project",
+        "--select-tag"
+      ]
+    },
+    {
+      "module": "tools.lint_registry",
+      "commands": [],
+      "options": [
+        "--all",
+        "--exclude-tag",
+        "--output",
+        "--product",
+        "--project",
+        "--root",
+        "--tag"
+      ]
+    },
+    {
+      "module": "tools.mcp",
+      "commands": [],
+      "options": [
+        "--allow-checks",
+        "--allow-edits",
+        "--allow-exports",
+        "--allow-writes",
+        "--import-root",
+        "--root"
+      ]
+    },
+    {
+      "module": "tools.metrics",
+      "commands": [],
+      "options": [
+        "--format",
+        "--manifest",
+        "--root"
+      ]
+    },
+    {
+      "module": "tools.native_deps",
+      "commands": [],
+      "options": [
+        "--image",
+        "--output",
+        "--root"
+      ]
+    },
+    {
+      "module": "tools.parts",
+      "commands": [],
+      "options": [
+        "--boards",
+        "--cli",
+        "--format",
+        "--init-preferences",
+        "--native-summary",
+        "--output",
+        "--preferences",
+        "--project",
+        "--root",
+        "--runner",
+        "--spare-minimum",
+        "--spare-percent"
+      ]
+    },
+    {
+      "module": "tools.release",
+      "commands": [
+        "check",
+        "export",
+        "package",
+        "prepare",
+        "restore",
+        "verify"
+      ],
+      "options": [
+        "--archive",
+        "--cli",
+        "--destination",
+        "--format",
+        "--json",
+        "--manifest",
+        "--output",
+        "--portable",
+        "--project",
+        "--release-class",
+        "--release-id",
+        "--root",
+        "--variant"
+      ]
+    },
+    {
+      "module": "tools.sourcing",
+      "commands": [],
+      "options": [
+        "--format",
+        "--root",
+        "--snapshot"
+      ]
+    },
+    {
+      "module": "tools.surface",
+      "commands": [],
+      "options": [
+        "--format",
+        "--require-live-mcp",
+        "--root"
+      ]
+    },
+    {
+      "module": "tools.template",
+      "commands": [
+        "adopt",
+        "bootstrap",
+        "diagnose",
+        "doctor",
+        "import-project",
+        "init",
+        "list",
+        "new-project",
+        "preflight",
+        "rescue",
+        "scan-imports",
+        "upgrade-plan"
+      ],
+      "options": [
+        "--bom",
+        "--cli",
+        "--destination",
+        "--detail",
+        "--dry-run",
+        "--format",
+        "--kind",
+        "--log-dir",
+        "--native",
+        "--native-report",
+        "--project-id",
+        "--root",
+        "--runner",
+        "--source",
+        "--source-dir",
+        "--target-version",
+        "--toolchain"
+      ]
+    },
+    {
+      "module": "tools.validate",
+      "commands": [],
+      "options": [
+        "--cli",
+        "--config",
+        "--output",
+        "--root"
+      ]
+    },
+    {
+      "module": "tools.verify",
+      "commands": [],
+      "options": [
+        "--cli",
+        "--depth",
+        "--detail",
+        "--format",
+        "--output",
+        "--project",
+        "--root",
+        "--runner"
+      ]
+    },
+    {
+      "module": "tools.visualize",
+      "commands": [],
+      "options": [
+        "--apply",
+        "--check-models",
+        "--cli",
+        "--detail",
+        "--format",
+        "--init-model-map",
+        "--map-models",
+        "--output",
+        "--project",
+        "--root",
+        "--runner"
+      ]
+    }
+  ],
+  "mcp": [
+    {
+      "name": "apply_model_population",
+      "parameters": [
+        "plan",
+        "project_id"
+      ]
+    },
+    {
+      "name": "apply_project_edit",
+      "parameters": [
+        "expected_sha256",
+        "new_text",
+        "old_text",
+        "path",
+        "project_id"
+      ]
+    },
+    {
+      "name": "capture_contract",
+      "parameters": [
+        "project_id",
+        "runner"
+      ]
+    },
+    {
+      "name": "check_project",
+      "parameters": [
+        "depth",
+        "project_id",
+        "runner"
+      ]
+    },
+    {
+      "name": "check_release",
+      "parameters": [
+        "manifest"
+      ]
+    },
+    {
+      "name": "check_scope",
+      "parameters": [
+        "exclude_tags",
+        "product_ids",
+        "project_ids",
+        "tags"
+      ]
+    },
+    {
+      "name": "diagnose_import",
+      "parameters": [
+        "project_id",
+        "source",
+        "toolchain_id"
+      ]
+    },
+    {
+      "name": "diagnose_project",
+      "parameters": [
+        "bom",
+        "native_report",
+        "project_id"
+      ]
+    },
+    {
+      "name": "doctor",
+      "parameters": [
+        "native",
+        "project_id",
+        "runner",
+        "toolchain_id"
+      ]
+    },
+    {
+      "name": "export_3d",
+      "parameters": [
+        "project_id",
+        "runner",
+        "view_id"
+      ]
+    },
+    {
+      "name": "export_project",
+      "parameters": [
+        "export_id",
+        "project_id",
+        "runner"
+      ]
+    },
+    {
+      "name": "generate_views",
+      "parameters": [
+        "exclude_tags",
+        "product_ids",
+        "project_ids",
+        "tags",
+        "view_id"
+      ]
+    },
+    {
+      "name": "get_project",
+      "parameters": [
+        "project_id"
+      ]
+    },
+    {
+      "name": "import_project",
+      "parameters": [
+        "project_id",
+        "source",
+        "toolchain_id"
+      ]
+    },
+    {
+      "name": "inspect_3d_models",
+      "parameters": [
+        "project_id"
+      ]
+    },
+    {
+      "name": "inspect_contract",
+      "parameters": [
+        "native_summary",
+        "project_id"
+      ]
+    },
+    {
+      "name": "inspect_tool_surfaces",
+      "parameters": []
+    },
+    {
+      "name": "list_artifacts",
+      "parameters": [
+        "directory",
+        "limit",
+        "offset"
+      ]
+    },
+    {
+      "name": "list_projects",
+      "parameters": []
+    },
+    {
+      "name": "new_project",
+      "parameters": [
+        "kind",
+        "project_id",
+        "toolchain_id"
+      ]
+    },
+    {
+      "name": "package_release",
+      "parameters": [
+        "manifest",
+        "package_id"
+      ]
+    },
+    {
+      "name": "prepare_parts",
+      "parameters": [
+        "boards",
+        "native_summary",
+        "preferences",
+        "project_id",
+        "runner",
+        "spare_minimum",
+        "spare_percent",
+        "view_id"
+      ]
+    },
+    {
+      "name": "prepare_review",
+      "parameters": [
+        "project_id",
+        "release_id",
+        "runner"
+      ]
+    },
+    {
+      "name": "preview_import",
+      "parameters": [
+        "project_id",
+        "source",
+        "toolchain_id"
+      ]
+    },
+    {
+      "name": "preview_model_population",
+      "parameters": [
+        "assignments",
+        "board_sha256",
+        "project_id"
+      ]
+    },
+    {
+      "name": "preview_project_edit",
+      "parameters": [
+        "expected_sha256",
+        "new_text",
+        "old_text",
+        "path",
+        "project_id"
+      ]
+    },
+    {
+      "name": "read_artifact",
+      "parameters": [
+        "limit",
+        "offset",
+        "path"
+      ]
+    },
+    {
+      "name": "read_document",
+      "parameters": [
+        "name"
+      ]
+    },
+    {
+      "name": "read_project_file",
+      "parameters": [
+        "limit",
+        "offset",
+        "path",
+        "project_id"
+      ]
+    },
+    {
+      "name": "rescue_project",
+      "parameters": [
+        "project_id"
+      ]
+    },
+    {
+      "name": "restore_package",
+      "parameters": [
+        "archive",
+        "restore_id"
+      ]
+    },
+    {
+      "name": "save_parts_preferences",
+      "parameters": [
+        "expected_sha256",
+        "preferences",
+        "project_id"
+      ]
+    },
+    {
+      "name": "scan_imports",
+      "parameters": [
+        "source_directory",
+        "toolchain_id"
+      ]
+    },
+    {
+      "name": "verify_package",
+      "parameters": [
+        "archive"
+      ]
+    }
+  ],
+  "capabilities": [
+    {
+      "id": "project-inventory",
+      "cli": [
+        "tools.template list"
+      ],
+      "mcp": [
+        "list_projects"
+      ],
+      "alignment": "aligned",
+      "reason": "Both return the same typed project, product, tag and toolchain inventory.",
+      "gaps": []
+    },
+    {
+      "id": "selected-project-record",
+      "cli": [],
+      "mcp": [
+        "get_project"
+      ],
+      "alignment": "mcp_only",
+      "reason": "MCP combines selected inventory, manifest and contract; CLI users read source files after inventory.",
+      "gaps": []
+    },
+    {
+      "id": "environment-doctor",
+      "cli": [
+        "tools.template doctor"
+      ],
+      "mcp": [
+        "doctor"
+      ],
+      "alignment": "partial",
+      "reason": "Both inspect project and native-runner readiness.",
+      "gaps": [
+        "CLI --cli selects an executable; MCP uses the startup environment and fixed command."
+      ]
+    },
+    {
+      "id": "project-scaffold",
+      "cli": [
+        "tools.template new-project"
+      ],
+      "mcp": [
+        "new_project"
+      ],
+      "alignment": "aligned",
+      "reason": "Both scaffold a fresh island from the selected kind and toolchain; MCP requires allow-writes.",
+      "gaps": []
+    },
+    {
+      "id": "import-design",
+      "cli": [
+        "tools.template import-project"
+      ],
+      "mcp": [
+        "preview_import",
+        "import_project"
+      ],
+      "alignment": "partial",
+      "reason": "Both preview or copy the same project island with source preservation.",
+      "gaps": [
+        "MCP source paths must stay within the fixed checkout or startup import roots; CLI accepts caller-selected sources.",
+        "CLI uses --dry-run; MCP separates preview from creation and gates creation with allow-writes."
+      ]
+    },
+    {
+      "id": "scan-designs",
+      "cli": [
+        "tools.template scan-imports"
+      ],
+      "mcp": [
+        "scan_imports"
+      ],
+      "alignment": "partial",
+      "reason": "Both inspect candidate designs and report exclusions without copying.",
+      "gaps": [
+        "MCP source directories are restricted to the checkout or configured import roots."
+      ]
+    },
+    {
+      "id": "diagnose-designs",
+      "cli": [
+        "tools.template diagnose"
+      ],
+      "mcp": [
+        "diagnose_import",
+        "diagnose_project"
+      ],
+      "alignment": "partial",
+      "reason": "Both retain diagnostic receipts for import or registered-project triage.",
+      "gaps": [
+        "CLI chooses --log-dir and --cli; MCP fixes receipt roots and executable selection.",
+        "MCP splits source import diagnosis from project diagnosis; project checks require allow-checks and artifact inputs stay inside allowed repository build paths."
+      ]
+    },
+    {
+      "id": "rescue-project",
+      "cli": [
+        "tools.template rescue"
+      ],
+      "mcp": [
+        "rescue_project"
+      ],
+      "alignment": "partial",
+      "reason": "Both return an explicitly unverified selected-island repair view.",
+      "gaps": [
+        "CLI can choose --log-dir; MCP retains fresh receipts only under build/diagnostics."
+      ]
+    },
+    {
+      "id": "repository-lifecycle",
+      "cli": [
+        "tools.template adopt",
+        "tools.template init",
+        "tools.template preflight",
+        "tools.template bootstrap",
+        "tools.template upgrade-plan"
+      ],
+      "mcp": [],
+      "alignment": "cli_only",
+      "reason": "Repository adoption, initialization, bootstrap and upgrade planning remain explicit operator CLI actions.",
+      "gaps": []
+    },
+    {
+      "id": "project-verification",
+      "cli": [
+        "tools.verify"
+      ],
+      "mcp": [
+        "check_project"
+      ],
+      "alignment": "partial",
+      "reason": "Both dispatch the same portable/native project verification and preserve failed results.",
+      "gaps": [
+        "CLI accepts --cli, --output and detailed text presentation; MCP uses the fixed executable and fresh diagnostic receipts."
+      ]
+    },
+    {
+      "id": "scope-checks",
+      "cli": [
+        "tools.ci"
+      ],
+      "mcp": [
+        "check_scope"
+      ],
+      "alignment": "partial",
+      "reason": "Both support project/product/tag union and exclusion selection; MCP requires allow-checks.",
+      "gaps": [
+        "MCP exposes the portable scoped CI run only; CLI also offers native --kicad, --matrix, --release/--manifest, --metrics, --fault-probes, --jobs, --cli and output controls."
+      ]
+    },
+    {
+      "id": "contract-coach",
+      "cli": [
+        "tools.contract_coach"
+      ],
+      "mcp": [
+        "inspect_contract",
+        "capture_contract"
+      ],
+      "alignment": "partial",
+      "reason": "Both inspect source-bound native evidence and can capture an unreviewed contract candidate.",
+      "gaps": [
+        "CLI selects --cli and --output; MCP fixes the command and capture directory, and existing evidence must be an allowed repository artifact."
+      ]
+    },
+    {
+      "id": "model-coverage",
+      "cli": [
+        "tools.visualize"
+      ],
+      "mcp": [
+        "inspect_3d_models"
+      ],
+      "alignment": "aligned",
+      "reason": "CLI --check-models and MCP inspect_3d_models report the same placed-footprint coverage and candidate assets.",
+      "gaps": []
+    },
+    {
+      "id": "model-population",
+      "cli": [
+        "tools.visualize"
+      ],
+      "mcp": [
+        "preview_model_population",
+        "apply_model_population"
+      ],
+      "alignment": "partial",
+      "reason": "Both preview explicit reviewed assignments and apply a source-bound population plan.",
+      "gaps": [
+        "CLI --init-model-map creates a draft with empty paths and candidates; MCP has no draft-map initialization tool.",
+        "MCP preview takes assignments and board_sha256 and captures the manifest hash internally; CLI consumes a complete model-map file with both hashes.",
+        "CLI selects output locations; MCP uses controlled receipt directories and applies a retained plan with allow-edits."
+      ]
+    },
+    {
+      "id": "three-d-export",
+      "cli": [
+        "tools.visualize"
+      ],
+      "mcp": [
+        "export_3d"
+      ],
+      "alignment": "partial",
+      "reason": "Both export native 3D views and models using the selected exact runner.",
+      "gaps": [
+        "CLI accepts --cli and --output; MCP selects a fresh directory by view_id and requires allow-checks plus allow-exports."
+      ]
+    },
+    {
+      "id": "parts-preparation",
+      "cli": [
+        "tools.parts"
+      ],
+      "mcp": [
+        "prepare_parts"
+      ],
+      "alignment": "partial",
+      "reason": "Both use source-bound native evidence, board/spare preferences and the same purchasing service.",
+      "gaps": [
+        "CLI accepts --cli and a fresh --output path; MCP fixes the command and writes build/parts/<view_id>.",
+        "MCP preference paths are restricted to selected-project docs or allowed build artifacts; native_summary must be an allowed build artifact.",
+        "MCP requires allow-exports; fresh native capture additionally requires allow-checks, while retained native evidence can be reused without executing checks."
+      ]
+    },
+    {
+      "id": "purchasing-preferences",
+      "cli": [
+        "tools.parts"
+      ],
+      "mcp": [
+        "save_parts_preferences"
+      ],
+      "alignment": "partial",
+      "reason": "CLI --init-preferences creates defaults; MCP saves explicitly supplied typed preferences.",
+      "gaps": [
+        "MCP creates or updates only selected docs/purchasing.json, requires allow-edits and requires expected_sha256 for replacement.",
+        "CLI initialization writes a caller-selected fresh preference file; it has no hash-checked update command."
+      ]
+    },
+    {
+      "id": "review-views",
+      "cli": [
+        "tools.hardware generate"
+      ],
+      "mcp": [
+        "generate_views"
+      ],
+      "alignment": "partial",
+      "reason": "Both generate catalog-derived product BOMs, harness schedules and review views.",
+      "gaps": [
+        "MCP adds project/product/tag selectors and writes a fresh build/views/<view_id>; CLI regenerates the normal configured view locations."
+      ]
+    },
+    {
+      "id": "native-release-export",
+      "cli": [
+        "tools.release export"
+      ],
+      "mcp": [
+        "export_project"
+      ],
+      "alignment": "partial",
+      "reason": "Both export source-bound native fabrication and assembly evidence.",
+      "gaps": [
+        "MCP supports one project and a controlled export_id directory using its exact selected runner; CLI controls the executable, output path and command-specific release inputs.",
+        "MCP requires allow-checks plus allow-exports and clean committed source."
+      ]
+    },
+    {
+      "id": "engineering-review",
+      "cli": [
+        "tools.release prepare"
+      ],
+      "mcp": [
+        "prepare_review"
+      ],
+      "alignment": "partial",
+      "reason": "Both assemble a retained review manifest and evidence.",
+      "gaps": [
+        "MCP prepares one project with release_class=engineering_review only; CLI also selects multiple projects, product variants and other release classes.",
+        "CLI can select --portable, --cli and output paths; MCP requires exact native checks, clean committed source and a controlled release_id directory."
+      ]
+    },
+    {
+      "id": "release-readiness",
+      "cli": [
+        "tools.release check"
+      ],
+      "mcp": [
+        "check_release"
+      ],
+      "alignment": "partial",
+      "reason": "Both check the same release manifest readiness contract.",
+      "gaps": [
+        "MCP manifest inputs must be allowed repository build artifacts; CLI accepts its explicit manifest path."
+      ]
+    },
+    {
+      "id": "release-packaging",
+      "cli": [
+        "tools.release package"
+      ],
+      "mcp": [
+        "package_release"
+      ],
+      "alignment": "partial",
+      "reason": "Both package retained release evidence with the shared archive service.",
+      "gaps": [
+        "MCP fixes output to a fresh build/packages/<package_id>.zip and requires allow-exports; CLI chooses the archive/output path."
+      ]
+    },
+    {
+      "id": "package-verification",
+      "cli": [
+        "tools.release verify"
+      ],
+      "mcp": [
+        "verify_package"
+      ],
+      "alignment": "partial",
+      "reason": "Both verify package contents, including a temporary restore when required.",
+      "gaps": [
+        "MCP archive inputs must be allowed repository build artifacts; CLI accepts its explicit archive path."
+      ]
+    },
+    {
+      "id": "package-restore",
+      "cli": [
+        "tools.release restore"
+      ],
+      "mcp": [
+        "restore_package"
+      ],
+      "alignment": "partial",
+      "reason": "Both restore the same retained package format without granting manufacturing approval.",
+      "gaps": [
+        "MCP fixes destination to fresh build/restores/<restore_id> and requires allow-exports; CLI chooses destination."
+      ]
+    },
+    {
+      "id": "artifact-browsing",
+      "cli": [],
+      "mcp": [
+        "list_artifacts",
+        "read_artifact"
+      ],
+      "alignment": "mcp_only",
+      "reason": "MCP offers bounded typed browsing of allowed build artifacts; shell/CLI users use filesystem tools.",
+      "gaps": []
+    },
+    {
+      "id": "source-review-and-edit",
+      "cli": [],
+      "mcp": [
+        "read_project_file",
+        "preview_project_edit",
+        "apply_project_edit"
+      ],
+      "alignment": "mcp_only",
+      "reason": "MCP offers bounded source reads and explicit hash-checked text edits; CLI users edit authoritative files with their editor.",
+      "gaps": []
+    },
+    {
+      "id": "workflow-guides",
+      "cli": [],
+      "mcp": [
+        "read_document"
+      ],
+      "alignment": "mcp_only",
+      "reason": "MCP reads named repository guides and matching resources; CLI users read Markdown directly.",
+      "gaps": []
+    },
+    {
+      "id": "surface-inventory",
+      "cli": [
+        "tools.surface"
+      ],
+      "mcp": [
+        "inspect_tool_surfaces"
+      ],
+      "alignment": "partial",
+      "reason": "Both return this same checked capability inventory.",
+      "gaps": [
+        "CLI --require-live-mcp can require the SDK; MCP always has the SDK available and exposes no mode argument."
+      ]
+    },
+    {
+      "id": "mcp-launcher",
+      "cli": [
+        "tools.mcp"
+      ],
+      "mcp": [],
+      "alignment": "cli_only",
+      "reason": "The host starts stdio transport and chooses startup authority; tools cannot restart or widen their own permissions.",
+      "gaps": []
+    },
+    {
+      "id": "low-level-policy-and-native-checks",
+      "cli": [
+        "tools.check_all",
+        "tools.check_toolchain",
+        "tools.docs_policy",
+        "tools.hardware check",
+        "tools.lint_registry",
+        "tools.validate"
+      ],
+      "mcp": [],
+      "alignment": "cli_only",
+      "reason": "Dedicated lower-level policy and native-validation entry points remain CLI tools; broader MCP check_project/check_scope workflows do not expose their full individual contracts.",
+      "gaps": []
+    },
+    {
+      "id": "ci-planning-and-tooling",
+      "cli": [
+        "tools.ci_matrix",
+        "tools.fault_probe",
+        "tools.impact",
+        "tools.native_deps"
+      ],
+      "mcp": [],
+      "alignment": "cli_only",
+      "reason": "CI matrix planning, failure probes, Git impact analysis and image-dependency inspection remain automation/operator CLI capabilities.",
+      "gaps": []
+    },
+    {
+      "id": "catalog-snapshots",
+      "cli": [
+        "tools.hardware snapshot",
+        "tools.hardware verify-snapshot"
+      ],
+      "mcp": [],
+      "alignment": "cli_only",
+      "reason": "Review-only hardware snapshots use a separate CLI format from MCP engineering-review release packages.",
+      "gaps": []
+    },
+    {
+      "id": "repository-audits",
+      "cli": [
+        "tools.governance_audit",
+        "tools.metrics",
+        "tools.sourcing"
+      ],
+      "mcp": [],
+      "alignment": "cli_only",
+      "reason": "Hosted governance, current policy metrics and supplier snapshot audits have no dedicated MCP tool.",
+      "gaps": []
+    }
+  ]
+}

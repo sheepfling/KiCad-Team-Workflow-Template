@@ -1,6 +1,7 @@
 """Bounded MCP workflow adapters over diagnostic, native and release services."""
 from __future__ import annotations
 
+import stat
 import sys
 from collections.abc import Generator
 from contextlib import contextmanager
@@ -78,7 +79,7 @@ def artifact_file(root: Path, value: str) -> Path:
     return path
 
 
-def _native_summary(root: Path, value: str) -> Path:
+def native_summary_path(root: Path, value: str) -> Path:
     """Constrain both the summary and sibling evidence read by existing coaches."""
     path = artifact_path(root, value)
     if path.is_dir():
@@ -86,7 +87,9 @@ def _native_summary(root: Path, value: str) -> Path:
     elif not path.is_file():
         raise ValueError(f"Select an existing native summary: {value}")
     for name in ("erc.json", "drc.json", "netlist.xml", "netlist.command.json"):
-        artifact_path(root, (path.parent / name).relative_to(root).as_posix())
+        sibling = artifact_path(root, (path.parent / name).relative_to(root).as_posix())
+        if sibling.exists() and not stat.S_ISREG(sibling.lstat().st_mode):
+            raise ValueError("Native evidence siblings must be regular files")
     return path
 
 
@@ -119,7 +122,7 @@ def diagnose_project(
     """Run selected diagnosis; optional native/BOM inputs must be ignored artifacts."""
     if bom is not None and native_report is None:
         raise ValueError("BOM diagnosis requires the selected project's native_report")
-    native = None if native_report is None else _native_summary(root, native_report)
+    native = None if native_report is None else native_summary_path(root, native_report)
     bom_path = None if bom is None else artifact_file(root, bom)
     with journal(root, project_id) as receipt:
         result = diagnostics.diagnose_project(root, project_id, native, bom_path, receipt)
@@ -157,7 +160,7 @@ def check_scope(
 
 def inspect_contract(root: Path, project_id: str, native_summary: str) -> ContractCoachReport:
     """Read source-bound observations without writing independent test expectations."""
-    return contract_coach.inspect_summary(root, project_id, _native_summary(root, native_summary))
+    return contract_coach.inspect_summary(root, project_id, native_summary_path(root, native_summary))
 
 
 def capture_contract(

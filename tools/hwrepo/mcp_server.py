@@ -6,15 +6,17 @@ from contextlib import contextmanager
 from pathlib import Path
 from subprocess import SubprocessError
 from threading import Lock
-from typing import Literal
+from typing import Annotated, Literal
 from zipfile import BadZipFile
 
 from mcp.server import MCPServer
 from mcp.server.mcpserver.exceptions import ResourceError, ToolError
 from mcp.types import ToolAnnotations
+from pydantic import Field, StrictInt
 
 from ..verify import Depth, verify
 from . import mcp_files as files
+from . import mcp_parts as parts
 from . import mcp_workflow as workflow
 from .contracts import read_model, repo_path
 from .doctor import NativeRunner
@@ -33,6 +35,7 @@ from .models import (
     McpFileContent,
     McpGenerationReport,
     McpProjectReport,
+    McpPurchasingPreferencesResult,
     McpScopeReport,
     ModelInventoryReport,
     ModelMapAssignment,
@@ -43,6 +46,8 @@ from .models import (
     ProjectScaffoldReport,
     ProjectTestContract,
     ProjectVerificationReport,
+    PurchasingPreferences,
+    PurchasingReport,
     ReleaseExportReport,
     ReleaseManifest,
     ReleasePackageReport,
@@ -50,6 +55,7 @@ from .models import (
     TemplateDoctorReport,
     TemplateInventoryReport,
     ThreeDReport,
+    ToolSurfaceReport,
 )
 from .scaffold import new_project as scaffold_project
 
@@ -57,7 +63,7 @@ DocumentName = Literal[
     "start-here", "first-board", "diagnostics", "import-workflow",
     "contributor-guide", "checks-and-ci", "mcp", "bom-policy", "release-readiness",
     "release-storage", "project-kinds", "libraries", "authority-model", "assurance-profiles",
-    "three-d-workflow",
+    "three-d-workflow", "parts-to-order", "tool-surfaces",
 ]
 DOCUMENTS: Mapping[DocumentName, str] = {
     "start-here": "docs/workflow/START_HERE.md",
@@ -75,6 +81,8 @@ DOCUMENTS: Mapping[DocumentName, str] = {
     "authority-model": "docs/workflow/AUTHORITY_MODEL.md",
     "assurance-profiles": "docs/workflow/ASSURANCE_PROFILES.md",
     "three-d-workflow": "docs/workflow/THREE_D_WORKFLOW.md",
+    "parts-to-order": "docs/workflow/PARTS_TO_ORDER.md",
+    "tool-surfaces": "docs/workflow/TOOL_SURFACES.md",
 }
 READ_ONLY = ToolAnnotations(
     read_only_hint=True, destructive_hint=False, idempotent_hint=True, open_world_hint=False,
@@ -145,12 +153,14 @@ def create_server(
         "kicad-workflow", version="2", log_level="WARNING",
         instructions=(
             f"Use only this checkout: {root}. Start with list_projects and doctor. "
+            "Use inspect_tool_surfaces to see CLI/MCP coverage and intentional gaps. "
             "Inventory input presence and import previews are not design validation. "
             "Read the status and next actions in every report. Passing checks are not "
             "electrical approval or manufacturing authorization. Follow scan/preview/import, "
             "doctor, diagnose_project, read artifacts/source, preview and apply an explicit "
             "reviewed edit, then recheck. Commit reviewed source with normal Git before "
             "export_project or prepare_review. Diagnose BOMs with the matching native report. "
+            "Use prepare_parts for quantities and order-review files; it cannot place an order. "
             "Use list_artifacts/read_artifact to inspect receipts; they use repository-relative "
             "paths. Execution, creation, editing and export capabilities are enabled separately "
             "at startup. Never invent electrical expectations, approvals, or waivers."
@@ -163,6 +173,19 @@ def create_server(
             return inventory(root)
 
     server.tool(annotations=READ_ONLY)(list_projects)
+
+    def inspect_tool_surfaces() -> ToolSurfaceReport:
+        """Compare CLI and full MCP coverage, declared gaps and interface drift.
+
+        This covers all server capabilities, not only those enabled in this session.
+        PASS means catalog coverage, not equal behavior or engineering acceptance.
+        """
+        from .surface import inspect_tool_surfaces as inspect_surfaces
+
+        with service_operation(operation):
+            return inspect_surfaces(root)
+
+    server.tool(annotations=READ_ONLY)(inspect_tool_surfaces)
 
     def get_project(project_id: str) -> McpProjectReport:
         """Read one registered project's inventory, manifest and authored test expectations."""
@@ -443,6 +466,20 @@ def create_server(
         server.tool(annotations=CREATE_ONLY)(import_project)
 
     if allow_edits:
+        def save_parts_preferences(
+            project_id: str, preferences: PurchasingPreferences, expected_sha256: str | None = None,
+        ) -> McpPurchasingPreferencesResult:
+            """Save reviewed quantities and exact supplier SKUs to docs/purchasing.json.
+
+            For an existing file, supply its current SHA256 from read_project_file.
+            Omit the digest only to create a new file. These choices do not select
+            substitutes, verify live supplier data or authorize a purchase.
+            """
+            with service_operation(operation):
+                return parts.save_parts_preferences(root, project_id, preferences, expected_sha256)
+
+        server.tool(annotations=EDIT)(save_parts_preferences)
+
         def apply_project_edit(
             project_id: str, path: str, expected_sha256: str, old_text: str, new_text: str,
         ) -> McpEditResult:
@@ -473,6 +510,29 @@ def create_server(
         server.tool(annotations=EDIT)(apply_model_population)
 
     if allow_exports:
+        def prepare_parts(
+            project_id: str, view_id: str, native_summary: str | None = None,
+            preferences: str | None = None, boards: Annotated[StrictInt, Field(gt=0)] | None = None,
+            spare_percent: Annotated[StrictInt, Field(ge=0, le=100)] | None = None,
+            spare_minimum: Annotated[StrictInt, Field(ge=0)] | None = None,
+            runner: NativeRunner = "auto",
+        ) -> PurchasingReport:
+            """Write a source-bound parts checklist, BOM and conditional DigiKey CSV.
+
+            Reuse a native_summary build artifact or enable checks for fresh native
+            capture. Outputs use a fresh build/parts/view_id. Preferences default to
+            selected docs/purchasing.json; alternative paths use that island's docs
+            or build artifacts. Numeric overrides affect this run only. Metadata
+            readiness never authorizes purchasing or overrides failed electrical checks.
+            """
+            with service_operation(operation):
+                return parts.prepare_parts(
+                    root, project_id, view_id, native_summary, preferences,
+                    boards, spare_percent, spare_minimum, runner, allow_checks=allow_checks,
+                )
+
+        server.tool(annotations=EXECUTION if allow_checks else CREATE_ONLY)(prepare_parts)
+
         def generate_views(
             view_id: str, project_ids: list[str] | None = None,
             product_ids: list[str] | None = None, tags: list[str] | None = None,
