@@ -8,8 +8,10 @@ from pathlib import Path
 from typing import cast
 
 from .hwrepo.cli_output import issue_text
+from .hwrepo.contracts import repo_path
 from .hwrepo.generation import check_generation, generate, snapshot, verify_snapshot
 from .hwrepo.product import check
+from .hwrepo.selection import ProjectSelector, resolve_project_ids
 
 
 def _mapping(value: object) -> dict[str, object]:
@@ -85,16 +87,47 @@ def format_text(command: str, result: dict[str, object], output: Path | None) ->
     return "\n".join(lines)
 
 
+def generation_output(root: Path, requested: Path) -> Path:
+    """Create a fresh projection destination, keeping in-checkout outputs under build/."""
+    output = requested.absolute()
+    if output.is_relative_to(root) and output != root:
+        output = repo_path(root, output.relative_to(root).as_posix())
+    else:
+        output = output.resolve()
+    if output == root or (output.is_relative_to(root) and (
+        not output.is_relative_to(root / "build") or output == root / "build"
+    )):
+        raise ValueError("In-repository generation output must be a new directory below build/")
+    if output.exists():
+        raise FileExistsError(f"Refusing to overwrite generated review output: {output}")
+    output.mkdir(parents=True, exist_ok=False)
+    return output
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=("check", "generate", "snapshot", "verify-snapshot"))
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
     parser.add_argument("--release", action="store_true", help="Fail closed: build/release authorization is not implemented")
-    parser.add_argument("--output", type=Path, help="New directory for a review snapshot")
+    parser.add_argument("--output", type=Path, help="New directory for generation or a review snapshot")
+    parser.add_argument("--project", action="append", dest="projects",
+                        help="Generate views for this project; may be repeated")
+    parser.add_argument("--product", action="append", dest="products",
+                        help="Generate views for an indexed product's projects; may be repeated")
+    parser.add_argument("--tag", action="append", dest="tags",
+                        help="Generate views for projects with this tag; may be repeated")
+    parser.add_argument("--exclude-tag", action="append", dest="excluded_tags",
+                        help="Exclude tagged projects after inclusion selection; may be repeated")
     parser.add_argument("--format", choices=("json", "text"), default="json",
                         help="Output format (default: json)")
     args = parser.parse_args()
     root = args.root.resolve()
+    selector = ProjectSelector(
+        project_ids=tuple(args.projects or ()), product_ids=tuple(args.products or ()),
+        tags=tuple(args.tags or ()), excluded_tags=tuple(args.excluded_tags or ()),
+    )
+    if selector.active and args.command != "generate":
+        parser.error("Project/product/tag selectors are only valid with generate")
     try:
         if args.release and args.command != "check":
             parser.error("--release is only valid with check")
@@ -107,11 +140,15 @@ def main() -> int:
                 if generation_drift:
                     result["status"] = "FAIL"
         elif args.command == "generate":
+            selected = resolve_project_ids(root, selector) if selector.active else None
+            output = None if args.output is None else generation_output(root, args.output)
             result = {
                 "status": "PASS",
-                "generated": generate(root),
+                "generated": generate(root, output=output, selected_project_ids=selected),
                 "build_authorized": False,
             }
+            if output is not None:
+                result["output"] = str(output)
         elif args.command == "snapshot":
             if args.output is None:
                 parser.error("snapshot requires --output")

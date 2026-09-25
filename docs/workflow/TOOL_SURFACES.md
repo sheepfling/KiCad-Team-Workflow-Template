@@ -1,91 +1,97 @@
-# CLI and MCP capability coverage
+# CLI and MCP workflow parity
 
-The CLI and [MCP adapter](MCP.md) use the same repository services, but their
-public capabilities are not identical. The checked inventory records intentional
-restrictions and catches unreviewed additions, removals and parameter-name changes:
+Core board workflows must be available through both the CLI and the [MCP adapter](MCP.md).
+They use shared services and preserve the same validation, quantities, source changes,
+artifacts and failure states. Paths, presentation and startup permissions are adapter
+constraints. Those constraints do not count as missing workflow functionality.
 
 ```sh
 python -B -m tools.surface --format text
 python -B -m tools.surface --format json --require-live-mcp
+python -B -m tools.ci
 ```
 
 MCP clients call `inspect_tool_surfaces()` or read `kicad://docs/tool-surfaces`.
-Inspection only reads source, the catalog and registered tool metadata. It never
-runs a registered tool, starts KiCad or creates a receipt.
+Inspection reads source, the catalog and tool metadata. It does not execute the
+referenced tests or start KiCad. The full CI gate runs the behavioral tests.
 
-## Read the result
+## Core workflows and exceptions
 
-The durable source is [catalog/tool-surfaces.json](../../catalog/tool-surfaces.json).
-Each capability lists its CLI endpoints, MCP tools, a reason and any known gaps:
+The versioned [catalog](../../catalog/tool-surfaces.json) separates three scopes:
 
-| Alignment | Meaning |
+| Scope | Acceptance requirement |
 | --- | --- |
-| `aligned` | Both surfaces cover the capability; no known semantic parameter gap is recorded. |
-| `partial` | Both expose related work, with explicit differences listed in `gaps`. |
-| `cli_only` | A CLI capability has no dedicated MCP counterpart. |
-| `mcp_only` | An MCP capability has no dedicated repository CLI counterpart. |
+| `core` | Both surfaces, no recorded functional gaps, and existing behavioral test references |
+| `administration` | Explicit reason for an operator/CI-only workflow, such as repository adoption, production governance or infrastructure probes |
+| `adapter` | Explicit reason for a transport or editor convenience, such as bounded file browsing or starting the MCP server |
 
-`PASS` means every discovered endpoint is tracked and the checked declarations
-match the catalog. It does **not** mean every capability is aligned. Read
-`capabilities[].alignment`, `reason` and `gaps` to see which surface leads. This
-report never grants build, purchasing, electrical or release authority.
+Core scope covers discovery, setup diagnosis, scaffolding/import, repair diagnosis,
+portable and grouped native checks, contract inspection, model draft/population and
+3D export, parts/preferences, supplier snapshots, impact planning, scoped review
+views, native fabrication export, engineering-review preparation and package recovery.
+The required core IDs are pinned in the policy code. Deleting a row or calling it
+administrative cannot waive that requirement.
 
-The inventory describes the full MCP surface with every startup capability
-flag enabled. Your connected server can expose fewer tools because its
-[permissions](MCP.md#choose-the-enabled-capabilities) are narrower. Fixed checkout roots,
-structured MCP output and CLI text/JSON formatting are ordinary adapter
-conventions; a capability's gaps call out meaningful workflow restrictions such
-as absent commands, narrower selection, fixed output locations or no arbitrary
-executable override.
+An administrative exception records the actual operation left to an operator.
+For example, engineering-review preparation supports multiple boards and product
+variants through both interfaces; prototype/production release classes retain
+separate operator governance. Neither interface invents approval or authorizes a
+purchase by producing a review file.
 
-Typical differences include CLI-only adoption and upgrade operations, repository
-metrics and hosted-governance checks; MCP-only bounded artifact/source readers
-and reviewed text edits; and partial native, release, 3D and purchasing workflows.
-For purchasing, `prepare_parts` shares the CLI parts service and
-`save_parts_preferences` adds a hash-checked edit path. Both keep purchase and
-build authorization false. The catalog gives the current exact parameter gaps.
+Each catalog row records:
 
-## What is checked
+- `alignment`: `aligned`, `partial`, `cli_only` or `mcp_only`, describing functionality.
+- `gaps`: missing functional behavior. Any core gap fails the parity policy even
+  when documented.
+- `constraints`: permissions, fixed paths, output naming, runner configuration or
+  presentation differences that preserve the supported workflow.
+- `exception`: why an administrative or adapter operation has different coverage.
+- `parity_tests`: exact test methods exercising the core behavior.
 
-The scanner reads first-party Python modules under `tools/`, including nested
-modules, and discovers entry points from `main` functions, `__main__` modules and
-standard main guards. It records argparse option names, positional command
-choices, subparser names and aliases. Unsupported dynamic names or command
-choices fail discovery rather than disappear from the inventory.
+MCP describes the full available surface with all startup flags enabled. A
+connected server can expose fewer tools according to its
+[enabled capabilities](MCP.md#choose-the-enabled-capabilities). That is an explicit
+permission boundary. A caller cannot widen it through tool arguments.
 
-MCP registrations and parameter names are scanned without importing the SDK.
-When the optional pinned MCP dependency is installed, the report also constructs
-the running adapter with all capabilities enabled and compares its **actual
-registered** tool names and input-parameter names with the source declarations.
-No tool is called. `mcp_verification=LIVE` records that comparison; `STATIC_ONLY`
-means the SDK is absent. Use `--require-live-mcp` in development or CI to reject
-that fallback. `UNAVAILABLE` is a failure to perform required/live verification,
-not proof that the surfaces match.
+## Read the checks honestly
 
-The tests run the real checkout catalog against the full live registration and
-exercise new CLI modules, subcommands and switches, MCP names and parameters,
-stale mappings, invalid classifications and the SDK-free path. They run in the
-normal unit-test gate, so a new public declaration cannot pass unnoticed.
+The report uses schema version `2` and separates its outcomes:
 
-This is a declaration and coverage check. It does not infer behavior equality,
-compare argument defaults/types or nested input schemas, or prove that two
-implementations produce equivalent results. Argparse options are recorded per
-module, not per subcommand. Keep service and protocol tests for behavior and
-review semantic/default/permission changes even when the inventory passes.
+| Field | What a pass establishes |
+| --- | --- |
+| `coverage_status` | Discovered command/tool names and parameter names match the reviewed catalog |
+| `parity_status` | Required core rows have both interfaces, no functional gaps/exceptions, and resolvable behavioral test methods |
+| `status` | Both policy checks passed |
+| `mcp_verification` | `LIVE` compares actual full-server registration; `STATIC_ONLY` means the optional SDK was absent; `UNAVAILABLE` means live checking failed |
+| `behavior_verification` | Always `NOT_RUN` in this inspection; run `tools.ci` for behavioral test results |
 
-## Change either surface
+A catalog pass is a policy check, not a test execution result. Referenced tests
+compare actual CLI JSON with real MCP protocol responses, including failed results,
+source changes, quantities and exported files. Native unit fixtures are explicitly
+synthetic. Real KiCad rehearsal receipts remain a separate integration check and
+do not establish electrical or manufacturing approval.
 
-1. Implement the service and desired CLI or MCP adapter; keep their behavioral
-   tests with the change.
-2. Run `tools.surface`. For each reported new or changed declaration, review the
-   other surface before updating the pinned snapshot in the catalog.
-3. Update the capability mapping. Use `partial` with a concrete gap when one
-   surface leads; use `cli_only` or `mcp_only` with an intentional reason when
-   there is no counterpart. Do not label a restricted workflow `aligned` merely
-   to clear a drift error.
-4. Rerun with `--require-live-mcp`, then the normal full
-   [checks](CHECKS_AND_CI.md). Keep the catalog and implementation in the same
-   change so the next contributor can tell intentional differences from drift.
+The declaration scanner discovers Python entry points, argparse option names,
+positional command choices, subcommands and aliases. MCP tool names and parameters
+are scanned without the optional SDK, then compared to actual registration when
+available. Unsupported dynamic declarations fail discovery. `--require-live-mcp`
+rejects the SDK-free fallback.
 
-The report does not rewrite its catalog. Snapshot changes require a reviewed
-source edit; generated reports can remain local or in CI artifacts.
+Declaration checks do not infer behavior from names or compare every argument
+type/default and nested input schema. Argparse options are recorded per module,
+not per subcommand. Behavioral tests and review remain necessary when semantics,
+permissions or schemas change without a declaration-name change.
+
+## Change a workflow
+
+1. Change the shared service and both adapters for core functionality. Keep any
+   runner, permission or output-path constraint explicit.
+2. Add a CLI/MCP behavioral comparison for the change, including relevant failure
+   states and written outputs; normalize only incidental receipt paths and timing.
+3. Update reviewed interface snapshots and mappings in the catalog. Record a real
+   gap honestly: the core parity gate should fail until it is resolved.
+4. Run `tools.surface --require-live-mcp`, then the full [CI gate](CHECKS_AND_CI.md).
+   Keep behavioral tests, catalog and implementation in the same change.
+
+The report never rewrites its catalog. Store generated reports in ignored `build/`
+or CI artifacts; keep the reviewed policy and tests in source control.

@@ -30,6 +30,14 @@ offline checklist, grouped BOM and conditional DigiKey upload CSV. The
 [parts-to-order guide](../docs/workflow/PARTS_TO_ORDER.md) covers KiCad bulk fields,
 saved board/spare preferences and supplier review. Outputs stay in fresh ignored
 `build/parts/` receipts; the command does not modify CAD or place an order.
+For catalog-derived BOMs, harness schedules and review views, run
+`tools.hardware generate`. It accepts the same repeatable `--project`, `--product`,
+`--tag` and `--exclude-tag` selectors as MCP `generate_views`. Includes form a
+union before exclusions; selected projects bring their dependent product views.
+Add `--output build/views/my-review` to retain a fresh projection directory.
+The directory must be new; in-checkout destinations must be below `build/`.
+Without `--output`, generation retains the existing schema, shared-view and
+product `build/` locations. These projections do not authorize manufacture.
 The CLIs use `argparse`; a Typer dependency is not required for human output.
 Choose text for a concise terminal view and JSON for the complete typed result:
 

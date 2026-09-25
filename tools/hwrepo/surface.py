@@ -18,11 +18,23 @@ from .models import (
     PolicyIssue,
     ToolCliSnapshot,
     ToolMcpSnapshot,
+    ToolSurfaceMapping,
     ToolSurfaceReport,
     ToolSurfacesCatalog,
 )
 
 CATALOG = "catalog/tool-surfaces.json"
+# Core workflow requirements cannot be waived by reclassifying/deleting a catalog
+# row. Changes to this acceptance scope need an explicit policy/code review.
+CORE_WORKFLOWS = frozenset({
+    "project-inventory", "environment-doctor", "project-scaffold", "import-design",
+    "scan-designs", "diagnose-designs", "rescue-project", "project-verification",
+    "scope-checks", "native-scope-checks", "contract-coach", "model-coverage",
+    "model-population", "three-d-export", "parts-preparation", "purchasing-preferences",
+    "review-views", "native-release-export", "engineering-review", "release-readiness",
+    "release-packaging", "package-verification", "package-restore", "change-impact",
+    "supplier-snapshots",
+})
 
 
 def _strings(node: ast.AST, location: str) -> tuple[str, ...]:
@@ -46,6 +58,8 @@ def discover_cli(root: Path) -> tuple[ToolCliSnapshot, ...]:
     snapshots: list[ToolCliSnapshot] = []
     for candidate in sorted(repo_path(root, "tools").rglob("*.py")):
         path = repo_path(root, candidate.relative_to(root).as_posix())
+        if not path.is_file():
+            raise ValueError(f"CLI source must be a regular file: {path}")
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         # Public CLIs use a main function or a __main__ module/guard. Supporting
         # either catches a new entry point even before it follows our convention.
@@ -239,11 +253,64 @@ def _compare(
     return issues
 
 
+def _test_exists(root: Path, reference: str) -> bool:
+    """Resolve a unittest method from source without importing/executing tests."""
+    parts = reference.split(".")
+    if len(parts) < 4 or parts[0] != "tests" or not parts[-1].startswith("test_"):
+        return False
+    if any(not part.isidentifier() for part in parts):
+        return False
+    try:
+        path = repo_path(root, "/".join(parts[:-2]) + ".py")
+        if not path.is_file():
+            return False
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    except (OSError, SyntaxError, ValueError):
+        return False
+    return any(
+        isinstance(node, ast.ClassDef) and node.name == parts[-2]
+        and any(isinstance(method, (ast.FunctionDef, ast.AsyncFunctionDef))
+                and method.name == parts[-1] for method in node.body)
+        for node in tree.body
+    )
+
+
+def parity_issues(root: Path, mappings: tuple[ToolSurfaceMapping, ...]) -> tuple[PolicyIssue, ...]:
+    """Fail missing core capabilities/test references; retain explicit operator exceptions."""
+    issues: list[PolicyIssue] = []
+    by_id = {mapping.id: mapping for mapping in mappings}
+    for identifier in sorted(CORE_WORKFLOWS):
+        mapping = by_id.get(identifier)
+        if mapping is None or mapping.scope != "core":
+            issues.append(PolicyIssue(code="core_scope", location=CATALOG,
+                message=f"Required core workflow {identifier} cannot be removed or exempted"))
+    for mapping in mappings:
+        location = f"{CATALOG}#{mapping.id}"
+        if mapping.scope != "core":
+            if mapping.exception is None:
+                issues.append(PolicyIssue(code="missing_exception", location=location,
+                    message="Administrative/adapter differences need an explicit reason"))
+            continue
+        if (mapping.alignment != "aligned" or not mapping.cli or not mapping.mcp
+                or mapping.gaps or mapping.exception is not None):
+            issues.append(PolicyIssue(code="core_parity_gap", location=location,
+                message=f"{mapping.id}: Core workflows need both surfaces and no functional gap or exception; "
+                        "record permissions and path restrictions in constraints"))
+        if not mapping.parity_tests:
+            issues.append(PolicyIssue(code="missing_parity_tests", location=location,
+                message="Core parity requires referenced behavioral regression tests"))
+        for reference in mapping.parity_tests:
+            if not _test_exists(root, reference):
+                issues.append(PolicyIssue(code="missing_parity_test", location=location,
+                    message=f"Behavioral test does not exist: {reference}"))
+    return tuple(issues)
+
+
 def inspect_tool_surfaces(root: Path, *, require_live_mcp: bool = False) -> ToolSurfaceReport:
     """Check declared coverage and compare the optional live full MCP registration.
 
-    PASS means there is no unreviewed declaration drift; it does not mean every
-    capability has equal reach on both surfaces. Read each alignment and its gaps.
+    PASS requires declaration coverage and the core parity policy. This inspection
+    verifies behavioral test references; it never runs those tests or proves their result.
     """
     root = root.resolve()
     issues: list[PolicyIssue] = []
@@ -251,7 +318,9 @@ def inspect_tool_surfaces(root: Path, *, require_live_mcp: bool = False) -> Tool
     mcp: tuple[ToolMcpSnapshot, ...] = ()
     catalog: ToolSurfacesCatalog | None = None
     verification: Literal["LIVE", "STATIC_ONLY", "UNAVAILABLE"] = "STATIC_ONLY"
-    notes = ["PASS means tracked coverage, not feature equality or engineering approval."]
+    notes = ["Core parity is required; administration and adapter exceptions stay explicit.",
+             ("Behavioral tests were NOT_RUN here; tools.ci executes the referenced tests. "
+             "This inspection checks declarations and test references, not behavior or approval.")]
     try:
         catalog = read_model(repo_path(root, CATALOG), ToolSurfacesCatalog)
         cli = discover_cli(root)
@@ -285,22 +354,31 @@ def inspect_tool_surfaces(root: Path, *, require_live_mcp: bool = False) -> Tool
             issues.append(PolicyIssue(
                 code="live_mcp_unavailable", location="tools/hwrepo/mcp_server.py", message=str(exc),
             ))
+    coverage_status: Literal["PASS", "FAIL"] = "FAIL" if issues else "PASS"
+    parity = parity_issues(root, () if catalog is None else catalog.capabilities)
     return ToolSurfaceReport(
-        status="FAIL" if issues else "PASS", mcp_verification=verification,
+        status="FAIL" if issues or parity else "PASS", coverage_status=coverage_status,
+        parity_status="FAIL" if parity else "PASS", mcp_verification=verification,
         cli=cli, mcp=mcp, capabilities=() if catalog is None else catalog.capabilities,
-        issues=tuple(issues), notes=tuple(notes),
+        issues=(*issues, *parity), notes=tuple(notes),
     )
 
 
 def format_surfaces(report: ToolSurfaceReport) -> str:
     """Show every classification and its concrete lead/lag explanation."""
-    lines = [f"Tool surfaces: {report.status}; MCP registration: {report.mcp_verification}"]
+    lines = [(f"Tool surfaces: {report.status}; coverage: {report.coverage_status}; "
+             f"core parity policy: {report.parity_status}; MCP: {report.mcp_verification}"),
+             f"Behavior tests: {report.behavior_verification} (run tools.ci)"]
     for capability in report.capabilities:
         alignment = capability.alignment.replace("_", "-")
-        lines.append(f"{alignment}: {capability.id} — {capability.reason}")
+        lines.append(f"{capability.scope}/{alignment}: {capability.id} — {capability.reason}")
         lines.append(f"  CLI: {', '.join(capability.cli) or '(none)'}")
         lines.append(f"  MCP: {', '.join(capability.mcp) or '(none)'}")
-        lines.extend(f"  Gap: {gap}" for gap in capability.gaps)
+        lines.extend(f"  Functional gap: {gap}" for gap in capability.gaps)
+        lines.extend(f"  Adapter constraint: {item}" for item in capability.constraints)
+        if capability.exception is not None:
+            lines.append(f"  Exception: {capability.exception}")
+        lines.extend(f"  Test: {item}" for item in capability.parity_tests)
     lines.extend(f"{issue.code}: {issue.message}" for issue in report.issues)
     lines.extend(report.notes)
     return "\n".join(lines)

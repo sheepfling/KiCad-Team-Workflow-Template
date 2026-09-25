@@ -62,12 +62,12 @@ operation; enabling project creation does not enable edits to an existing design
 
 | Startup capability | Tools enabled | Files or execution affected |
 | --- | --- | --- |
-| Default | Discovery, tool-surface inventory, guidance, source/artifact reads, import scanning and preview, edit preview, saved contract inspection, model-population preview, rescue and import diagnosis, release/package verification | Reads bounded repository data. Model-population preview, rescue and import diagnosis create ignored diagnostic receipts. Package verification temporarily restores the archive. |
+| Default | Discovery, tool-surface inventory, impact planning, sourcing inspection, guidance, source/artifact reads, import scanning and preview, edit preview, saved contract inspection, model-population preview, rescue and import diagnosis, release/package verification | Reads bounded repository data. Model-population preview, rescue and import diagnosis create ignored diagnostic receipts. Package verification temporarily restores the archive. |
 | `--allow-writes` | `new_project`, `import_project` | Creates a new project island; refuses an existing destination. |
 | `--allow-edits` | `apply_project_edit`, `apply_model_population`, `save_parts_preferences` | Applies a reviewed source change or saves typed purchasing preferences with stale-write protection. |
-| `--allow-checks` | `check_project`, `diagnose_project`, `capture_contract`, `check_scope` | Executes repository checks and creates ignored receipts. Native work also runs KiCad or Docker. |
-| `--allow-exports` | `generate_views`, `prepare_parts`, `package_release`, `restore_package` | Creates generated review views, purchasing receipts from saved evidence and new package/restore outputs in the checkout's ignored build area. Fresh parts capture also requires checks. |
-| Both `--allow-checks` and `--allow-exports` | `export_project`, `export_3d`, `prepare_review` | Executes checks/native tooling and creates fresh exports, 3D views or an engineering review candidate. |
+| `--allow-checks` | `check_project`, `diagnose_project`, `capture_contract`, `check_scope`, `check_native_scope` | Executes repository checks and creates ignored receipts. Native work also runs KiCad or Docker. |
+| `--allow-exports` | `generate_views`, `init_model_map`, `prepare_parts`, `package_release`, `restore_package` | Creates generated review views, model-map drafts, purchasing receipts from saved evidence and new package/restore outputs in the checkout's ignored build area. Fresh parts capture also requires checks. |
+| Both `--allow-checks` and `--allow-exports` | `export_project`, `export_3d`, `prepare_review`, `prepare_review_scope` | Executes checks/native tooling and creates fresh exports, 3D views or an engineering review candidate. |
 
 Checks execute trusted repository code, including project and product tests.
 Native work may download the pinned container image and Python dependencies.
@@ -92,8 +92,10 @@ the team's release process for approvals and retained storage.
 
 Use `inspect_tool_surfaces` to compare the shared CLI and MCP operation catalog;
 `python -B -m tools.surface` exposes the same inventory from a terminal. The catalog
-records intentional CLI-only operations and helps catch capability drift as tools
-are added. Read `tool-surfaces` for the parity-check workflow.
+requires core workflow parity and behavioral test references, tracks administrative
+exceptions separately, and catches declaration drift. Inspection reports
+`behavior_verification: NOT_RUN`; the full CI gate runs the comparisons. Read
+`tool-surfaces` for the policy and its limits.
 
 Discovery's `INPUTS_PRESENT` state describes file presence. It does not establish
 that a board passes checks. Doctor describes prerequisites, and an import preview
@@ -196,6 +198,23 @@ independently established requirement. Do not copy observed output into
 ERC/DRC findings. Follow [libraries](LIBRARIES.md) for CAD dependency repairs and
 [BOM policy](BOM_POLICY.md) for BOM authority.
 
+## Plan the affected checks
+
+`plan_impact` matches the CLI's impact modes without running project tests or native
+tools. Supply exactly one mode:
+
+- `base` with optional `head` (default `HEAD`) for a Git commit comparison.
+- `paths` for a list of changed repository-relative names, including deleted files.
+- `full: true` for full scope.
+- One of `select_project`, `select_tag` or `select_product` for a manual selection.
+  Optional `exclude_tag` removes matches from that manual selection.
+
+Git references resolve to commits before comparison. Unknown ownership and unsafe
+changed paths conservatively select full scope, matching `python -B -m tools.impact`.
+The result records selected projects, changed paths, documentation impact and the
+reasons for its scope. Use it to choose a subsequent check; a plan contains no
+validation or release evidence.
+
 ## Diagnose and check
 
 | Tool | Arguments and use |
@@ -204,6 +223,7 @@ ERC/DRC findings. Follow [libraries](LIBRARIES.md) for CAD dependency repairs an
 | `diagnose_project` | `project_id`; optional `native_report` and `bom`. Run selected portable checks and combine current source/native/BOM findings. Requires `--allow-checks`. |
 | `check_project` | `project_id`; `depth` defaults to `portable`, `runner` to `auto`. Run selected portable or native verification and retain the receipt. Requires `--allow-checks`. |
 | `check_scope` | Optional `project_ids`, `product_ids`, `tags`, `exclude_tags` lists. Run the selected portable gate, or the full gate without selectors. Requires `--allow-checks`. |
+| `check_native_scope` | `view_id`; optional `project_ids`, `product_ids`, `tags`, `exclude_tags` lists. Run the grouped native CLI lane with the fixed local `kicad-cli` and retain a fresh receipt. Requires `--allow-checks`. |
 | `inspect_contract` | `project_id`, `native_summary`. Inspect saved source-bound native evidence without capturing again. Observations remain `UNREVIEWED`. |
 | `capture_contract` | `project_id`; optional `runner`. Capture native evidence to help independently author the contract. Requires `--allow-checks`. |
 
@@ -213,6 +233,8 @@ container runner requires native depth for `check_project` and `native: true` fo
 `doctor`. Doctor can inspect a toolchain before a project exists; a supplied project
 and toolchain must agree. Scope include selectors form a union, then `exclude_tags`
 removes matches; with only exclusions, selection starts from all projects.
+The grouped `check_native_scope` operation matches `tools.ci --kicad`; use
+`check_project` for per-project automatic or container runner selection.
 Native failures retain runner and command evidence. Portable checks do not establish native acceptance.
 
 Read `events.log`, the full diagnostic report and captured portable/native outputs
@@ -233,6 +255,7 @@ BOM separately for the controlled manufacturer, MPN and revision join.
 | Tool | Arguments and use |
 | --- | --- |
 | `inspect_3d_models` | `project_id`. Read placed-footprint model assignments, missing or broken references and declared candidate assets. Available by default; creates no files and runs no native tools. |
+| `init_model_map` | `project_id`, `view_id`. Create a source-bound draft for unassigned footprints under `build/model-maps/<view_id>` with `--allow-exports`. |
 | `preview_model_population` | `project_id`, `board_sha256`, `assignments`. Retain a plan for explicit reference/model pairs without editing source. Available by default. |
 | `apply_model_population` | `project_id`, `plan`. Apply a reviewed `model-population.json` plan and its saved model map with `--allow-edits`. |
 | `export_3d` | `project_id`, `view_id`; optional `runner` defaults to `auto`. Generate top/angled PNG, STEP and GLB files using exact local KiCad or the pinned container. Requires both checks and exports capabilities. |
@@ -242,6 +265,14 @@ findings, and follow [the 3D workflow](THREE_D_WORKFLOW.md) to populate the boar
 3D model assignments. A matching candidate filename does not prove package identity
 or dimensions. Author and review the physical model separately; these tools do not
 create geometry or select a package for you.
+
+For a starting inventory, call `init_model_map` with a new `view_id`. Its
+`model-map.json` lists every unassigned footprint, blank model choices, candidate
+asset hints and the board/manifest hashes. The same directory retains the
+`model-population.json` report and diagnostic logs. `DRAFT` is an unapproved starting
+point: it changes no source, selects no physical model and does not run KiCad.
+Read the draft through `read_artifact`, review the candidates independently and
+pass the desired explicit assignments to `preview_model_population`.
 
 For an explicit assignment, read the board with `read_project_file` and pass its
 SHA-256 to `preview_model_population` with assignments such as
@@ -327,6 +358,22 @@ requires fresh capture or an input repair. Review supplier matches, packaging,
 stock and price separately before uploading an order file. See the parts guide
 for board-count/spare calculations and the DigiKey upload settings.
 
+## Inspect a recorded sourcing snapshot
+
+`inspect_sourcing_snapshot` accepts `path`, a checkout-relative artifact containing
+manually captured sourcing-snapshot JSON under managed `build/`. It uses the same
+typed file format and validation as `python -B -m tools.sourcing --snapshot ...`.
+The default tool reads only that snapshot and the repository catalog; it does not
+contact suppliers or create files.
+
+The report preserves `PASS` or `FAIL`, offer counts and actionable findings for
+unknown parts or duplicate offers. Missing or malformed saved JSON returns the
+CLI's `SOURCING_LOAD` failure report. Out-of-scope and linked paths are rejected.
+A pass describes recorded offer identities and catalog references; it does not
+verify that stock or prices remain current, approve a component or authorize a
+purchase or build. Use the [BOM policy](BOM_POLICY.md) to keep sourcing observations
+separate from catalog identity and release evidence.
+
 ## Export and prepare an engineering review
 
 Commit the reviewed source through normal Git and leave the checkout clean before
@@ -339,7 +386,8 @@ prerequisites. See [release readiness](RELEASE_READINESS.md).
 | --- | --- |
 | `generate_views` | `view_id`; optional `project_ids`, `product_ids`, `tags`, `exclude_tags` lists. Generate product/variant BOMs, harness schedules and electrical/system review views with `--allow-exports`. |
 | `export_project` | `project_id`, `export_id`; optional `runner`. Create native and purchasing BOMs and applicable Gerber, drill and placement exports. Requires checks and exports capabilities. |
-| `prepare_review` | `project_id`, `release_id`; optional `runner`. Prepare an `engineering_review` candidate from clean committed source. Requires checks and exports capabilities. |
+| `prepare_review` | `project_id`, `release_id`; optional `runner`. Prepare an `engineering_review` candidate for one board from clean committed source. Requires checks and exports capabilities. |
+| `prepare_review_scope` | `release_id`, optional `project_ids` and `variants` lists, `portable` artifact path and `runner`. Prepare the shared CLI's multi-project/product-variant engineering review scope. Requires checks and exports capabilities. |
 | `check_release` | `manifest`. Verify the candidate's source and retained evidence. |
 | `package_release` | `manifest`, `package_id`. Verify and package the candidate, including its source Git bundle; requires `--allow-exports`. |
 | `verify_package` | `archive`. Check inventory and hashes and perform a temporary restore without executing restored project scripts. |
@@ -365,8 +413,15 @@ unchanged. The review manifest is `build/releases/<release_id>/manifest.json`.
 Review generated layers, holes, placement origin and rotation, component population
 and BOM identity before relying on the outputs.
 
-`prepare_review` does not expose prototype, pilot or production approval. A passing
-manifest/package check proves its declared evidence and integrity scope. It does
+`prepare_review_scope` accepts explicit project IDs and exact `PRODUCT:VARIANT`
+selectors. A selected scope must share one toolchain and use clean committed
+source. Optional `portable` names retained portable evidence; `runner` is `auto`,
+`local` or `container`. The service uses the same scope resolution as the release
+CLI. `prepare_review` remains the single-board shortcut. Both operations produce
+only an `engineering_review` candidate; neither accepts approval records or
+prototype, pilot or production authorization.
+
+A passing manifest/package check proves its declared evidence and integrity scope. It does
 not create approvals, authorize a build or establish electrical correctness.
 Packaging retains reachable source Git history; review that history before sharing
 outside the team. Record the returned package digest when choosing

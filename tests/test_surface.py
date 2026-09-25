@@ -34,6 +34,8 @@ class ToolSurfaceTests(unittest.TestCase):
         self.root = Path(self.temporary.name)
         shutil.copytree(SOURCE_ROOT / "tools", self.root / "tools",
                         ignore=shutil.ignore_patterns("__pycache__"))
+        shutil.copytree(SOURCE_ROOT / "tests", self.root / "tests",
+                        ignore=shutil.ignore_patterns("__pycache__"))
         (self.root / "catalog").mkdir()
         shutil.copy2(SOURCE_ROOT / CATALOG, self.root / CATALOG)
 
@@ -55,8 +57,13 @@ class ToolSurfaceTests(unittest.TestCase):
         self.assertEqual(report.status, "PASS", report.model_dump_json(indent=2))
         self.assertEqual(report.mcp_verification, "LIVE")
         self.assertFalse(report.build_authorized)
-        self.assertEqual({item.alignment for item in report.capabilities},
-                         {"aligned", "partial", "cli_only", "mcp_only"})
+        self.assertEqual(report.coverage_status, "PASS")
+        self.assertEqual(report.parity_status, "PASS")
+        self.assertEqual(report.behavior_verification, "NOT_RUN")
+        self.assertEqual({item.scope for item in report.capabilities},
+                         {"core", "administration", "adapter"})
+        self.assertTrue(all(item.alignment == "aligned" and not item.gaps
+                            for item in report.capabilities if item.scope == "core"))
         self.assertTrue({"prepare_parts", "save_parts_preferences", "inspect_tool_surfaces"}
                         <= {tool.name for tool in report.mcp})
         self.assertEqual(parse_model_text(report.model_dump_json(), ToolSurfaceReport), report)
@@ -175,14 +182,68 @@ class ToolSurfaceTests(unittest.TestCase):
     def test_catalog_requires_complete_and_honest_classifications(self) -> None:
         catalog = read_model(self.root / CATALOG, ToolSurfacesCatalog)
         mappings = tuple(
-            item.model_copy(update={"gaps": ()}) if item.id == "parts-preparation" else item
+            item.model_copy(update={"alignment": "partial", "gaps": ("Missing order quantities",)})
+            if item.id == "parts-preparation" else item
             for item in catalog.capabilities if item.id != "project-verification"
         )
         write_model(self.root / CATALOG, catalog.model_copy(update={"capabilities": mappings}))
         report = self.report()
         self.assertEqual(report.status, "FAIL")
-        self.assertIn("parts-preparation", self.messages(report, "invalid_alignment"))
+        self.assertIn("parts-preparation", self.messages(report, "core_parity_gap"))
         self.assertIn("check_project", self.messages(report, "unmapped_surface"))
+
+    def test_documenting_a_core_gap_does_not_make_parity_pass(self) -> None:
+        catalog = read_model(self.root / CATALOG, ToolSurfacesCatalog)
+        mappings = tuple(item.model_copy(update={
+            "alignment": "partial", "gaps": ("MCP lacks a workflow mode",),
+        }) if item.id == "parts-preparation" else item for item in catalog.capabilities)
+        write_model(self.root / CATALOG, catalog.model_copy(update={"capabilities": mappings}))
+        report = self.report()
+        self.assertEqual(report.coverage_status, "PASS")
+        self.assertEqual(report.parity_status, "FAIL")
+        self.assertEqual(report.status, "FAIL")
+        self.assertIn("Core workflows", self.messages(report, "core_parity_gap"))
+
+    def test_core_workflows_cannot_be_reclassified_as_exceptions(self) -> None:
+        catalog = read_model(self.root / CATALOG, ToolSurfacesCatalog)
+        mappings = tuple(item.model_copy(update={
+            "scope": "administration", "exception": "Ignore this missing behavior",
+        }) if item.id == "model-population" else item for item in catalog.capabilities)
+        write_model(self.root / CATALOG, catalog.model_copy(update={"capabilities": mappings}))
+        report = self.report()
+        self.assertEqual(report.status, "FAIL")
+        self.assertIn("model-population", self.messages(report, "core_scope"))
+
+    def test_core_behavior_tests_are_required_and_resolved_without_imports(self) -> None:
+        catalog = read_model(self.root / CATALOG, ToolSurfacesCatalog)
+        for references, code in (((), "missing_parity_tests"),
+                                 (("tests.test_missing.NotThere.test_behavior",), "missing_parity_test")):
+            mappings = tuple(item.model_copy(update={"parity_tests": references})
+                             if item.id == "project-inventory" else item
+                             for item in catalog.capabilities)
+            write_model(self.root / CATALOG, catalog.model_copy(update={"capabilities": mappings}))
+            report = self.report()
+            self.assertEqual(report.parity_status, "FAIL")
+            self.assertIn("Core parity" if not references else "does not exist",
+                          self.messages(report, code))
+        self.assertEqual(report.behavior_verification, "NOT_RUN")
+
+    def test_adapter_constraints_do_not_mask_or_create_functional_gaps(self) -> None:
+        catalog = read_model(self.root / CATALOG, ToolSurfacesCatalog)
+        mappings = tuple(item.model_copy(update={"constraints": ("MCP uses startup permissions",)})
+                         if item.id == "project-inventory" else item
+                         for item in catalog.capabilities)
+        write_model(self.root / CATALOG, catalog.model_copy(update={"capabilities": mappings}))
+        report = self.report()
+        self.assertEqual(report.status, "PASS", report.issues)
+
+    def test_admin_exceptions_need_a_reason(self) -> None:
+        catalog = read_model(self.root / CATALOG, ToolSurfacesCatalog)
+        mappings = tuple(item.model_copy(update={"exception": None})
+                         if item.id == "repository-lifecycle" else item
+                         for item in catalog.capabilities)
+        write_model(self.root / CATALOG, catalog.model_copy(update={"capabilities": mappings}))
+        self.assertIn("explicit reason", self.messages(self.report(), "missing_exception"))
 
     def test_malformed_catalog_is_a_typed_failure(self) -> None:
         (self.root / CATALOG).write_text('{"schema_version":"future"}', encoding="utf-8")
@@ -199,7 +260,7 @@ class ToolSurfaceTests(unittest.TestCase):
                              ToolSurfaceReport)
         catalog = read_model(self.root / CATALOG, ToolSurfacesCatalog)
         with self.assertRaises(ValidationError):
-            parse_model_text(catalog.model_dump_json().replace('"schema_version":"1"',
+            parse_model_text(catalog.model_dump_json().replace('"schema_version":"2"',
                                                                '"schema_version":1'),
                              ToolSurfacesCatalog)
         with self.assertRaises(ValidationError):

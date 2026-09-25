@@ -17,6 +17,7 @@ from .hwrepo.parts_workflow import (
     save_report,
     text_report,
 )
+from .hwrepo.purchasing_preferences import save_parts_preferences
 
 
 def count(value: str) -> int:
@@ -44,6 +45,9 @@ def main() -> int:
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--init-preferences", type=Path,
                       help="Create a new preferences JSON under this island's docs/ and exit")
+    mode.add_argument("--save-preferences", action="store_true",
+                      help="Create/update island docs/purchasing.json; existing files need a digest")
+    parser.add_argument("--expected-sha256", help="Current purchasing.json digest for --save-preferences")
     mode.add_argument("--native-summary", type=Path,
                       help="Reuse a source-bound native summary; otherwise capture a fresh netlist")
     parser.add_argument("--runner", choices=("auto", "local", "container"), default="auto")
@@ -55,14 +59,25 @@ def main() -> int:
         parser.error("--boards must be at least 1")
     if args.spare_percent is not None and args.spare_percent > 100:
         parser.error("--spare-percent must be between 0 and 100")
-    if (args.native_summary is not None or args.init_preferences is not None) and (
+    if (args.native_summary is not None or args.init_preferences is not None or args.save_preferences) and (
         args.runner != "auto" or args.cli != "kicad-cli"
     ):
         parser.error("--runner and --cli apply only to fresh capture")
-    if args.init_preferences is not None and args.output is not None:
+    if (args.init_preferences is not None or args.save_preferences) and args.output is not None:
         parser.error("--output applies only to a parts review")
+    if args.expected_sha256 is not None and not args.save_preferences:
+        parser.error("--expected-sha256 applies only to --save-preferences")
     root = args.root.resolve()
     try:
+        if args.save_preferences:
+            preferences = load_preferences(
+                root, args.project, args.preferences, args.boards,
+                args.spare_percent, args.spare_minimum,
+            )
+            saved = save_parts_preferences(root, args.project, preferences, args.expected_sha256)
+            print(saved.model_dump_json(indent=2) if args.format == "json" else
+                  f"{saved.status}: {saved.path}\nSHA-256: {saved.readback_sha256}")
+            return 0
         if args.init_preferences is not None:
             preferences = load_preferences(
                 root, args.project, args.preferences, args.boards,

@@ -118,6 +118,17 @@ the preferences:
 python -B -m tools.parts --project my-board --boards 10 --spare-percent 10 --spare-minimum 3
 ```
 
+For a guarded command-line update, use `--save-preferences`. It writes the same
+fixed `docs/purchasing.json` as MCP and returns its SHA-256 in JSON output. First
+creation needs no digest; an existing file requires its current `--expected-sha256`.
+Supply a reviewed alternative file with `--preferences` to change supplier SKUs;
+quantity options override its numbers. An outdated digest fails before writing.
+
+```sh
+python -B -m tools.parts --project my-board --save-preferences --boards 10 --format json
+python -B -m tools.parts --project my-board --save-preferences --boards 12 --expected-sha256 CURRENT_FILE_SHA256 --format json
+```
+
 Reviewed project preferences can be committed as authored input. Keep temporary
 experiments under ignored `build/` and pass their file with `--preferences`.
 

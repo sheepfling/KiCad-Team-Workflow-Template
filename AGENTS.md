@@ -125,5 +125,7 @@ registered products to group independent islands.
 
 When changing a CLI command, option or MCP tool, update the reviewed coverage in
 `catalog/tool-surfaces.json` and run `python -B -m tools.surface --require-live-mcp`.
-Read [tool surfaces](docs/workflow/TOOL_SURFACES.md) for declared CLI/MCP gaps. A
-coverage pass verifies the inventory, not equivalent behavior or design approval.
+Read [tool surfaces](docs/workflow/TOOL_SURFACES.md) for required core parity and
+explicit administrative/adapter exceptions. Core gaps fail even when documented;
+update both interfaces and their referenced behavioral tests. Surface inspection
+never runs those tests; the full tools.ci gate does. Neither grants design approval.

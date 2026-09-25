@@ -27,7 +27,8 @@ from .contracts import read_model, repo_path, write_model
 from .diagnostic_journal import DiagnosticJournal
 from .discovery import load_config, load_registry
 from .doctor import NativeRunner, doctor
-from .evidence import digest, source_state
+from .evidence import digest, source_state, verify_release_portable
+from .exports import export as generate_exports
 from .exports import verify_exports
 from .mcp_files import artifact_path
 from .models import (
@@ -246,44 +247,97 @@ def export_project(
             sys.executable, "-B", "-m", "tools.native_deps", "--root", str(root),
             "--image", config.image, "--output", dependencies.as_posix(),
         ), directory / "dependencies.command.json", 600)
-    releasing.run_native(root, project, output, cli, dependencies, export_only=True)
+    source = source_state(root)
+    if cli is not None:
+        report = generate_exports(root, project.config, output, cli)
+    else:
+        try:
+            releasing.run_native(root, project, output, cli, dependencies, export_only=True)
+        except ValueError:
+            # The CLI exits 1 for a typed domain FAIL. Preserve that report when
+            # present; startup/container failures without a report remain errors.
+            path = repo_path(root, (output / "exports.json").relative_to(root).as_posix())
+            if not path.is_file():
+                raise
+            report = read_model(path, ReleaseExportReport)
+            if report.status != "FAIL":
+                raise
+        else:
+            report = read_model(output / "exports.json", ReleaseExportReport)
+    if (report.project_id != project_id or report.source != source
+            or report.toolchain_id != load_config(root, project.config).toolchain_id
+            or report.settings != manifest.release_exports):
+        raise ValueError("Export report differs from the requested project/source/settings")
+    if report.status == "FAIL":
+        return report
     return verify_exports(
         root, releasing.reference(root, output / "exports.json"), source_state(root),
         project_id, project.config,
     )
 
 
-def prepare_review(
-    root: Path, project_id: str, release_id: str, runner: NativeRunner = "auto",
+def prepare_review_scope(
+    root: Path, release_id: str, project_ids: tuple[str, ...] = (),
+    variants: tuple[str, ...] = (), portable: str | None = None,
+    runner: NativeRunner = "auto",
 ) -> ReleaseManifest:
-    """Prepare only an engineering-review candidate, never an approval or production class."""
+    """Prepare an engineering-review scope using the same selections as the release CLI."""
     root = root.resolve()
-    selected_project(root, project_id)
+    if runner not in {"auto", "local", "container"}:
+        raise ValueError(f"Unknown native runner: {runner}")
     output = fresh_output(root, "releases", release_id)
     fresh_output(root, "release-deps", release_id)
     clean_source(root)
-    cli = selected_cli(root, project_id, runner)
+    source = source_state(root)
+    if source.commit is None:
+        raise ValueError("Commit the reviewed source before preparing a review")
+    selections = releasing.resolve_variants(root, variants)
+    request = ReleaseManifest(
+        release_id=release_id, release_class=ReleaseClass.ENGINEERING_REVIEW,
+        status=ReleaseStatus.CANDIDATE, source_commit=source.commit, toolchain_id="pending",
+        projects=project_ids, variants=selections, libraries=(), interfaces=(), artifacts=(),
+    )
+    projects = releasing.selected_projects(root, request)
+    portable_path = None if portable is None else artifact_file(root, portable)
+    if portable_path is not None:
+        verify_release_portable(root, releasing.reference(root, portable_path), source,
+                                tuple(project.id for project in projects))
+    cli = selected_cli(root, projects[0].id, runner)
     if cli is not None:
         return releasing.prepare(
-            root, release_id, (project_id,), release_class=ReleaseClass.ENGINEERING_REVIEW, cli=cli,
+            root, release_id, project_ids, selections,
+            release_class=ReleaseClass.ENGINEERING_REVIEW, cli=cli,
+            portable=None if portable_path is None else portable_path.relative_to(root),
         )
-    source = source_state(root)
-    # The existing container preparation invokes pip with inherited stdout. Capture
-    # that existing CLI in a subprocess so progress cannot corrupt the stdio protocol.
+    # Existing dependency preparation inherits stdout; capture the CLI so progress
+    # cannot enter the stdio protocol. Every option comes from a validated selection.
+    selection_args = tuple(value for project_id in project_ids for value in ("--project", project_id))
+    variant_args = tuple(value for variant in variants for value in ("--variant", variant))
+    portable_args = () if portable_path is None else (
+        "--portable", portable_path.relative_to(root).as_posix(),
+    )
     captured_command(root, (
         sys.executable, "-B", "-m", "tools.release", "prepare", "--root", str(root),
-        "--project", project_id, "--release-id", release_id,
+        *selection_args, *variant_args, *portable_args, "--release-id", release_id,
         "--release-class", "engineering_review", "--format", "json",
     ), output.parent / f"{output.name}.command.json", 1800)
     candidate = read_model(
         repo_path(root, (output / "manifest.json").relative_to(root).as_posix()), ReleaseManifest,
     )
-    if (candidate.release_id != release_id or candidate.projects != (project_id,)
+    if (candidate.release_id != release_id or candidate.projects != project_ids
+            or candidate.variants != selections
             or candidate.release_class is not ReleaseClass.ENGINEERING_REVIEW
             or candidate.status is not ReleaseStatus.CANDIDATE or candidate.approval is not None
             or candidate.source_commit != source.commit or source_state(root) != source):
         raise ValueError("Prepared candidate differs from the requested review or current source")
     return candidate
+
+
+def prepare_review(
+    root: Path, project_id: str, release_id: str, runner: NativeRunner = "auto",
+) -> ReleaseManifest:
+    """Prepare one engineering-review candidate without approval or production authority."""
+    return prepare_review_scope(root, release_id, (project_id,), runner=runner)
 
 
 def check_release(root: Path, manifest: str) -> ReleaseReadinessReport:

@@ -1,5 +1,5 @@
 {
-  "schema_version": "1",
+  "schema_version": "2",
   "cli": [
     {
       "module": "tools.check_all",
@@ -104,10 +104,14 @@
         "verify-snapshot"
       ],
       "options": [
+        "--exclude-tag",
         "--format",
         "--output",
+        "--product",
+        "--project",
         "--release",
-        "--root"
+        "--root",
+        "--tag"
       ]
     },
     {
@@ -175,6 +179,7 @@
       "options": [
         "--boards",
         "--cli",
+        "--expected-sha256",
         "--format",
         "--init-preferences",
         "--native-summary",
@@ -183,6 +188,7 @@
         "--project",
         "--root",
         "--runner",
+        "--save-preferences",
         "--spare-minimum",
         "--spare-percent"
       ]
@@ -335,6 +341,16 @@
       ]
     },
     {
+      "name": "check_native_scope",
+      "parameters": [
+        "exclude_tags",
+        "product_ids",
+        "project_ids",
+        "tags",
+        "view_id"
+      ]
+    },
+    {
       "name": "check_project",
       "parameters": [
         "depth",
@@ -423,6 +439,13 @@
       ]
     },
     {
+      "name": "init_model_map",
+      "parameters": [
+        "project_id",
+        "view_id"
+      ]
+    },
+    {
       "name": "inspect_3d_models",
       "parameters": [
         "project_id"
@@ -433,6 +456,12 @@
       "parameters": [
         "native_summary",
         "project_id"
+      ]
+    },
+    {
+      "name": "inspect_sourcing_snapshot",
+      "parameters": [
+        "path"
       ]
     },
     {
@@ -467,6 +496,19 @@
       ]
     },
     {
+      "name": "plan_impact",
+      "parameters": [
+        "base",
+        "exclude_tag",
+        "full",
+        "head",
+        "paths",
+        "select_product",
+        "select_project",
+        "select_tag"
+      ]
+    },
+    {
       "name": "prepare_parts",
       "parameters": [
         "boards",
@@ -485,6 +527,16 @@
         "project_id",
         "release_id",
         "runner"
+      ]
+    },
+    {
+      "name": "prepare_review_scope",
+      "parameters": [
+        "portable",
+        "project_ids",
+        "release_id",
+        "runner",
+        "variants"
       ]
     },
     {
@@ -582,7 +634,12 @@
       ],
       "alignment": "aligned",
       "reason": "Both return the same typed project, product, tag and toolchain inventory.",
-      "gaps": []
+      "scope": "core",
+      "gaps": [],
+      "constraints": [],
+      "parity_tests": [
+        "tests.test_mcp_parity.McpParityTests.test_inventory_parity"
+      ]
     },
     {
       "id": "selected-project-record",
@@ -592,7 +649,11 @@
       ],
       "alignment": "mcp_only",
       "reason": "MCP combines selected inventory, manifest and contract; CLI users read source files after inventory.",
-      "gaps": []
+      "scope": "adapter",
+      "gaps": [],
+      "constraints": [],
+      "exception": "MCP combines selected inventory, manifest and contract; CLI users read source files after inventory.",
+      "parity_tests": []
     },
     {
       "id": "environment-doctor",
@@ -602,10 +663,15 @@
       "mcp": [
         "doctor"
       ],
-      "alignment": "partial",
+      "alignment": "aligned",
       "reason": "Both inspect project and native-runner readiness.",
-      "gaps": [
+      "scope": "core",
+      "gaps": [],
+      "constraints": [
         "CLI --cli selects an executable; MCP uses the startup environment and fixed command."
+      ],
+      "parity_tests": [
+        "tests.test_mcp_parity.McpParityTests.test_doctor_failure_parity"
       ]
     },
     {
@@ -618,7 +684,12 @@
       ],
       "alignment": "aligned",
       "reason": "Both scaffold a fresh island from the selected kind and toolchain; MCP requires allow-writes.",
-      "gaps": []
+      "scope": "core",
+      "gaps": [],
+      "constraints": [],
+      "parity_tests": [
+        "tests.test_mcp_parity.McpParityTests.test_new_project_parity"
+      ]
     },
     {
       "id": "import-design",
@@ -629,11 +700,17 @@
         "preview_import",
         "import_project"
       ],
-      "alignment": "partial",
+      "alignment": "aligned",
       "reason": "Both preview or copy the same project island with source preservation.",
-      "gaps": [
+      "scope": "core",
+      "gaps": [],
+      "constraints": [
         "MCP source paths must stay within the fixed checkout or startup import roots; CLI accepts caller-selected sources.",
         "CLI uses --dry-run; MCP separates preview from creation and gates creation with allow-writes."
+      ],
+      "parity_tests": [
+        "tests.test_mcp_parity.McpParityTests.test_import_preview_parity",
+        "tests.test_mcp_parity.McpParityTests.test_import_write_parity"
       ]
     },
     {
@@ -644,10 +721,15 @@
       "mcp": [
         "scan_imports"
       ],
-      "alignment": "partial",
+      "alignment": "aligned",
       "reason": "Both inspect candidate designs and report exclusions without copying.",
-      "gaps": [
+      "scope": "core",
+      "gaps": [],
+      "constraints": [
         "MCP source directories are restricted to the checkout or configured import roots."
+      ],
+      "parity_tests": [
+        "tests.test_mcp_parity.McpParityTests.test_import_scan_parity"
       ]
     },
     {
@@ -659,11 +741,17 @@
         "diagnose_import",
         "diagnose_project"
       ],
-      "alignment": "partial",
+      "alignment": "aligned",
       "reason": "Both retain diagnostic receipts for import or registered-project triage.",
-      "gaps": [
+      "scope": "core",
+      "gaps": [],
+      "constraints": [
         "CLI chooses --log-dir and --cli; MCP fixes receipt roots and executable selection.",
         "MCP splits source import diagnosis from project diagnosis; project checks require allow-checks and artifact inputs stay inside allowed repository build paths."
+      ],
+      "parity_tests": [
+        "tests.test_mcp_parity.McpParityTests.test_import_diagnosis_parity",
+        "tests.test_mcp_parity.McpParityTests.test_project_diagnosis_parity"
       ]
     },
     {
@@ -674,10 +762,15 @@
       "mcp": [
         "rescue_project"
       ],
-      "alignment": "partial",
+      "alignment": "aligned",
       "reason": "Both return an explicitly unverified selected-island repair view.",
-      "gaps": [
+      "scope": "core",
+      "gaps": [],
+      "constraints": [
         "CLI can choose --log-dir; MCP retains fresh receipts only under build/diagnostics."
+      ],
+      "parity_tests": [
+        "tests.test_mcp_parity.McpParityTests.test_rescue_parity"
       ]
     },
     {
@@ -692,7 +785,11 @@
       "mcp": [],
       "alignment": "cli_only",
       "reason": "Repository adoption, initialization, bootstrap and upgrade planning remain explicit operator CLI actions.",
-      "gaps": []
+      "scope": "administration",
+      "gaps": [],
+      "constraints": [],
+      "exception": "Repository adoption, initialization, bootstrap and upgrade planning remain explicit operator CLI actions.",
+      "parity_tests": []
     },
     {
       "id": "project-verification",
@@ -702,10 +799,15 @@
       "mcp": [
         "check_project"
       ],
-      "alignment": "partial",
+      "alignment": "aligned",
       "reason": "Both dispatch the same portable/native project verification and preserve failed results.",
-      "gaps": [
+      "scope": "core",
+      "gaps": [],
+      "constraints": [
         "CLI accepts --cli, --output and detailed text presentation; MCP uses the fixed executable and fresh diagnostic receipts."
+      ],
+      "parity_tests": [
+        "tests.test_mcp_parity.McpParityTests.test_selected_verification_parity"
       ]
     },
     {
@@ -716,10 +818,15 @@
       "mcp": [
         "check_scope"
       ],
-      "alignment": "partial",
-      "reason": "Both support project/product/tag union and exclusion selection; MCP requires allow-checks.",
-      "gaps": [
-        "MCP exposes the portable scoped CI run only; CLI also offers native --kicad, --matrix, --release/--manifest, --metrics, --fault-probes, --jobs, --cli and output controls."
+      "alignment": "aligned",
+      "reason": "Both run portable project/product/tag selection with union and exclusion through static_pipeline. Other CI modes are catalogued separately.",
+      "scope": "core",
+      "gaps": [],
+      "constraints": [
+        "MCP selects its fixed output locations and runs one project-test worker; CLI can choose output, jobs and text formatting."
+      ],
+      "parity_tests": [
+        "tests.test_mcp_parity.McpParityTests.test_scope_check_parity"
       ]
     },
     {
@@ -731,10 +838,16 @@
         "inspect_contract",
         "capture_contract"
       ],
-      "alignment": "partial",
+      "alignment": "aligned",
       "reason": "Both inspect source-bound native evidence and can capture an unreviewed contract candidate.",
-      "gaps": [
+      "scope": "core",
+      "gaps": [],
+      "constraints": [
         "CLI selects --cli and --output; MCP fixes the command and capture directory, and existing evidence must be an allowed repository artifact."
+      ],
+      "parity_tests": [
+        "tests.test_mcp_parity.McpParityTests.test_contract_inspection_parity",
+        "tests.test_source_parity.SourceParityTests.test_contract_capture_parity"
       ]
     },
     {
@@ -747,7 +860,12 @@
       ],
       "alignment": "aligned",
       "reason": "CLI --check-models and MCP inspect_3d_models report the same placed-footprint coverage and candidate assets.",
-      "gaps": []
+      "scope": "core",
+      "gaps": [],
+      "constraints": [],
+      "parity_tests": [
+        "tests.test_mcp_parity.McpParityTests.test_model_coverage_parity"
+      ]
     },
     {
       "id": "model-population",
@@ -755,15 +873,21 @@
         "tools.visualize"
       ],
       "mcp": [
+        "init_model_map",
         "preview_model_population",
         "apply_model_population"
       ],
-      "alignment": "partial",
+      "alignment": "aligned",
       "reason": "Both preview explicit reviewed assignments and apply a source-bound population plan.",
-      "gaps": [
-        "CLI --init-model-map creates a draft with empty paths and candidates; MCP has no draft-map initialization tool.",
-        "MCP preview takes assignments and board_sha256 and captures the manifest hash internally; CLI consumes a complete model-map file with both hashes.",
-        "CLI selects output locations; MCP uses controlled receipt directories and applies a retained plan with allow-edits."
+      "scope": "core",
+      "gaps": [],
+      "constraints": [
+        "MCP writes draft maps and plans to fresh ignored receipts; assignments and source hashes remain explicit.",
+        "MCP apply requires a retained reviewed plan plus unchanged board, manifest and model hashes; CLI consumes an explicitly reviewed map."
+      ],
+      "parity_tests": [
+        "tests.test_mcp_planning.McpPlanningTests.test_model_map_cli_and_mcp_match_draft_content_and_authority",
+        "tests.test_source_parity.SourceParityTests.test_model_population_preview_apply_parity"
       ]
     },
     {
@@ -774,10 +898,15 @@
       "mcp": [
         "export_3d"
       ],
-      "alignment": "partial",
+      "alignment": "aligned",
       "reason": "Both export native 3D views and models using the selected exact runner.",
-      "gaps": [
+      "scope": "core",
+      "gaps": [],
+      "constraints": [
         "CLI accepts --cli and --output; MCP selects a fresh directory by view_id and requires allow-checks plus allow-exports."
+      ],
+      "parity_tests": [
+        "tests.test_artifact_parity.ArtifactParityTests.test_3d_export_parity"
       ]
     },
     {
@@ -788,12 +917,18 @@
       "mcp": [
         "prepare_parts"
       ],
-      "alignment": "partial",
+      "alignment": "aligned",
       "reason": "Both use source-bound native evidence, board/spare preferences and the same purchasing service.",
-      "gaps": [
+      "scope": "core",
+      "gaps": [],
+      "constraints": [
         "CLI accepts --cli and a fresh --output path; MCP fixes the command and writes build/parts/<view_id>.",
         "MCP preference paths are restricted to selected-project docs or allowed build artifacts; native_summary must be an allowed build artifact.",
         "MCP requires allow-exports; fresh native capture additionally requires allow-checks, while retained native evidence can be reused without executing checks."
+      ],
+      "parity_tests": [
+        "tests.test_mcp_parity.McpParityTests.test_parts_quantities_and_native_failure_parity",
+        "tests.test_mcp_parity.McpParityTests.test_parts_stale_evidence_parity"
       ]
     },
     {
@@ -804,11 +939,15 @@
       "mcp": [
         "save_parts_preferences"
       ],
-      "alignment": "partial",
-      "reason": "CLI --init-preferences creates defaults; MCP saves explicitly supplied typed preferences.",
-      "gaps": [
-        "MCP creates or updates only selected docs/purchasing.json, requires allow-edits and requires expected_sha256 for replacement.",
-        "CLI initialization writes a caller-selected fresh preference file; it has no hash-checked update command."
+      "alignment": "aligned",
+      "reason": "Both create or update the same strict purchasing preferences through a shared guarded writer.",
+      "scope": "core",
+      "gaps": [],
+      "constraints": [
+        "MCP requires allow-edits and receives a typed object; CLI --save-preferences reads --preferences plus quantity overrides. Both require the current digest for updates."
+      ],
+      "parity_tests": [
+        "tests.test_mcp_parity.McpParityTests.test_parts_preferences_parity"
       ]
     },
     {
@@ -819,10 +958,15 @@
       "mcp": [
         "generate_views"
       ],
-      "alignment": "partial",
+      "alignment": "aligned",
       "reason": "Both generate catalog-derived product BOMs, harness schedules and review views.",
-      "gaps": [
-        "MCP adds project/product/tag selectors and writes a fresh build/views/<view_id>; CLI regenerates the normal configured view locations."
+      "scope": "core",
+      "gaps": [],
+      "constraints": [
+        "MCP always creates a fresh build/views/<view_id>; CLI also supports its existing configured output locations. Both accept the same project/product/tag union and exclusions."
+      ],
+      "parity_tests": [
+        "tests.test_generation_parity.GenerationParityTests.test_cli_and_mcp_generate_identical_scoped_files"
       ]
     },
     {
@@ -833,11 +977,15 @@
       "mcp": [
         "export_project"
       ],
-      "alignment": "partial",
+      "alignment": "aligned",
       "reason": "Both export source-bound native fabrication and assembly evidence.",
-      "gaps": [
-        "MCP supports one project and a controlled export_id directory using its exact selected runner; CLI controls the executable, output path and command-specific release inputs.",
-        "MCP requires allow-checks plus allow-exports and clean committed source."
+      "scope": "core",
+      "gaps": [],
+      "constraints": [
+        "Both export one project. MCP selects a fixed executable or pinned container, a fresh output ID and requires clean source plus checks/exports permissions."
+      ],
+      "parity_tests": [
+        "tests.test_artifact_parity.ArtifactParityTests.test_native_fabrication_export_parity"
       ]
     },
     {
@@ -846,13 +994,20 @@
         "tools.release prepare"
       ],
       "mcp": [
-        "prepare_review"
+        "prepare_review",
+        "prepare_review_scope"
       ],
-      "alignment": "partial",
+      "alignment": "aligned",
       "reason": "Both assemble a retained review manifest and evidence.",
-      "gaps": [
-        "MCP prepares one project with release_class=engineering_review only; CLI also selects multiple projects, product variants and other release classes.",
-        "CLI can select --portable, --cli and output paths; MCP requires exact native checks, clean committed source and a controlled release_id directory."
+      "scope": "core",
+      "gaps": [],
+      "constraints": [
+        "MCP exposes engineering_review only; manufacture/prototype release authority is an explicit administrative exception.",
+        "MCP uses fixed runners and fresh ignored receipts; both accept multiple projects, product variants and source-bound portable evidence."
+      ],
+      "parity_tests": [
+        "tests.test_review_scope_parity.ReviewScopeParityTests.test_actual_cli_and_mcp_prepare_same_project_variant_scope",
+        "tests.test_review_scope_parity.ReviewScopeParityTests.test_saved_portable_and_valid_native_evidence_support_same_package_lifecycle"
       ]
     },
     {
@@ -863,10 +1018,15 @@
       "mcp": [
         "check_release"
       ],
-      "alignment": "partial",
+      "alignment": "aligned",
       "reason": "Both check the same release manifest readiness contract.",
-      "gaps": [
+      "scope": "core",
+      "gaps": [],
+      "constraints": [
         "MCP manifest inputs must be allowed repository build artifacts; CLI accepts its explicit manifest path."
+      ],
+      "parity_tests": [
+        "tests.test_artifact_parity.ArtifactParityTests.test_release_readiness_and_archive_lifecycle_parity"
       ]
     },
     {
@@ -877,10 +1037,15 @@
       "mcp": [
         "package_release"
       ],
-      "alignment": "partial",
+      "alignment": "aligned",
       "reason": "Both package retained release evidence with the shared archive service.",
-      "gaps": [
+      "scope": "core",
+      "gaps": [],
+      "constraints": [
         "MCP fixes output to a fresh build/packages/<package_id>.zip and requires allow-exports; CLI chooses the archive/output path."
+      ],
+      "parity_tests": [
+        "tests.test_artifact_parity.ArtifactParityTests.test_release_readiness_and_archive_lifecycle_parity"
       ]
     },
     {
@@ -891,10 +1056,15 @@
       "mcp": [
         "verify_package"
       ],
-      "alignment": "partial",
+      "alignment": "aligned",
       "reason": "Both verify package contents, including a temporary restore when required.",
-      "gaps": [
+      "scope": "core",
+      "gaps": [],
+      "constraints": [
         "MCP archive inputs must be allowed repository build artifacts; CLI accepts its explicit archive path."
+      ],
+      "parity_tests": [
+        "tests.test_artifact_parity.ArtifactParityTests.test_release_readiness_and_archive_lifecycle_parity"
       ]
     },
     {
@@ -905,10 +1075,15 @@
       "mcp": [
         "restore_package"
       ],
-      "alignment": "partial",
+      "alignment": "aligned",
       "reason": "Both restore the same retained package format without granting manufacturing approval.",
-      "gaps": [
+      "scope": "core",
+      "gaps": [],
+      "constraints": [
         "MCP fixes destination to fresh build/restores/<restore_id> and requires allow-exports; CLI chooses destination."
+      ],
+      "parity_tests": [
+        "tests.test_artifact_parity.ArtifactParityTests.test_release_readiness_and_archive_lifecycle_parity"
       ]
     },
     {
@@ -920,7 +1095,11 @@
       ],
       "alignment": "mcp_only",
       "reason": "MCP offers bounded typed browsing of allowed build artifacts; shell/CLI users use filesystem tools.",
-      "gaps": []
+      "scope": "adapter",
+      "gaps": [],
+      "constraints": [],
+      "exception": "MCP offers bounded typed browsing of allowed build artifacts; shell/CLI users use filesystem tools.",
+      "parity_tests": []
     },
     {
       "id": "source-review-and-edit",
@@ -932,7 +1111,11 @@
       ],
       "alignment": "mcp_only",
       "reason": "MCP offers bounded source reads and explicit hash-checked text edits; CLI users edit authoritative files with their editor.",
-      "gaps": []
+      "scope": "adapter",
+      "gaps": [],
+      "constraints": [],
+      "exception": "MCP offers bounded source reads and explicit hash-checked text edits; CLI users edit authoritative files with their editor.",
+      "parity_tests": []
     },
     {
       "id": "workflow-guides",
@@ -942,7 +1125,11 @@
       ],
       "alignment": "mcp_only",
       "reason": "MCP reads named repository guides and matching resources; CLI users read Markdown directly.",
-      "gaps": []
+      "scope": "adapter",
+      "gaps": [],
+      "constraints": [],
+      "exception": "MCP reads named repository guides and matching resources; CLI users read Markdown directly.",
+      "parity_tests": []
     },
     {
       "id": "surface-inventory",
@@ -952,11 +1139,15 @@
       "mcp": [
         "inspect_tool_surfaces"
       ],
-      "alignment": "partial",
+      "alignment": "aligned",
       "reason": "Both return this same checked capability inventory.",
-      "gaps": [
+      "scope": "adapter",
+      "gaps": [],
+      "constraints": [
         "CLI --require-live-mcp can require the SDK; MCP always has the SDK available and exposes no mode argument."
-      ]
+      ],
+      "exception": "Both return this same checked capability inventory.",
+      "parity_tests": []
     },
     {
       "id": "mcp-launcher",
@@ -966,12 +1157,15 @@
       "mcp": [],
       "alignment": "cli_only",
       "reason": "The host starts stdio transport and chooses startup authority; tools cannot restart or widen their own permissions.",
-      "gaps": []
+      "scope": "adapter",
+      "gaps": [],
+      "constraints": [],
+      "exception": "The host starts stdio transport and chooses startup authority; tools cannot restart or widen their own permissions.",
+      "parity_tests": []
     },
     {
       "id": "low-level-policy-and-native-checks",
       "cli": [
-        "tools.check_all",
         "tools.check_toolchain",
         "tools.docs_policy",
         "tools.hardware check",
@@ -980,21 +1174,28 @@
       ],
       "mcp": [],
       "alignment": "cli_only",
-      "reason": "Dedicated lower-level policy and native-validation entry points remain CLI tools; broader MCP check_project/check_scope workflows do not expose their full individual contracts.",
-      "gaps": []
+      "reason": "Dedicated lower-level schema/policy commands remain operator diagnostics; their board-level checks also run through shared core workflows.",
+      "scope": "administration",
+      "gaps": [],
+      "constraints": [],
+      "exception": "Individual policy/debug entry points are administrative diagnostics; grouped native validation has a core MCP counterpart.",
+      "parity_tests": []
     },
     {
       "id": "ci-planning-and-tooling",
       "cli": [
         "tools.ci_matrix",
         "tools.fault_probe",
-        "tools.impact",
         "tools.native_deps"
       ],
       "mcp": [],
       "alignment": "cli_only",
-      "reason": "CI matrix planning, failure probes, Git impact analysis and image-dependency inspection remain automation/operator CLI capabilities.",
-      "gaps": []
+      "reason": "Hosted matrix serialization, disposable fault probes and dependency preparation are CI infrastructure operations.",
+      "scope": "administration",
+      "gaps": [],
+      "constraints": [],
+      "exception": "These modes prepare/test CI infrastructure; board change-impact planning and grouped native checks have core MCP counterparts.",
+      "parity_tests": []
     },
     {
       "id": "catalog-snapshots",
@@ -1005,19 +1206,99 @@
       "mcp": [],
       "alignment": "cli_only",
       "reason": "Review-only hardware snapshots use a separate CLI format from MCP engineering-review release packages.",
-      "gaps": []
+      "scope": "administration",
+      "gaps": [],
+      "constraints": [],
+      "exception": "Review-only hardware snapshots use a separate CLI format from MCP engineering-review release packages.",
+      "parity_tests": []
     },
     {
       "id": "repository-audits",
       "cli": [
         "tools.governance_audit",
-        "tools.metrics",
-        "tools.sourcing"
+        "tools.metrics"
       ],
       "mcp": [],
       "alignment": "cli_only",
-      "reason": "Hosted governance, current policy metrics and supplier snapshot audits have no dedicated MCP tool.",
-      "gaps": []
+      "reason": "Hosted governance and repository-wide policy metrics are administrative audit workflows.",
+      "scope": "administration",
+      "gaps": [],
+      "constraints": [],
+      "exception": "Account access/governance inspection and aggregate policy metrics remain explicit operator CLI actions.",
+      "parity_tests": []
+    },
+    {
+      "id": "native-scope-checks",
+      "cli": [
+        "tools.ci",
+        "tools.check_all"
+      ],
+      "mcp": [
+        "check_native_scope"
+      ],
+      "alignment": "aligned",
+      "reason": "Both run check_all for the selected native scope and preserve per-project failures.",
+      "scope": "core",
+      "gaps": [],
+      "constraints": [
+        "This grouped lane uses fixed local kicad-cli, like tools.ci --kicad. check_project additionally supports auto/container selection."
+      ],
+      "parity_tests": [
+        "tests.test_mcp_parity.McpParityTests.test_native_scope_failure_parity"
+      ]
+    },
+    {
+      "id": "change-impact",
+      "cli": [
+        "tools.impact"
+      ],
+      "mcp": [
+        "plan_impact"
+      ],
+      "alignment": "aligned",
+      "reason": "Both plan the same changed paths, Git revisions, explicit full scope or manual project/product/tag selection.",
+      "scope": "core",
+      "gaps": [],
+      "constraints": [
+        "MCP uses its fixed checkout and validates Git revisions before invoking a read-only diff."
+      ],
+      "parity_tests": [
+        "tests.test_mcp_planning.McpPlanningTests.test_impact_cli_and_mcp_match_paths_full_and_manual_modes",
+        "tests.test_mcp_planning.McpPlanningTests.test_impact_cli_and_mcp_match_git_refs_and_block_option_injection"
+      ]
+    },
+    {
+      "id": "supplier-snapshots",
+      "cli": [
+        "tools.sourcing"
+      ],
+      "mcp": [
+        "inspect_sourcing_snapshot"
+      ],
+      "alignment": "aligned",
+      "reason": "Both validate the same manually captured supplier snapshot without live sourcing or purchasing authority.",
+      "scope": "core",
+      "gaps": [],
+      "constraints": [
+        "MCP snapshot files must be bounded build artifacts. Neither surface updates offers or places orders."
+      ],
+      "parity_tests": [
+        "tests.test_mcp_planning.McpPlanningTests.test_sourcing_cli_and_mcp_match_artifact_and_semantic_failures"
+      ]
+    },
+    {
+      "id": "production-release-administration",
+      "cli": [
+        "tools.release prepare"
+      ],
+      "mcp": [],
+      "alignment": "cli_only",
+      "reason": "Release preparation outside engineering review follows explicit production governance.",
+      "scope": "administration",
+      "gaps": [],
+      "constraints": [],
+      "exception": "Prototype/production classes remain operator actions with production-profile prerequisites; MCP never creates manufacturing approval.",
+      "parity_tests": []
     }
   ]
 }

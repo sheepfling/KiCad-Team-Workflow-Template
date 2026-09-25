@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 import subprocess
 from pathlib import Path
 
@@ -10,18 +11,66 @@ from .hwrepo.models import ImpactPlan
 from .hwrepo.selection import ProjectSelector, resolve_project_ids
 
 
-def changed_paths(root: Path, base: str, head: str) -> tuple[str, ...]:
-    """Include both sides of renames so removed owners cannot disappear."""
+def resolve_commit(root: Path, value: str) -> str:
+    """Resolve a commit-ish after Git's option boundary before using it in a diff."""
     result = subprocess.run(
-        ("git", "-C", str(root), "diff", "--name-only", "-z", "--no-renames",
-         base, head, "--"),
-        capture_output=True,
-        check=False,
+        ("git", "-C", str(root), "rev-parse", "--verify", "--end-of-options", value + "^{commit}"),
+        capture_output=True, text=True, check=False,
+    )
+    commit = result.stdout.strip()
+    if result.returncode or re.fullmatch(r"(?:[0-9a-f]{40}|[0-9a-f]{64})", commit) is None:
+        raise ValueError(f"Cannot resolve commit reference {value!r}: {result.stderr.strip()}")
+    return commit
+
+
+def changed_paths(root: Path, base: str, head: str) -> tuple[str, ...]:
+    """Include both sides of renames; commit IDs prevent caller-controlled Git options."""
+    base_commit = resolve_commit(root, base)
+    head_commit = resolve_commit(root, head)
+    result = subprocess.run(
+        ("git", "-C", str(root), "diff", "--no-ext-diff", "--no-textconv",
+         "--name-only", "-z", "--no-renames", base_commit, head_commit, "--"),
+        capture_output=True, check=False,
     )
     if result.returncode:
         detail = result.stderr.decode("utf-8", errors="replace").strip()
         raise ValueError(f"Cannot determine changed paths: {detail}")
     return tuple(path for path in result.stdout.decode("utf-8").split("\0") if path)
+
+
+def build_plan(
+    root: Path, *, base: str | None = None, head: str = "HEAD",
+    paths: tuple[str, ...] | None = None, full: bool = False,
+    select_project: str | None = None, select_tag: str | None = None,
+    select_product: str | None = None, exclude_tag: str | None = None,
+) -> ImpactPlan:
+    """Share CLI selection semantics with protocol clients without executing checks."""
+    selectors = (select_project, select_tag, select_product)
+    manual_selection = any(value is not None for value in selectors)
+    modes = sum((base is not None, paths is not None, full,
+                 *(value is not None for value in selectors)))
+    if modes != 1:
+        raise ValueError("Choose exactly one of base, paths, full or a manual project/tag/product selector")
+    if exclude_tag and not manual_selection:
+        raise ValueError("exclude_tag requires a manual project, tag or product selection")
+    if manual_selection:
+        if not (select_project or select_tag or select_product):
+            raise ValueError("Manual selector value must not be empty")
+        selector_name = "project" if select_project is not None else "tag" if select_tag is not None else "product"
+        selector_value = select_project or select_tag or select_product
+        selector = ProjectSelector(
+            project_ids=(select_project,) if select_project else (),
+            tags=(select_tag,) if select_tag else (),
+            product_ids=(select_product,) if select_product else (),
+            excluded_tags=(exclude_tag,) if exclude_tag else (),
+        )
+        return ImpactPlan(
+            scope="focused", projects=resolve_project_ids(root, selector), changed_paths=(),
+            reasons=(f"Manual {selector_name} selector: {selector_value}",),
+        )
+    selected_paths = changed_paths(root, base, head) if base is not None else paths or ()
+    plan = plan_paths(root, selected_paths)
+    return plan.model_copy(update={"reasons": ("Full run requested",)}) if full else plan
 
 
 def main() -> int:
@@ -39,42 +88,14 @@ def main() -> int:
     parser.add_argument("--head", default="HEAD", help="Head commit (default: HEAD)")
     parser.add_argument("--format", choices=("json", "text"), default="json")
     args = parser.parse_args()
-    manual_selection = any(
-        value is not None for value in (
-            args.select_project, args.select_tag, args.select_product,
-        )
-    )
-    if args.exclude_tag and not manual_selection:
-        parser.error("--exclude-tag requires a manual project, tag or product selection")
-    if manual_selection and not (args.select_project or args.select_tag or args.select_product):
-        parser.error("Manual selector value must not be empty")
     root = args.root.resolve()
     try:
-        if manual_selection:
-            selector_name = (
-                "project" if args.select_project is not None
-                else "tag" if args.select_tag is not None else "product"
-            )
-            selector_value = args.select_project or args.select_tag or args.select_product
-            selector = ProjectSelector(
-                project_ids=(args.select_project,) if args.select_project else (),
-                tags=(args.select_tag,) if args.select_tag else (),
-                product_ids=(args.select_product,) if args.select_product else (),
-                excluded_tags=(args.exclude_tag,) if args.exclude_tag else (),
-            )
-            selected = resolve_project_ids(root, selector)
-            plan = ImpactPlan(
-                scope="focused", projects=selected, changed_paths=(),
-                reasons=(f"Manual {selector_name} selector: {selector_value}",),
-            )
-        else:
-            paths = (
-                changed_paths(root, args.base, args.head) if args.base is not None
-                else tuple(args.paths or ())
-            )
-            plan = plan_paths(root, paths)
-            if args.full:
-                plan = plan.model_copy(update={"reasons": ("Full run requested",)})
+        plan = build_plan(
+            root, base=args.base, head=args.head,
+            paths=None if args.paths is None else tuple(args.paths), full=args.full,
+            select_project=args.select_project, select_tag=args.select_tag,
+            select_product=args.select_product, exclude_tag=args.exclude_tag,
+        )
     except (OSError, UnicodeError, ValueError) as exc:
         parser.error(str(exc))
     if args.format == "json":

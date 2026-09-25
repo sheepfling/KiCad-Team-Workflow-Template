@@ -1578,6 +1578,14 @@ class ModelMapAssignment(StrictModel):
     candidate_assets: tuple[RepositoryPath, ...] = ()
 
 
+class McpModelMapAssignment(StrictModel):
+    """MCP JSON-array input, converted to an immutable assignment at the adapter."""
+
+    reference: str = Field(min_length=1)
+    model: str
+    candidate_assets: list[RepositoryPath] = Field(default_factory=list)
+
+
 class ModelMap(StrictModel):
     """Explicit assignments bound to the board bytes that the author reviewed."""
 
@@ -1748,23 +1756,38 @@ class ToolSurfaceMapping(StrictModel):
     mcp: tuple[Identifier, ...] = ()
     alignment: SurfaceAlignment
     reason: NonEmptyText
+    scope: Literal["core", "administration", "adapter"]
     gaps: tuple[NonEmptyText, ...] = ()
+    constraints: tuple[NonEmptyText, ...] = ()
+    exception: NonEmptyText | None = None
+    parity_tests: tuple[NonEmptyText, ...] = ()
 
 
 class ToolSurfacesCatalog(StrictModel):
-    schema_version: Literal["1"] = "1"
+    schema_version: Literal["2"] = "2"
     cli: tuple[ToolCliSnapshot, ...]
     mcp: tuple[ToolMcpSnapshot, ...]
     capabilities: tuple[ToolSurfaceMapping, ...]
 
 
 class ToolSurfaceReport(StrictModel):
-    schema_version: Literal["1"] = "1"
+    schema_version: Literal["2"] = "2"
     build_authorized: Literal[False] = False
     status: Literal["PASS", "FAIL"]
+    coverage_status: Literal["PASS", "FAIL"]
+    parity_status: Literal["PASS", "FAIL"]
+    behavior_verification: Literal["NOT_RUN"] = "NOT_RUN"
     mcp_verification: Literal["LIVE", "STATIC_ONLY", "UNAVAILABLE"]
     cli: tuple[ToolCliSnapshot, ...]
     mcp: tuple[ToolMcpSnapshot, ...]
     capabilities: tuple[ToolSurfaceMapping, ...]
     issues: tuple[PolicyIssue, ...] = ()
     notes: tuple[NonEmptyText, ...] = ()
+
+
+class McpNativeScopeReport(StrictModel):
+    schema_version: Literal["1"] = "1"
+    build_authorized: Literal[False] = False
+    status: Literal["PASS", "FAIL"]
+    run_directory: NonEmptyText
+    report: CheckAllSummary

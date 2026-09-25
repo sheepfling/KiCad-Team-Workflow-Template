@@ -18,6 +18,8 @@ from .models import (
     InterfacesCatalog,
     LibrariesCatalog,
     PolicyIssue,
+    ProductIndex,
+    ProductRecord,
     ProjectManifest,
     ProjectRecord,
     ProjectStaticPipelineReport,
@@ -91,6 +93,53 @@ def run_native(root: Path, project: ProjectRecord, output: Path, cli: str | None
         raise ValueError(f"Pinned container failed for {project.id}; see {log_path}")
 
 
+def resolve_variants(root: Path, values: tuple[str, ...]) -> tuple[ReleaseVariant, ...]:
+    """Resolve explicit PRODUCT:VARIANT choices to current typed revision identities."""
+    if not values:
+        return ()
+    index = read_model(repo_path(root, "catalog/products.json"), ProductIndex)
+    indexed = {entry.id: entry for entry in index.products}
+    if len(indexed) != len(index.products):
+        raise ValueError("catalog/products.json has duplicate product IDs")
+    selections: list[ReleaseVariant] = []
+    for value in values:
+        product_id, separator, variant_id = value.partition(":")
+        if not separator:
+            raise ValueError("Variant selection uses PRODUCT:VARIANT")
+        entry = indexed.get(product_id)
+        if entry is None:
+            raise ValueError(f"Unknown release product {product_id!r} in catalog/products.json")
+        product = read_model(repo_path(root, entry.path), ProductRecord)
+        if product.id != product_id:
+            raise ValueError(f"{entry.path}: product ID differs from catalog/products.json")
+        variant = next((item for item in product.variants if item.id == variant_id), None)
+        if variant is None:
+            raise ValueError(f"Unknown variant {variant_id!r} for product {product_id!r}")
+        selections.append(ReleaseVariant(
+            product=product.id, product_revision=product.revision,
+            variant=variant.id, variant_revision=variant.revision,
+        ))
+    return tuple(selections)
+
+
+def selected_projects(root: Path, candidate: ReleaseManifest) -> tuple[ProjectRecord, ...]:
+    """Validate release scope and its common toolchain before creating any evidence."""
+    repository = load_release_repository(root, candidate)
+    findings: list[PolicyIssue] = list(repository.issues)
+    products = selected_products(repository, candidate, findings)
+    projects = selected_project_records(repository, products, candidate.projects)
+    if findings or not projects:
+        raise ValueError(f"Invalid release selection: {findings}")
+    if candidate.release_class is not ReleaseClass.ENGINEERING_REVIEW and any(
+        project.assurance_profile != "production" or project.status != "release_candidate"
+        for project in projects
+    ):
+        raise ValueError("Non-review releases require production-profile release_candidate projects")
+    if len(configured_toolchains(root, projects)) != 1:
+        raise ValueError("Prepare separate release candidates for different toolchains")
+    return projects
+
+
 def prepare(root: Path, release_id: str, project_ids: tuple[str, ...],
             variants: tuple[ReleaseVariant, ...] = (), release_class: ReleaseClass = ReleaseClass.ENGINEERING_REVIEW,
             cli: str | None = None, portable: Path | None = None) -> ReleaseManifest:
@@ -106,19 +155,8 @@ def prepare(root: Path, release_id: str, project_ids: tuple[str, ...],
                                 status=ReleaseStatus.CANDIDATE, source_commit=source.commit,
                                 toolchain_id="pending", projects=project_ids, variants=variants,
                                 libraries=(), interfaces=(), artifacts=())
-    repository = load_release_repository(root, candidate)
-    findings: list[PolicyIssue] = list(repository.issues)
-    products = selected_products(repository, candidate, findings)
-    projects = selected_project_records(repository, products, project_ids)
-    if findings or not projects:
-        raise ValueError(f"Invalid release selection: {findings}")
-    if release_class is not ReleaseClass.ENGINEERING_REVIEW and any(
-        project.assurance_profile != "production" or project.status != "release_candidate" for project in projects
-    ):
-        raise ValueError("Non-review releases require production-profile release_candidate projects")
+    projects = selected_projects(root, candidate)
     toolchains = configured_toolchains(root, projects)
-    if len(toolchains) != 1:
-        raise ValueError("Prepare separate release candidates for different toolchains")
     output = repo_path(root, f"build/releases/{release_id}")
     output.mkdir(parents=True, exist_ok=False)
     selected_ids = tuple(project.id for project in projects)

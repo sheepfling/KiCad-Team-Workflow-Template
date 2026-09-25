@@ -15,8 +15,10 @@ from mcp.types import ToolAnnotations
 from pydantic import Field, StrictInt
 
 from ..verify import Depth, verify
+from . import mcp_checks as checks
 from . import mcp_files as files
 from . import mcp_parts as parts
+from . import mcp_planning as planning
 from . import mcp_workflow as workflow
 from .contracts import read_model, repo_path
 from .doctor import NativeRunner
@@ -27,6 +29,7 @@ from .inventory import inventory
 from .models import (
     ContractCoachReport,
     DiagnosticReport,
+    ImpactPlan,
     ImportInventoryReport,
     LocalRescueReport,
     McpArtifactList,
@@ -34,6 +37,8 @@ from .models import (
     McpEditResult,
     McpFileContent,
     McpGenerationReport,
+    McpModelMapAssignment,
+    McpNativeScopeReport,
     McpProjectReport,
     McpPurchasingPreferencesResult,
     McpScopeReport,
@@ -52,6 +57,7 @@ from .models import (
     ReleaseManifest,
     ReleasePackageReport,
     ReleaseReadinessReport,
+    SourcingSnapshotReport,
     TemplateDoctorReport,
     TemplateInventoryReport,
     ThreeDReport,
@@ -178,7 +184,8 @@ def create_server(
         """Compare CLI and full MCP coverage, declared gaps and interface drift.
 
         This covers all server capabilities, not only those enabled in this session.
-        PASS means catalog coverage, not equal behavior or engineering acceptance.
+        PASS requires interface coverage and core parity policy; behavior tests are
+        NOT_RUN by this inspection. The full CI gate executes the referenced tests.
         """
         from .surface import inspect_tool_surfaces as inspect_surfaces
 
@@ -186,6 +193,35 @@ def create_server(
             return inspect_surfaces(root)
 
     server.tool(annotations=READ_ONLY)(inspect_tool_surfaces)
+
+    def plan_impact(
+        base: str | None = None, head: str = "HEAD", paths: tuple[str, ...] | None = None,
+        full: bool = False, select_project: str | None = None, select_tag: str | None = None,
+        select_product: str | None = None, exclude_tag: str | None = None,
+    ) -> ImpactPlan:
+        """Plan checks from one Git diff, path list, full request or manual selector.
+
+        Git refs resolve to commits before diffing; head defaults to HEAD. exclude_tag
+        applies only to manual project/tag/product selection. This does not run checks;
+        ambiguous changed paths conservatively select the full scope.
+        """
+        with service_operation(operation):
+            return planning.plan_impact(root, base, head, paths, full, select_project,
+                                        select_tag, select_product, exclude_tag)
+
+    server.tool(annotations=READ_ONLY)(plan_impact)
+
+    def inspect_sourcing_snapshot(path: str) -> SourcingSnapshotReport:
+        """Check a recorded supplier snapshot, without live sourcing or purchase approval.
+
+        Supply a checkout-relative build artifact containing typed sourcing-snapshot JSON.
+        PASS checks recorded offer identities and catalog part references; it does not
+        establish current stock, price, component approval or authorization to build.
+        """
+        with service_operation(operation):
+            return planning.inspect_sourcing_snapshot(root, path)
+
+    server.tool(annotations=READ_ONLY)(inspect_sourcing_snapshot)
 
     def get_project(project_id: str) -> McpProjectReport:
         """Read one registered project's inventory, manifest and authored test expectations."""
@@ -353,7 +389,7 @@ def create_server(
     server.tool(annotations=READ_ONLY)(inspect_3d_models)
 
     def preview_model_population(
-        project_id: str, board_sha256: str, assignments: tuple[ModelMapAssignment, ...],
+        project_id: str, board_sha256: str, assignments: tuple[McpModelMapAssignment, ...],
     ) -> ModelPopulationReport:
         """Preview explicit model assignments and retain a fresh ignored PLAN receipt.
 
@@ -362,7 +398,10 @@ def create_server(
         board and manifest diffs before applying; package identity and fit stay unverified.
         """
         with service_operation(operation):
-            return workflow.preview_model_population(root, project_id, board_sha256, assignments)
+            reviewed = tuple(ModelMapAssignment(
+                reference=item.reference, model=item.model, candidate_assets=tuple(item.candidate_assets),
+            ) for item in assignments)
+            return workflow.preview_model_population(root, project_id, board_sha256, reviewed)
 
     server.tool(annotations=CREATE_ONLY)(preview_model_population)
 
@@ -381,6 +420,25 @@ def create_server(
     server.tool(annotations=READ_ONLY)(verify_package)
 
     if allow_checks:
+        def check_native_scope(
+            view_id: str, project_ids: list[str] | None = None,
+            product_ids: list[str] | None = None, tags: list[str] | None = None,
+            exclude_tags: list[str] | None = None,
+        ) -> McpNativeScopeReport:
+            """Run the CLI grouped native lane with local kicad-cli and retain every failure.
+
+            Matches tools.ci --kicad. Include selectors form a union then exclusions
+            subtract. Output uses fresh build/native/view_id. Each board checks its
+            exact toolchain. Use check_project for automatic/container runner selection.
+            """
+            with service_operation(operation):
+                return checks.check_native_scope(
+                    root, view_id, tuple(project_ids or ()), tuple(product_ids or ()),
+                    tuple(tags or ()), tuple(exclude_tags or ()),
+                )
+
+        server.tool(annotations=EXECUTION)(check_native_scope)
+
         def check_project(
             project_id: str, depth: Depth = "portable", runner: NativeRunner = "auto",
         ) -> ProjectVerificationReport:
@@ -510,6 +568,18 @@ def create_server(
         server.tool(annotations=EDIT)(apply_model_population)
 
     if allow_exports:
+        def init_model_map(project_id: str, view_id: str) -> ModelPopulationReport:
+            """Create a source-bound model-map DRAFT in fresh build/model-maps/view_id.
+
+            The draft lists unassigned footprints with blank model choices and candidate
+            hints. Read it as an artifact, independently select physical models, then use
+            preview_model_population before applying. The draft does not edit the board.
+            """
+            with service_operation(operation):
+                return planning.init_model_map(root, project_id, view_id)
+
+        server.tool(annotations=CREATE_ONLY)(init_model_map)
+
         def prepare_parts(
             project_id: str, view_id: str, native_summary: str | None = None,
             preferences: str | None = None, boards: Annotated[StrictInt, Field(gt=0)] | None = None,
@@ -605,5 +675,24 @@ def create_server(
                     return workflow.prepare_review(root, project_id, release_id, runner)
 
             server.tool(annotations=EXECUTION)(prepare_review)
+
+            def prepare_review_scope(
+                release_id: str, project_ids: list[str] | None = None,
+                variants: list[str] | None = None, portable: str | None = None,
+                runner: NativeRunner = "auto",
+            ) -> ReleaseManifest:
+                """Prepare multiple projects or explicit PRODUCT:VARIANT choices for review.
+
+                Requires clean committed source, one common toolchain and exact native
+                checks. Optional portable evidence must be a source-bound build artifact.
+                The candidate remains engineering_review without approval or manufacture authority.
+                """
+                with service_operation(operation):
+                    return workflow.prepare_review_scope(
+                        root, release_id, tuple(project_ids or ()), tuple(variants or ()),
+                        portable, runner,
+                    )
+
+            server.tool(annotations=EXECUTION)(prepare_review_scope)
 
     return server

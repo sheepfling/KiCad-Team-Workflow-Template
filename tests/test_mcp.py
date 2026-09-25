@@ -33,12 +33,13 @@ DEFAULT_TOOLS = {
     "scan_imports", "diagnose_import", "rescue_project", "list_artifacts", "read_artifact",
     "read_project_file", "preview_project_edit", "inspect_contract", "check_release", "verify_package",
     "inspect_3d_models", "preview_model_population", "inspect_tool_surfaces",
+    "plan_impact", "inspect_sourcing_snapshot",
 }
-CHECK_TOOLS = {"check_project", "diagnose_project", "capture_contract", "check_scope"}
+CHECK_TOOLS = {"check_project", "diagnose_project", "capture_contract", "check_scope", "check_native_scope"}
 WRITE_TOOLS = {"new_project", "import_project"}
-EXPORT_TOOLS = {"package_release", "restore_package", "generate_views", "prepare_parts"}
+EXPORT_TOOLS = {"package_release", "restore_package", "generate_views", "prepare_parts", "init_model_map"}
 EDIT_TOOLS = {"apply_project_edit", "apply_model_population", "save_parts_preferences"}
-NATIVE_EXPORT_TOOLS = {"export_project", "prepare_review", "export_3d"}
+NATIVE_EXPORT_TOOLS = {"export_project", "prepare_review", "prepare_review_scope", "export_3d"}
 DOCUMENTS = {
     "start-here": "START_HERE.md",
     "first-board": "FIRST_BOARD.md",
@@ -392,12 +393,15 @@ class McpTests(unittest.IsolatedAsyncioTestCase):
             "diagnose_project": {"project_id": "controller"},
             "capture_contract": {"project_id": "controller"},
             "check_scope": {},
+            "check_native_scope": {"view_id": "try-one"},
             "export_project": {"project_id": "controller", "export_id": "try-one"},
             "export_3d": {"project_id": "controller", "view_id": "try-one"},
             "prepare_review": {"project_id": "controller", "release_id": "try-one"},
+            "prepare_review_scope": {"project_ids": ["controller"], "release_id": "try-one"},
             "package_release": {"manifest": "build/manifest.json", "package_id": "try-one"},
             "restore_package": {"archive": "build/review.zip", "restore_id": "try-one"},
             "generate_views": {"view_id": "try-one"},
+            "init_model_map": {"project_id": "controller", "view_id": "try-one"},
             "prepare_parts": {"project_id": "controller", "view_id": "try-one"},
             "save_parts_preferences": {"project_id": "controller", "preferences": {}},
             "apply_model_population": {"project_id": "controller", "plan": "build/plan.json"},
