@@ -3,6 +3,9 @@
 This file is for coding agents and engineers using an agent. Start with the
 [workflow guide](docs/workflow/START_HERE.md) and the
 [diagnostic guide](docs/workflow/DIAGNOSTICS.md). Use Python 3.11 syntax.
+The [tooling split](docs/workflow/TOOLING_SPLIT.md) records which shared Python
+services are moving to the adjacent tooling repository; the commands below
+remain the live template commands until its cutover gate passes.
 The optional [local MCP adapter](docs/workflow/MCP.md) exposes the same services
 for clients without shell integration. Discover projects before selecting an ID.
 Checks execute repository tests and require `--allow-checks`; separate startup

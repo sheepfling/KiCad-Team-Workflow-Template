@@ -31,9 +31,12 @@ requirements, capture review inputs, check tools, then verify. Use
 saved simulations after installing `.[charts]`.
 
 See also the [quick reference](docs/workflow/QUICK_REFERENCE.md),
-[mechanical handoff](docs/workflow/MECHANICAL_HANDOFF.md), [metrics](docs/workflow/METRICS.md)
-and [Markdown policy](docs/workflow/MARKDOWN_POLICY.md). The [scaffold changelog](CHANGELOG.md)
-records workflow versions; these are separate from each board's revision.
+[mechanical handoff](docs/workflow/MECHANICAL_HANDOFF.md), [metrics](docs/workflow/METRICS.md) and
+[Markdown policy](docs/workflow/MARKDOWN_POLICY.md). The
+[three-repository split](docs/workflow/TOOLING_SPLIT.md) explains the in-progress separation of
+project files, reusable Python tooling, and populated acceptance projects. The
+[scaffold changelog](CHANGELOG.md) records workflow versions; these are separate from each board's
+revision.
 
 The original scaffold uses 0BSD; adopters choose their own project terms. For a
 private company repository, use [bootstrap](docs/workflow/TEMPLATE_ADOPTION.md#bootstrap)
