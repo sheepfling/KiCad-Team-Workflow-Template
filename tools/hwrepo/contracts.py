@@ -9,7 +9,7 @@ import json
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import TypeVar
 
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel
 
 Model = TypeVar("Model", bound=BaseModel)
 
@@ -27,23 +27,29 @@ def _invalid_number(value: str) -> None:
     raise ValueError(f"Invalid JSON number: {value}")
 
 
+def parse_model_text(document: str, model: type[Model]) -> Model:
+    """Validate in-memory JSON with the same strict rules as a file boundary."""
+    # Fail duplicate keys and non-finite numbers before Pydantic's decoder applies
+    # strict scalar validation while retaining JSON array/enum semantics.
+    json.loads(document, object_pairs_hook=_unique_object, parse_constant=_invalid_number)
+    return model.model_validate_json(document, strict=True)
+
+
+def validate_json_object(document: str) -> None:
+    """Check JSON object shape without returning untyped native-settings data."""
+    decoded: object = json.loads(
+        document, object_pairs_hook=_unique_object, parse_constant=_invalid_number,
+    )
+    if not isinstance(decoded, dict):
+        raise TypeError("JSON document must be an object")
+
+
 def read_model(path: Path, model: type[Model]) -> Model:
     """Decode one JSON file and validate it before it reaches application code."""
     document = path.read_text(encoding="utf-8")
-    # This first decode exists solely to fail duplicate keys/non-finite numbers.
-    # Pydantic's JSON decoder then preserves JSON's valid array/enum semantics
-    # while applying strict scalar validation and producing immutable tuples.
     try:
-        json.loads(
-            document,
-            object_pairs_hook=_unique_object,
-            parse_constant=_invalid_number,
-        )
+        return parse_model_text(document, model)
     except ValueError as exc:
-        raise ValueError(f"{path}: {exc}") from exc
-    try:
-        return model.model_validate_json(document, strict=True)
-    except ValidationError as exc:
         raise ValueError(f"{path}: {exc}") from exc
 
 

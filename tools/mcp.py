@@ -14,6 +14,10 @@ def main() -> int:
                         help="Expose project verification, which executes repository code")
     parser.add_argument("--allow-writes", action="store_true",
                         help="Expose creation and import of new project islands")
+    parser.add_argument("--allow-edits", action="store_true",
+                        help="Expose reviewed, hash-checked replacements of existing project text")
+    parser.add_argument("--allow-exports", action="store_true",
+                        help="Expose packaging/restore; native export and review also need --allow-checks")
     parser.add_argument("--import-root", type=Path, action="append", default=[],
                         help="Additional absolute directory permitted for import reads; repeatable")
     args = parser.parse_args()
@@ -31,7 +35,8 @@ def main() -> int:
     try:
         server = create_server(
             args.root, allow_checks=args.allow_checks, allow_writes=args.allow_writes,
-            import_roots=tuple(args.import_root),
+            import_roots=tuple(args.import_root), allow_edits=args.allow_edits,
+            allow_exports=args.allow_exports,
         )
     except (OSError, ValueError) as exc:
         parser.error(str(exc))

@@ -63,9 +63,10 @@ bootstrap copy has Git history.
 An empty fork passes scaffold checks and reports that no hardware was validated.
 
 For agents that connect through MCP, install the optional `.[mcp]` dependency and
-follow [the local MCP setup](docs/workflow/MCP.md). It exposes project discovery,
-prerequisites and workflow guidance; checks and project creation are separately
-enabled at startup.
+follow [the local MCP setup and board walkthrough](docs/workflow/MCP.md). It exposes
+discovery, import triage, source/evidence reads and repair previews. Separate startup
+flags enable project creation, reviewed edits, checks and exports through engineering
+review packaging. Source commits still use normal Git.
 
 ## Start a board
 

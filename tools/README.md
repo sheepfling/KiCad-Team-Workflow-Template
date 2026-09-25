@@ -43,14 +43,16 @@ Choose text for a concise terminal view and JSON for the complete typed result:
 The lower-level runner modules in the table below remain JSON-first adapters.
 Do not scrape human text in automation; check the exit status and parse stdout JSON.
 Agents with shell access can call these CLIs directly. The optional local
-[MCP server](../docs/workflow/MCP.md) exposes discovery, prerequisites, workflow
-documents and import previews. Its startup flags separately enable test execution
-and project creation/import; it uses the same repository services.
+[MCP server](../docs/workflow/MCP.md) exposes discovery, import triage, bounded
+source/evidence reads and repair previews. Startup flags separately enable project
+creation/import, reviewed source edits, checks and exports. The same services carry
+an imported board through diagnosis, native exports and an engineering review
+package; reviewed source commits still use normal Git.
 
 | Module | Responsibility |
 | --- | --- |
 | `verify` | One-board portable/native run, exact runner choice, and a fresh logged repair receipt |
-| `mcp` | Optional local stdio adapter with a fixed checkout, workflow resources and separately enabled checks/writes |
+| `mcp` | Optional local stdio workflow adapter: fixed checkout, diagnosis, reviewed edits, checks, exports and engineering review packaging with separate startup capabilities |
 | `ci`, `ci_matrix`, `check_all` | Coordinate the portable gate, registry-driven matrix and native lanes |
 | `impact`, `hwrepo/impact.py` | Plan affected PR project lanes from changed paths; broaden ambiguous/shared-tool changes to full scope |
 | `native_deps` | Prepare Linux wheels for the pinned container's Python, without requiring pip inside the image |
@@ -60,6 +62,7 @@ and project creation/import; it uses the same repository services.
 | `hardware` | Check products, generate ignored review views/schemas, create and verify snapshots |
 | `template`, `release`, `sourcing`, `metrics` | Expose environment and project diagnostics, adoption, release readiness, supplier snapshots and current policy metrics |
 | `governance_audit`, `hwrepo/hosted_governance.py` | Read GitHub branch controls and CODEOWNERS without changing hosted settings |
+| `hwrepo/mcp_server.py`, `hwrepo/mcp_files.py`, `hwrepo/mcp_workflow.py` | Register fixed MCP capabilities, bound source/artifact access and explicit edits, and adapt the diagnosis/export/review services |
 | `hwrepo/models.py`, `hwrepo/contracts.py` | Own typed serialized contracts and file/path adapters |
 | `hwrepo/discovery.py`, `hwrepo/project_tests.py`, `hwrepo/scaffold.py`, `hwrepo/importing.py` | Resolve local manifests, run isolated island test suites and create or import project islands |
 | `hwrepo/doctor.py`, `hwrepo/adoption.py` | Check local prerequisites and run one-command fresh-fork adoption |

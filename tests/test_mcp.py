@@ -27,7 +27,15 @@ from tools.hwrepo.models import (
     TemplateInventoryReport,
 )
 
-READ_TOOLS = {"list_projects", "get_project", "doctor", "read_document", "preview_import"}
+DEFAULT_TOOLS = {
+    "list_projects", "get_project", "doctor", "read_document", "preview_import",
+    "scan_imports", "diagnose_import", "rescue_project", "list_artifacts", "read_artifact",
+    "read_project_file", "preview_project_edit", "inspect_contract", "check_release", "verify_package",
+}
+CHECK_TOOLS = {"check_project", "diagnose_project", "capture_contract", "check_scope"}
+WRITE_TOOLS = {"new_project", "import_project"}
+EXPORT_TOOLS = {"package_release", "restore_package", "generate_views"}
+NATIVE_EXPORT_TOOLS = {"export_project", "prepare_review"}
 DOCUMENTS = {
     "start-here": "START_HERE.md",
     "first-board": "FIRST_BOARD.md",
@@ -36,6 +44,13 @@ DOCUMENTS = {
     "contributor-guide": "CONTRIBUTOR_GUIDE.md",
     "checks-and-ci": "CHECKS_AND_CI.md",
     "mcp": "MCP.md",
+    "bom-policy": "BOM_POLICY.md",
+    "release-readiness": "RELEASE_READINESS.md",
+    "release-storage": "RELEASE_STORAGE.md",
+    "project-kinds": "PROJECT_KINDS.md",
+    "libraries": "LIBRARIES.md",
+    "authority-model": "AUTHORITY_MODEL.md",
+    "assurance-profiles": "ASSURANCE_PROFILES.md",
 }
 
 
@@ -95,7 +110,7 @@ class McpTests(unittest.IsolatedAsyncioTestCase):
             self.assertIsNotNone(client.server_info)
             self.assertTrue(client.protocol_version)
             listing = await client.list_tools()
-            self.assertEqual({tool.name for tool in listing.tools}, READ_TOOLS)
+            self.assertEqual({tool.name for tool in listing.tools}, DEFAULT_TOOLS)
             inventory_tool = next(tool for tool in listing.tools if tool.name == "list_projects")
             self.assertIsNotNone(inventory_tool.output_schema)
             data = self.structured(await client.call_tool("list_projects"))
@@ -126,13 +141,17 @@ class McpTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_write_and_execution_capabilities_are_independent(self) -> None:
         for options, enabled in (
-            ({"allow_checks": True}, {"check_project"}),
-            ({"allow_writes": True}, {"new_project", "import_project"}),
+            ({"allow_checks": True}, CHECK_TOOLS),
+            ({"allow_writes": True}, WRITE_TOOLS),
+            ({"allow_edits": True}, {"apply_project_edit"}),
+            ({"allow_exports": True}, EXPORT_TOOLS),
+            ({"allow_checks": True, "allow_exports": True},
+             CHECK_TOOLS | EXPORT_TOOLS | NATIVE_EXPORT_TOOLS),
         ):
             with self.subTest(options=options):
                 async with Client(create_server(self.root, **options), mode="legacy") as client:
                     listing = await client.list_tools()
-                    self.assertEqual({tool.name for tool in listing.tools}, READ_TOOLS | enabled)
+                    self.assertEqual({tool.name for tool in listing.tools}, DEFAULT_TOOLS | enabled)
 
     async def test_project_report_preserves_manifest_and_independent_contract(self) -> None:
         async with Client(create_server(self.root), mode="legacy") as client:
@@ -360,6 +379,139 @@ class McpTests(unittest.IsolatedAsyncioTestCase):
                 finally:
                     link.unlink()
 
+    async def test_full_surface_annotations_and_disabled_calls_match_authority(self) -> None:
+        arguments = {
+            "apply_project_edit": {"project_id": "controller", "path": "README.md",
+                "expected_sha256": "0" * 64, "old_text": "old", "new_text": "new"},
+            "diagnose_project": {"project_id": "controller"},
+            "capture_contract": {"project_id": "controller"},
+            "check_scope": {},
+            "export_project": {"project_id": "controller", "export_id": "try-one"},
+            "prepare_review": {"project_id": "controller", "release_id": "try-one"},
+            "package_release": {"manifest": "build/manifest.json", "package_id": "try-one"},
+            "restore_package": {"archive": "build/review.zip", "restore_id": "try-one"},
+            "generate_views": {"view_id": "try-one"},
+        }
+        before = snapshot(self.root)
+        async with Client(create_server(self.root), mode="legacy") as client:
+            for name, values in arguments.items():
+                with self.subTest(tool=name):
+                    result = await client.call_tool(name, values)
+                    self.assertTrue(result.is_error)
+                    self.assertIn("Unknown tool", self.text(result))
+        self.assertEqual(snapshot(self.root), before)
+        async with Client(create_server(
+            self.root, allow_checks=True, allow_writes=True, allow_edits=True, allow_exports=True,
+        ), mode="legacy") as client:
+            tools = {tool.name: tool for tool in (await client.list_tools()).tools}
+            for name in CHECK_TOOLS | NATIVE_EXPORT_TOOLS | {"apply_project_edit"}:
+                self.assertFalse(tools[name].annotations.read_only_hint, name)
+            for name in ("read_artifact", "preview_project_edit", "scan_imports", "inspect_contract"):
+                self.assertTrue(tools[name].annotations.read_only_hint, name)
+            self.assertFalse(tools["diagnose_import"].annotations.read_only_hint)
+            self.assertFalse(tools["rescue_project"].annotations.read_only_hint)
+
+    async def test_import_triage_receipt_source_edit_and_recheck_sequence(self) -> None:
+        async with Client(create_server(
+            self.root, import_roots=(self.source,), allow_writes=True,
+            allow_edits=True, allow_checks=True,
+        ), mode="legacy") as client:
+            scanned = self.structured(await client.call_tool("scan_imports", {
+                "source_directory": str(self.source), "toolchain_id": "kicad-10.0.5",
+            }))
+            self.assertEqual(len(scanned["candidates"]), 1)
+            triage = self.structured(await client.call_tool("diagnose_import", self.import_arguments()))
+            self.assertEqual(triage["status"], "PASS")
+            receipt = Path(triage["run_directory"]).relative_to(self.root).as_posix()
+            listing = self.structured(await client.call_tool("list_artifacts", {"directory": receipt}))
+            self.assertIn(receipt + "/diagnosis.json", {item["path"] for item in listing["entries"]})
+            artifact = self.structured(await client.call_tool("read_artifact", {
+                "path": receipt + "/diagnosis.json",
+            }))
+            self.assertEqual(json.loads(artifact["text"])["project_id"], "incoming-board")
+            imported = self.structured(await client.call_tool("import_project", self.import_arguments()))
+            self.assertEqual(imported["status"], "PASS")
+            source = self.structured(await client.call_tool("read_project_file", {
+                "project_id": "incoming-board", "path": "docs/README.md",
+            }))
+            old = source["text"].splitlines()[0]
+            edit = {"project_id": "incoming-board", "path": "docs/README.md",
+                    "expected_sha256": source["sha256"], "old_text": old,
+                    "new_text": old + " (review in progress)"}
+            preview = self.structured(await client.call_tool("preview_project_edit", edit))
+            self.assertIn("review in progress", preview["diff"])
+            self.assertEqual(source["sha256"], preview["before_sha256"])
+            applied = self.structured(await client.call_tool("apply_project_edit", edit))
+            self.assertEqual(applied["after_sha256"], preview["after_sha256"])
+            self.assertEqual(applied["readback_sha256"], preview["after_sha256"])
+            self.assertTrue(applied["checks_required"])
+            stale = await client.call_tool("apply_project_edit", edit)
+            self.assertTrue(stale.is_error)
+            diagnosis = self.structured(await client.call_tool("diagnose_project", {
+                "project_id": "incoming-board",
+            }))
+            self.assertEqual(diagnosis["status"], "NEEDS_WORK")
+            self.assertTrue(any(row["severity"] == "BLOCKING" for row in diagnosis["findings"]))
+            checked = self.structured(await client.call_tool("check_project", {
+                "project_id": "incoming-board",
+            }))
+            # Portable structure can pass while diagnosis still requires electrical review.
+            self.assertEqual(checked["status"], "PASS")
+            self.assertFalse(checked["build_authorized"])
+            # Importing and editing notes never fabricates the independent circuit contract.
+            project = self.structured(await client.call_tool("get_project", {
+                "project_id": "incoming-board",
+            }))
+            self.assertEqual(project["contract"]["validation"]["components"], {})
+            self.assertEqual(project["contract"]["validation"]["nets"], {})
+
+    async def test_scope_and_generated_product_bom_remain_inspectable(self) -> None:
+        async with Client(create_server(
+            self.root, allow_checks=True, allow_exports=True,
+        ), mode="legacy") as client:
+            checked = self.structured(await client.call_tool("check_scope", {
+                "project_ids": ["arduino-uno-status-led"],
+            }))
+            self.assertEqual(checked["status"], "PASS")
+            self.assertEqual(checked["report"]["projects"], ["arduino-uno-status-led"])
+            generated = self.structured(await client.call_tool("generate_views", {
+                "view_id": "review-views", "product_ids": ["status-indicator-system"],
+            }))
+            self.assertEqual(generated["status"], "PASS")
+            bom = next(path for path in generated["files"] if path.endswith(".bom.csv"))
+            result = self.structured(await client.call_tool("read_artifact", {"path": bom}))
+            self.assertIn("part_id,revision,quantity", result["text"])
+            self.assertIn("training-generic-cable", result["text"])
+            self.assertIn("NOT FOR MANUFACTURE", result["text"])
+            self.assertFalse(result["build_authorized"])
+            duplicate = await client.call_tool("generate_views", {"view_id": "review-views"})
+            self.assertTrue(duplicate.is_error)
+
+    async def test_existing_native_report_bom_and_release_paths_cannot_escape(self) -> None:
+        async with Client(create_server(self.root, allow_checks=True), mode="legacy") as client:
+            for tool, values in (
+                ("diagnose_project", {"project_id": "controller", "bom": "build/bom.csv"}),
+                ("diagnose_project", {"project_id": "controller", "native_report": "../summary.json"}),
+                ("inspect_contract", {"project_id": "controller", "native_summary": "README.md"}),
+                ("check_release", {"manifest": "../../manifest.json"}),
+                ("verify_package", {"archive": str(self.project)}),
+                ("read_artifact", {"path": "examples/projects/controller/project.json"}),
+            ):
+                with self.subTest(tool=tool):
+                    result = await client.call_tool(tool, values)
+                    self.assertTrue(result.is_error, result.content)
+            self.assertFalse((self.root / "build").exists())
+
+    async def test_invalid_package_returns_actionable_error_without_executing(self) -> None:
+        archive = self.root / "build/broken.zip"
+        archive.parent.mkdir()
+        archive.write_text("incomplete download", encoding="utf-8")
+        async with Client(create_server(self.root), mode="legacy") as client:
+            result = await client.call_tool("verify_package", {"archive": "build/broken.zip"})
+            self.assertTrue(result.is_error)
+            self.assertIn("zip", self.text(result).lower())
+            self.assertIn("File is not a zip file", self.text(result))
+
     async def test_stdio_cli_uses_explicit_checkout_from_unrelated_working_directory(self) -> None:
         caller = self.base / "caller"
         caller.mkdir()
@@ -374,7 +526,7 @@ class McpTests(unittest.IsolatedAsyncioTestCase):
             data = self.structured(await client.call_tool("list_projects"))
             self.assertIn("controller", {project["id"] for project in data["projects"]})
             listing = await client.list_tools()
-            self.assertEqual({tool.name for tool in listing.tools}, READ_TOOLS)
+            self.assertEqual({tool.name for tool in listing.tools}, DEFAULT_TOOLS)
         self.assertEqual(list(caller.iterdir()), [])
 
     def test_cli_refuses_implicit_or_relative_checkout_selection(self) -> None:
