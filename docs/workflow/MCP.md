@@ -62,12 +62,12 @@ operation; enabling project creation does not enable edits to an existing design
 
 | Startup capability | Tools enabled | Files or execution affected |
 | --- | --- | --- |
-| Default | Discovery, guidance, source/artifact reads, import scanning and preview, edit preview, saved contract inspection, rescue and import diagnosis, release/package verification | Reads bounded repository data. Rescue and import diagnosis create ignored diagnostic receipts. Package verification temporarily restores the archive. |
+| Default | Discovery, guidance, source/artifact reads, import scanning and preview, edit preview, saved contract inspection, model-population preview, rescue and import diagnosis, release/package verification | Reads bounded repository data. Model-population preview, rescue and import diagnosis create ignored diagnostic receipts. Package verification temporarily restores the archive. |
 | `--allow-writes` | `new_project`, `import_project` | Creates a new project island; refuses an existing destination. |
-| `--allow-edits` | `apply_project_edit` | Replaces one explicitly selected text occurrence in an allowed existing project source file after a matching SHA-256 check. |
+| `--allow-edits` | `apply_project_edit`, `apply_model_population` | Applies a reviewed text replacement or explicit model-assignment plan after source hash checks. |
 | `--allow-checks` | `check_project`, `diagnose_project`, `capture_contract`, `check_scope` | Executes repository checks and creates ignored receipts. Native work also runs KiCad or Docker. |
 | `--allow-exports` | `generate_views`, `package_release`, `restore_package` | Creates generated review views and new package/restore outputs in the checkout's ignored build area. |
-| Both `--allow-checks` and `--allow-exports` | `export_project`, `prepare_review` | Executes checks/native tooling and creates fresh exports or an engineering review candidate. |
+| Both `--allow-checks` and `--allow-exports` | `export_project`, `export_3d`, `prepare_review` | Executes checks/native tooling and creates fresh exports, 3D views or an engineering review candidate. |
 
 Checks execute trusted repository code, including project and product tests.
 Native work may download the pinned container image and Python dependencies.
@@ -110,7 +110,7 @@ Workflow documents are also resources at `kicad://docs/{name}`, for example
 `kicad://docs/first-board`. Available names are `start-here`, `first-board`,
 `diagnostics`, `import-workflow`, `contributor-guide`, `checks-and-ci`, `mcp`,
 `bom-policy`, `release-readiness`, `release-storage`, `project-kinds`, `libraries`,
-`authority-model` and `assurance-profiles`.
+`authority-model`, `assurance-profiles` and `three-d-workflow`.
 
 ## Scan, preview and import existing designs
 
@@ -222,6 +222,56 @@ native artifact evidence and assembly population. A free-standing CSV or an old
 report cannot establish the current board's BOM validity. Inspect the purchasing
 BOM separately for the controlled manufacturer, MPN and revision join.
 
+## Inspect and export board 3D models
+
+| Tool | Arguments and use |
+| --- | --- |
+| `inspect_3d_models` | `project_id`. Read placed-footprint model assignments, missing or broken references and declared candidate assets. Available by default; creates no files and runs no native tools. |
+| `preview_model_population` | `project_id`, `board_sha256`, `assignments`. Retain a plan for explicit reference/model pairs without editing source. Available by default. |
+| `apply_model_population` | `project_id`, `plan`. Apply a reviewed `model-population.json` plan and its saved model map with `--allow-edits`. |
+| `export_3d` | `project_id`, `view_id`; optional `runner` defaults to `auto`. Generate top/angled PNG, STEP and GLB files using exact local KiCad or the pinned container. Requires both checks and exports capabilities. |
+
+Select a `pcb` or `pcb_only` project. Begin with `inspect_3d_models`, review its
+findings, and follow [the 3D workflow](THREE_D_WORKFLOW.md) to populate the board's
+3D model assignments. A matching candidate filename does not prove package identity
+or dimensions. Author and review the physical model separately; these tools do not
+create geometry or select a package for you.
+
+For an explicit assignment, read the board with `read_project_file` and pass its
+SHA-256 to `preview_model_population` with assignments such as
+`[{"reference": "J1", "model": "projects/my-board/kicad/models/header.step"}]`.
+Each model is an existing checkout-relative STEP, STP, IGS, IGES or WRL file under a
+declared project-local or shared source root. The service rejects footprints that
+already have a model. It inserts only the requested model references and adds their
+source paths to the manifest's required/shared inventory. New assignments use unit
+scale with zero offset and rotation; package fit and transforms need visual review.
+
+The preview creates a fresh `build/diagnostics/` receipt with `model-map.json`,
+`model-population.json`, `board.diff` and `manifest.diff`. Review both diffs. Close
+KiCad, then call `apply_model_population` with the checkout-relative
+`model-population.json` path. Apply rereads the saved map and rejects changed board,
+manifest or model hashes, a changed map, or differing planned edits. It retains a
+new receipt and verifies the source readback. A `PLAN` or `APPLIED` result still has
+`checks_required: true` and `build_authorized: false`. Inspect the authored board,
+rerun portable/native checks and review scale, rotation, offset and board side in
+KiCad. Existing assignments and transform adjustments remain manual source edits.
+
+Call `export_3d` with a fresh `view_id` after saving the source. Its controlled
+receipt is `build/3d/<view_id>` and contains `visualization.json`, `models.json`,
+command logs, `top.png`, `angled.png`, `board.step` and `board.glb` when all exports
+succeed. Existing destinations are refused, and a source change during the run
+invalidates the result. Use `list_artifacts` and `read_artifact` to inspect retained
+reports; binary and unsupported artifact types return metadata. Open the files in
+an image viewer or mechanical CAD application to inspect their actual geometry.
+
+Keep the report's two outcomes distinct: export `status: PASS` means the expected
+files were produced from the recorded source, while `models.status: REVIEW` means
+model coverage still needs review. Static model `READY` verifies references and
+coverage, not fit or geometry. Missing stock libraries, hidden models and absent
+bodies can leave an incomplete assembly view even after a successful export.
+Inspection and export preserve authored source. Only the explicitly enabled
+`apply_model_population` step attaches the reviewed model references.
+
 ## Export and prepare an engineering review
 
 Commit the reviewed source through normal Git and leave the checkout clean before
@@ -289,8 +339,11 @@ and authorize only the needed external import directory.
 6. Run the appropriate `check_scope`. For a product or harness, use `generate_views`
    with a fresh `view_id` and the intended selection to review its variant BOMs and
    wiring/system projections. Review the diff and commit authored source through
-   normal Git. Keep generated receipts and exports ignored; MCP does not create
-   this source commit.
+   normal Git. For PCB mechanical review, call `inspect_3d_models`, complete reviewed
+   model assignments through preview/apply or KiCad, rerun checks after source changes,
+   and use `export_3d` with a fresh `view_id`; inspect its actual
+   geometry and model-coverage findings. Keep generated receipts and exports ignored;
+   MCP does not create this source commit.
 7. Call `export_project` with a fresh `export_id`. Read the retained native command
    results and inspect the actual exports. Call `diagnose_project` again with the
    exported native assembly BOM as `bom` and the still-current project summary from

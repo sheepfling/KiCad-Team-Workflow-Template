@@ -7,21 +7,21 @@ second editable copy of the design.
 
 ## Populate a board's 3D models
 
-1. Open the registered `.kicad_pro` with its exact catalogued KiCad version.
-   In PCB Editor, inspect each footprint's **3D Models** settings. A missing
-   model can leave a correctly placed footprint looking like a bare pad in a
-   render. Match the model to the reviewed package and check its scale, rotation,
-   offset and side of the board. Do not select a convenient model merely because
-   it makes the picture look complete.
-2. For a model used only by this board, put the source model under
-   `projects/<id>/kicad/models/` and reference it from KiCad with a path such as
-   `${KIPRJMOD}/models/connector.step`. Add the file to this board's
-   `project.json` `required_inputs`. For a model reused by several boards, put it
-   under a registered `libraries/<library-id>/` directory, declare the library ID
-   and every shared file in each consumer's `project.json`, and use an in-repository
-   `${KIPRJMOD}` path from each board. The [library policy](LIBRARIES.md) gives a
-   complete shared-dependency example and provenance/licensing requirements.
-3. Save the source, close KiCad, then check the references and the board:
+1. Choose a model that matches the reviewed component package. A missing model
+   can leave a correctly placed footprint looking like a bare pad in a render.
+   Check the package identity and dimensions; do not select a convenient model
+   merely because it makes the picture look complete. For a model used only by
+   this board, put the source model under
+   `projects/<id>/kicad/models/`; the board will reference it with a path such
+   as `${KIPRJMOD}/models/connector.step`. For a model reused by several boards,
+   put it under a registered `libraries/<library-id>/` directory and declare
+   that library in each consumer's `project.json`. The
+   [library policy](LIBRARIES.md) gives the shared-dependency and provenance
+   requirements.
+2. Use the draft-map flow below to assign explicit model paths to placed
+   footprints. The command adds each chosen file to the board's `required_inputs`
+   or `shared_inputs` list and previews the exact source changes before applying.
+3. Run the selected native check and generate a new view:
 
    ```sh
    python -B -m tools.visualize --project battery-board --check-models --format text
@@ -42,22 +42,38 @@ second editable copy of the design.
    exported picture. Use `tools.template diagnose --project-id battery-board`
    for the broader project repair queue.
 
+You can also make an assignment or adjust its scale, rotation and offset directly
+in the registered `.kicad_pro` with the exact catalogued KiCad version. Use PCB
+Editor's footprint **3D Models** settings, save, and close KiCad before running
+the checks. For this manual route, add the model file to `project.json`
+`required_inputs` (or the complete shared-library declarations) yourself. The
+map command refuses to overwrite an existing assignment.
+
 If you already have an approved model file under this project's declared source
 root or a declared shared-library root, the CLI can populate an unassigned
-placed footprint without hand-editing its PCB text or `project.json`. First run
-`--check-models --format json` and take the board digest from
-`source_sha256["projects/<id>/kicad/<board>.kicad_pcb"]` (the actual board path is
-also in the report). Create a JSON map in ignored `build/`, for example:
+placed footprint without hand-editing its PCB text or `project.json`. Start with
+an ignored draft map; the tool fills in the current board and manifest hashes,
+all unassigned references, and any candidate paths it found:
+
+```sh
+python -B -m tools.visualize --project battery-board --init-model-map build/model-map.json
+```
+
+Edit the draft map to keep only the references that need a model, and enter each
+reviewed path. The draft starts with empty model paths and cannot be applied as
+is. Its shape is:
 
 ```json
 {
   "schema_version": "1",
   "project_id": "battery-board",
-  "board_sha256": "<64-character SHA-256 from the model-check report>",
+  "board_sha256": "<generated 64-character SHA-256>",
+  "manifest_sha256": "<generated 64-character SHA-256>",
   "assignments": [
     {
       "reference": "J1",
-      "model": "projects/battery-board/kicad/models/connector.step"
+      "model": "projects/battery-board/kicad/models/connector.step",
+      "candidate_assets": []
     }
   ]
 }

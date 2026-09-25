@@ -34,6 +34,9 @@ from .models import (
     McpGenerationReport,
     McpProjectReport,
     McpScopeReport,
+    ModelInventoryReport,
+    ModelMapAssignment,
+    ModelPopulationReport,
     ProjectImportReport,
     ProjectKind,
     ProjectManifest,
@@ -46,6 +49,7 @@ from .models import (
     ReleaseReadinessReport,
     TemplateDoctorReport,
     TemplateInventoryReport,
+    ThreeDReport,
 )
 from .scaffold import new_project as scaffold_project
 
@@ -53,6 +57,7 @@ DocumentName = Literal[
     "start-here", "first-board", "diagnostics", "import-workflow",
     "contributor-guide", "checks-and-ci", "mcp", "bom-policy", "release-readiness",
     "release-storage", "project-kinds", "libraries", "authority-model", "assurance-profiles",
+    "three-d-workflow",
 ]
 DOCUMENTS: Mapping[DocumentName, str] = {
     "start-here": "docs/workflow/START_HERE.md",
@@ -69,6 +74,7 @@ DOCUMENTS: Mapping[DocumentName, str] = {
     "libraries": "docs/workflow/LIBRARIES.md",
     "authority-model": "docs/workflow/AUTHORITY_MODEL.md",
     "assurance-profiles": "docs/workflow/ASSURANCE_PROFILES.md",
+    "three-d-workflow": "docs/workflow/THREE_D_WORKFLOW.md",
 }
 READ_ONLY = ToolAnnotations(
     read_only_hint=True, destructive_hint=False, idempotent_hint=True, open_world_hint=False,
@@ -312,6 +318,31 @@ def create_server(
 
     server.tool(annotations=READ_ONLY)(inspect_contract)
 
+    def inspect_3d_models(project_id: str) -> ModelInventoryReport:
+        """Inspect a PCB's placed-footprint model assignments without executing native tools.
+
+        READY describes static references only. REVIEW preserves missing, hidden or
+        toolchain-dependent geometry; candidate filenames are not verified package matches.
+        """
+        with service_operation(operation):
+            return workflow.inspect_3d_models(root, project_id)
+
+    server.tool(annotations=READ_ONLY)(inspect_3d_models)
+
+    def preview_model_population(
+        project_id: str, board_sha256: str, assignments: tuple[ModelMapAssignment, ...],
+    ) -> ModelPopulationReport:
+        """Preview explicit model assignments and retain a fresh ignored PLAN receipt.
+
+        Supply the board SHA256 from read_project_file and reviewed reference/model
+        pairs. Model paths are checkout-relative declared source assets. Review the
+        board and manifest diffs before applying; package identity and fit stay unverified.
+        """
+        with service_operation(operation):
+            return workflow.preview_model_population(root, project_id, board_sha256, assignments)
+
+    server.tool(annotations=CREATE_ONLY)(preview_model_population)
+
     def check_release(manifest: str) -> ReleaseReadinessReport:
         """Verify a retained release manifest and its source/evidence; creates no approval."""
         with service_operation(operation):
@@ -428,6 +459,19 @@ def create_server(
 
         server.tool(annotations=EDIT)(apply_project_edit)
 
+        def apply_model_population(project_id: str, plan: str) -> ModelPopulationReport:
+            """Apply a reviewed model-population PLAN with unchanged source and planned edits.
+
+            Give the checkout-relative model-population.json receipt path. Its sibling
+            model-map.json supplies the explicit assignments. Close KiCad before applying;
+            source, manifest, model hashes and diffs must still match. Rerun checks and
+            inspect geometry afterward. This neither selects models nor approves fit.
+            """
+            with service_operation(operation):
+                return workflow.apply_model_population(root, project_id, plan)
+
+        server.tool(annotations=EDIT)(apply_model_population)
+
     if allow_exports:
         def generate_views(
             view_id: str, project_ids: list[str] | None = None,
@@ -474,6 +518,20 @@ def create_server(
                     return workflow.export_project(root, project_id, export_id, runner)
 
             server.tool(annotations=EXECUTION)(export_project)
+
+            def export_3d(
+                project_id: str, view_id: str, runner: NativeRunner = "auto",
+            ) -> ThreeDReport:
+                """Generate top/angled PNG, STEP and GLB in a fresh ignored 3D receipt.
+
+                Uses exact local KiCad or a pinned container; never edits the board or
+                assigns models. Export PASS can still have model coverage REVIEW. Inspect
+                actual images and geometry before making mechanical decisions.
+                """
+                with service_operation(operation):
+                    return workflow.export_3d(root, project_id, view_id, runner)
+
+            server.tool(annotations=EXECUTION)(export_3d)
 
             def prepare_review(
                 project_id: str, release_id: str, runner: NativeRunner = "auto",

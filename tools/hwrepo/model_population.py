@@ -3,53 +3,40 @@ from __future__ import annotations
 
 import difflib
 import hashlib
-import json
 import os
+import re
 import tempfile
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field
-
 from .contracts import read_model, repo_path
 from .diagnostic_journal import DiagnosticJournal
-from .discovery import load_registry
-from .model_inventory import _atoms, _children  # pyright: ignore[reportPrivateUsage]
-from .models import Digest, Identifier, ProjectKind, ProjectManifest, RepositoryPath, StrictModel
+from .discovery import load_config, load_registry
+from .model_inventory import (
+    _atoms,  # pyright: ignore[reportPrivateUsage]
+    _children,  # pyright: ignore[reportPrivateUsage]
+    inspect_models,
+)
+from .models import (
+    ModelMap,
+    ModelMapAssignment,
+    ModelPopulationReport,
+    ProjectKind,
+    ProjectManifest,
+)
+
+# Preserve the original service-module import surface for existing consumers.
+__all__ = [
+    "ModelMap",
+    "ModelMapAssignment",
+    "ModelPopulationReport",
+    "init_model_map",
+    "populate_models",
+    "render_population_text",
+]
 
 AUTHORABLE_SUFFIXES = frozenset({".step", ".stp", ".igs", ".iges", ".wrl"})
 
-
-class ModelMapAssignment(StrictModel):
-    reference: str = Field(min_length=1)
-    model: RepositoryPath
-
-
-class ModelMap(StrictModel):
-    schema_version: Literal["1"] = "1"
-    project_id: Identifier
-    board_sha256: Digest
-    assignments: tuple[ModelMapAssignment, ...] = Field(min_length=1)
-
-
-class ModelPopulationReport(StrictModel):
-    schema_version: Literal["1"] = "1"
-    status: Literal["PLAN", "APPLIED", "FAIL", "ERROR"]
-    project_id: Identifier
-    run_directory: str
-    board: RepositoryPath | None = None
-    manifest: RepositoryPath | None = None
-    board_sha256: Digest | None = None
-    manifest_sha256: Digest | None = None
-    model_sha256: dict[RepositoryPath, Digest] = Field(default_factory=dict)
-    board_diff: str = ""
-    manifest_diff: str = ""
-    review_notice: str = (
-        "A mapped path does not verify package identity, dimensions, orientation, "
-        "offset or enclosure fit; inspect the generated geometry in KiCad."
-    )
-    next_commands: tuple[str, ...] = ()
-    error: str | None = None
 
 
 def _digest(value: bytes) -> str:
@@ -153,14 +140,13 @@ def _board_edits(source: str, assignments: ModelMap,
 
 def _new_manifest(source: str, manifest: ProjectManifest,
                   additions: dict[str, set[str]]) -> str:
-    raw = json.loads(source)
+    if not any(additions.values()):
+        return source
+    updates: dict[str, tuple[str, ...]] = {}
     for field in ("required_inputs", "shared_inputs"):
-        added = additions[field]
-        if not added:
-            continue
-        previous = getattr(manifest, field)
-        raw[field] = sorted(set(previous) | added)
-    updated = json.dumps(raw, indent=2, ensure_ascii=False) + "\n"
+        if additions[field]:
+            updates[field] = tuple(sorted(set(getattr(manifest, field)) | additions[field]))
+    updated = manifest.model_copy(update=updates).model_dump_json(indent=2, exclude_unset=True) + "\n"
     ProjectManifest.model_validate_json(updated, strict=True)
     return updated
 
@@ -199,14 +185,19 @@ def render_population_text(report: ModelPopulationReport) -> str:
     return "\n".join(lines)
 
 
-def populate_models(root: Path, project_id: str, map_path: Path, *,
-                    apply: bool = False, output: Path | None = None) -> ModelPopulationReport:
+def populate_models(root: Path, project_id: str, map_path: Path | ModelMap, *,
+                    apply: bool = False, output: Path | None = None,
+                    reviewed_plan: ModelPopulationReport | None = None) -> ModelPopulationReport:
     """Plan or apply only explicit, hash-bound model references and inventory entries."""
     root = root.resolve()
+    if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", project_id) is None:
+        raise ValueError("Project ID must use letters, digits, periods, underscores or hyphens")
+    repo_path(root, "build/diagnostics")
     if output is not None:
-        output = (root / output).resolve() if not output.is_absolute() else output.resolve()
+        output = root / output if not output.is_absolute() else output
         if not output.is_relative_to(root / "build"):
             raise ValueError("3D output must be under this repository's ignored build/")
+        output = repo_path(root, output.relative_to(root).as_posix())
     journal = DiagnosticJournal(root, project_id, output, label="model-map")
     board_name: str | None = None
     manifest_name: str | None = None
@@ -217,7 +208,13 @@ def populate_models(root: Path, project_id: str, map_path: Path, *,
     manifest_diff = ""
     try:
         with journal.stage("map-and-project"):
-            spec = read_model(map_path if map_path.is_absolute() else root / map_path, ModelMap)
+            spec = (map_path if isinstance(map_path, ModelMap) else
+                    read_model(map_path if map_path.is_absolute() else root / map_path, ModelMap))
+            journal.save_model("model-map", spec)
+            if reviewed_plan is not None and (
+                not apply or reviewed_plan.status != "PLAN" or reviewed_plan.project_id != project_id
+            ):
+                raise ValueError("Apply requires a PLAN receipt for the selected project")
             if spec.project_id != project_id:
                 raise ValueError(
                     f"Map project {spec.project_id!r} differs from selected project {project_id!r}"
@@ -233,8 +230,8 @@ def populate_models(root: Path, project_id: str, map_path: Path, *,
             manifest_name = record.config
             manifest_path = repo_path(root, manifest_name)
             manifest = read_model(manifest_path, ProjectManifest)
-            board_path = repo_path(root, record.project).with_suffix(".kicad_pcb")
-            board_name = board_path.relative_to(root).as_posix()
+            board_name = Path(record.project).with_suffix(".kicad_pcb").as_posix()
+            board_path = repo_path(root, board_name)
             if not board_path.is_file():
                 raise ValueError(f"PCB source is missing: {board_name}")
             board_before = board_path.read_bytes()
@@ -245,10 +242,17 @@ def populate_models(root: Path, project_id: str, map_path: Path, *,
                 raise ValueError(
                     f"Board changed since map review: expected {spec.board_sha256}, got {board_digest}"
                 )
+            if spec.manifest_sha256 != manifest_digest:
+                raise ValueError("Project manifest changed since map review; create and review a fresh map")
         with journal.stage("source-plan"):
             additions: dict[str, set[str]] = {"required_inputs": set(), "shared_inputs": set()}
             references: dict[str, str] = {}
             for item in spec.assignments:
+                if not item.model:
+                    raise ValueError(
+                        f"{item.reference}: choose a reviewed model path or remove this "
+                        "unneeded assignment from the draft map"
+                    )
                 path, field, inventory_name, reference = _model_path(
                     root, manifest_path.parent, board_path.parent, manifest, item.model,
                 )
@@ -261,6 +265,16 @@ def populate_models(root: Path, project_id: str, map_path: Path, *,
             manifest_after = _new_manifest(manifest_source, manifest, additions).encode("utf-8")
             board_diff = _diff(source, board_after.decode("utf-8"), board_name)
             manifest_diff = _diff(manifest_source, manifest_after.decode("utf-8"), manifest_name)
+            if reviewed_plan is not None and (
+                reviewed_plan.board != board_name
+                or reviewed_plan.manifest != manifest_name
+                or reviewed_plan.board_sha256 != board_digest
+                or reviewed_plan.manifest_sha256 != manifest_digest
+                or reviewed_plan.model_sha256 != model_hashes
+                or reviewed_plan.board_diff != board_diff
+                or reviewed_plan.manifest_diff != manifest_diff
+            ):
+                raise ValueError("Source or model map changed since the reviewed plan; preview again")
             (journal.directory / "board.diff").write_text(board_diff, encoding="utf-8")
             (journal.directory / "manifest.diff").write_text(manifest_diff, encoding="utf-8")
         status: Literal["PLAN", "APPLIED", "FAIL", "ERROR"] = "PLAN"
@@ -276,9 +290,16 @@ def populate_models(root: Path, project_id: str, map_path: Path, *,
                 try:
                     _replace_bytes(board_path, board_after)
                     _replace_bytes(manifest_path, manifest_after)
-                except OSError:
-                    if _digest(board_path.read_bytes()) == _digest(board_after):
-                        _replace_bytes(board_path, board_before)
+                    if board_path.read_bytes() != board_after or manifest_path.read_bytes() != manifest_after:
+                        raise ValueError("Source readback differs from the reviewed edit")
+                except (OSError, ValueError):
+                    # Restore only our exact bytes; never overwrite a separate editor's update.
+                    for path, after, before in (
+                        (board_path, board_after, board_before),
+                        (manifest_path, manifest_after, manifest_before),
+                    ):
+                        if path.read_bytes() == after:
+                            _replace_bytes(path, before)
                     raise
                 status = "APPLIED"
         next_commands = (
@@ -288,7 +309,7 @@ def populate_models(root: Path, project_id: str, map_path: Path, *,
         ) if apply else (
             (
                 f"python -B -m tools.visualize --project {project_id} --map-models "
-                f"{map_path} --apply"
+                f"{journal.directory / 'model-map.json'} --apply"
             ),
         )
         result = ModelPopulationReport(
@@ -304,6 +325,91 @@ def populate_models(root: Path, project_id: str, map_path: Path, *,
             board=board_name, manifest=manifest_name, board_sha256=board_digest,
             manifest_sha256=manifest_digest, model_sha256=model_hashes,
             board_diff=board_diff, manifest_diff=manifest_diff, error=str(exc),
+        )
+    except Exception as exc:  # noqa: BLE001 - retain a tooling-fault receipt for agent diagnosis
+        journal.fail(exc)
+        result = ModelPopulationReport(
+            status="ERROR", project_id=project_id, run_directory=str(journal.directory),
+            board=board_name, manifest=manifest_name, board_sha256=board_digest,
+            manifest_sha256=manifest_digest, model_sha256=model_hashes,
+            board_diff=board_diff, manifest_diff=manifest_diff, error=str(exc),
+        )
+    journal.finish_named("model-population", result, render_population_text(result), result.status)
+    return result
+
+
+def init_model_map(root: Path, project_id: str, destination: Path, *,
+                   output: Path | None = None) -> ModelPopulationReport:
+    """Write an ignored, unapproved map draft with hashes and candidate hints."""
+    root = root.resolve()
+    if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", project_id) is None:
+        raise ValueError("Project ID must use letters, digits, periods, underscores or hyphens")
+    repo_path(root, "build/diagnostics")
+    destination = root / destination if not destination.is_absolute() else destination
+    if not destination.is_relative_to(root / "build") or destination.suffix != ".json":
+        raise ValueError("Draft model map must be a JSON file under this repository's ignored build/")
+    destination = repo_path(root, destination.relative_to(root).as_posix())
+    if output is not None:
+        output = root / output if not output.is_absolute() else output
+        if not output.is_relative_to(root / "build"):
+            raise ValueError("3D output must be under this repository's ignored build/")
+        output = repo_path(root, output.relative_to(root).as_posix())
+    journal = DiagnosticJournal(root, project_id, output, label="model-map")
+    board_name: str | None = None
+    manifest_name: str | None = None
+    board_digest: str | None = None
+    manifest_digest: str | None = None
+    try:
+        with journal.stage("draft-map"):
+            record = next((item for item in load_registry(root).projects if item.id == project_id), None)
+            if record is None or record.kind not in {ProjectKind.PCB, ProjectKind.PCB_ONLY}:
+                raise ValueError(f"Select a registered PCB or PCB-only project: {project_id}")
+            manifest_name = record.config
+            manifest_path = repo_path(root, manifest_name)
+            board_name = Path(record.project).with_suffix(".kicad_pcb").as_posix()
+            board_path = repo_path(root, board_name)
+            if not board_path.is_file():
+                raise ValueError(f"PCB source is missing: {board_name}")
+            board_digest = _digest(board_path.read_bytes())
+            manifest_digest = _digest(manifest_path.read_bytes())
+            inventory = inspect_models(root, load_config(root, manifest_name))
+            unassigned = tuple(item for item in inventory.footprints if not item.models)
+            if not unassigned:
+                raise ValueError("This board has no unassigned footprints to draft")
+            refs = [item.reference for item in unassigned]
+            if len(refs) != len(set(refs)) or any(ref.startswith("<unknown") for ref in refs):
+                raise ValueError("Board has duplicate or unreadable references; repair it in KiCad")
+            payload = ModelMap(
+                project_id=project_id, board_sha256=board_digest, manifest_sha256=manifest_digest,
+                assignments=tuple(ModelMapAssignment(
+                    reference=item.reference, model="", candidate_assets=item.candidate_assets,
+                ) for item in unassigned),
+            )
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            with destination.open("x", encoding="utf-8") as stream:
+                stream.write(payload.model_dump_json(indent=2) + "\n")
+            journal.event("draft-map", "SAVED", str(destination))
+        result = ModelPopulationReport(
+            status="DRAFT", project_id=project_id, run_directory=str(journal.directory),
+            board=board_name, manifest=manifest_name, board_sha256=board_digest,
+            manifest_sha256=manifest_digest, draft_map=str(destination),
+            next_commands=(
+                "Choose exact reviewed model files for desired references in the draft map.",
+                f"python -B -m tools.visualize --project {project_id} --map-models {destination}",
+            ),
+        )
+    except (OSError, ValueError, UnicodeError) as exc:
+        result = ModelPopulationReport(
+            status="FAIL", project_id=project_id, run_directory=str(journal.directory),
+            board=board_name, manifest=manifest_name, board_sha256=board_digest,
+            manifest_sha256=manifest_digest, error=str(exc),
+        )
+    except Exception as exc:  # noqa: BLE001 - retain a tooling-fault receipt for agent diagnosis
+        journal.fail(exc)
+        result = ModelPopulationReport(
+            status="ERROR", project_id=project_id, run_directory=str(journal.directory),
+            board=board_name, manifest=manifest_name, board_sha256=board_digest,
+            manifest_sha256=manifest_digest, error=str(exc),
         )
     journal.finish_named("model-population", result, render_population_text(result), result.status)
     return result

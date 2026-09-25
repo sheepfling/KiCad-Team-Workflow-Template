@@ -4,15 +4,23 @@ from __future__ import annotations
 import hashlib
 import json
 import shutil
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from tests.support import reference_root
 from tools.hwrepo.contracts import read_model
 from tools.hwrepo.discovery import load_config
 from tools.hwrepo.model_inventory import inspect_models
-from tools.hwrepo.model_population import ModelMap, ModelPopulationReport, populate_models
+from tools.hwrepo.model_population import (
+    ModelMap,
+    ModelPopulationReport,
+    _replace_bytes,
+    populate_models,
+)
 from tools.hwrepo.models import ProjectManifest
 
 PROJECT = "arduino-uno-status-led"
@@ -42,6 +50,7 @@ class ModelPopulationTests(unittest.TestCase):
         data = {
             "schema_version": "1", "project_id": PROJECT,
             "board_sha256": digest or hashlib.sha256(self.board.read_bytes()).hexdigest(),
+            "manifest_sha256": hashlib.sha256(self.manifest.read_bytes()).hexdigest(),
             "assignments": [{"reference": reference, "model": model}],
         }
         self.map.write_text(json.dumps(data), encoding="utf-8")
@@ -78,6 +87,74 @@ class ModelPopulationTests(unittest.TestCase):
         inventory = inspect_models(self.root, load_config(self.root, MANIFEST))
         self.assertEqual(inventory.footprints[0].status, "READY", inventory.findings)
         self.assertEqual(inventory.footprints[0].models[0].source_path, MODEL)
+
+    def test_cli_creates_draft_with_current_hashes_and_no_selected_models(self) -> None:
+        self.map.unlink()
+        raw_manifest = json.loads(self.manifest.read_text(encoding="utf-8"))
+        raw_manifest["required_inputs"].append("kicad/models/Header_1x02.step")
+        self.manifest.write_text(json.dumps(raw_manifest, indent=2) + "\n", encoding="utf-8")
+        original_board = self.board.read_bytes()
+        result = subprocess.run(
+            (
+                sys.executable, "-B", "-m", "tools.visualize", "--root", str(self.root),
+                "--project", PROJECT, "--init-model-map", "build/model-map.json",
+                "--format", "json",
+            ), cwd=reference_root(), capture_output=True, text=True, check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        report = ModelPopulationReport.model_validate_json(result.stdout)
+        self.assertEqual(report.status, "DRAFT")
+        raw = json.loads(self.map.read_text(encoding="utf-8"))
+        self.assertEqual(raw["board_sha256"], hashlib.sha256(self.board.read_bytes()).hexdigest())
+        self.assertEqual(raw["manifest_sha256"], hashlib.sha256(self.manifest.read_bytes()).hexdigest())
+        self.assertEqual({item["reference"] for item in raw["assignments"]}, {"J1", "R1", "D1"})
+        self.assertTrue(all(item["model"] == "" for item in raw["assignments"]))
+        self.assertEqual(next(item for item in raw["assignments"] if item["reference"] == "J1")
+                         ["candidate_assets"], [MODEL])
+        self.assertEqual(self.board.read_bytes(), original_board)
+        preview = populate_models(self.root, PROJECT, self.map)
+        self.assertEqual(preview.status, "FAIL")
+        self.assertIn("choose a reviewed model path", preview.error or "")
+
+    def test_manifest_drift_and_internal_error_have_clear_receipts(self) -> None:
+        self.manifest.write_bytes(self.manifest.read_bytes() + b"\n")
+        drift = populate_models(self.root, PROJECT, self.map)
+        self.assertEqual(drift.status, "FAIL")
+        self.assertIn("manifest changed", (drift.error or "").lower())
+        self.write_map()
+        with patch("tools.hwrepo.model_population._board_edits", side_effect=RuntimeError("bug")):
+            failed = populate_models(self.root, PROJECT, self.map)
+        self.assertEqual(failed.status, "ERROR")
+        self.assertIn("RuntimeError: bug", (Path(failed.run_directory) / "error.txt").read_text())
+        self.assertEqual(json.loads((Path(failed.run_directory) / "run.json").read_text())["status"],
+                         "ERROR")
+
+    def test_duplicate_board_reference_and_manifest_write_failure_leave_source_safe(self) -> None:
+        original = self.board.read_text(encoding="utf-8")
+        self.board.write_text(original.replace(
+            '(property "Reference" "R1"', '(property "Reference" "J1"', 1,
+        ), encoding="utf-8")
+        self.write_map()
+        ambiguous = populate_models(self.root, PROJECT, self.map, apply=True)
+        self.assertEqual(ambiguous.status, "FAIL")
+        self.assertIn("Duplicate placed footprint", ambiguous.error or "")
+
+        self.board.write_text(original, encoding="utf-8")
+        self.write_map()
+        original_board = self.board.read_bytes()
+        original_manifest = self.manifest.read_bytes()
+
+        def fail_manifest(path: Path, value: bytes) -> None:
+            if path == self.manifest:
+                raise OSError("manifest write failed")
+            _replace_bytes(path, value)
+
+        with patch("tools.hwrepo.model_population._replace_bytes", side_effect=fail_manifest):
+            failed = populate_models(self.root, PROJECT, self.map, apply=True)
+        self.assertEqual(failed.status, "FAIL")
+        self.assertIn("manifest write failed", failed.error or "")
+        self.assertEqual(self.board.read_bytes(), original_board)
+        self.assertEqual(self.manifest.read_bytes(), original_manifest)
 
     def test_stale_hash_and_existing_model_fail_without_writes(self) -> None:
         old_digest = hashlib.sha256(self.board.read_bytes()).hexdigest()

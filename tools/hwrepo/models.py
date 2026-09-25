@@ -1499,3 +1499,121 @@ class McpGenerationReport(StrictModel):
     status: Literal["PASS"] = "PASS"
     directory: RepositoryPath
     files: tuple[RepositoryPath, ...]
+
+
+Resolution = Literal[
+    "source_present", "toolchain_dependent", "embedded_present", "broken",
+]
+InventoryStatus = Literal["READY", "REVIEW", "FAIL"]
+ExportMode = Literal["inspect", "generate"]
+ExportStatus = Literal["PASS", "FAIL", "ERROR"]
+SelectedRunner = Literal["none", "local", "container"]
+
+
+class ModelAssignment(StrictModel):
+    """A raw observed model reference and its static source-resolution finding."""
+
+    # Keep raw paths, including empty/nonportable input, so failed references can
+    # be reported faithfully. Only a resolved source_path is a repository path.
+    path: str
+    line: PositiveCount
+    resolution: Resolution
+    source_path: RepositoryPath | None = None
+    hidden: bool = False
+    reason: str | None = None
+
+
+class FootprintModels(StrictModel):
+    """Observed footprint metadata; malformed identifiers remain diagnosable."""
+
+    reference: str
+    footprint_id: str
+    line: PositiveCount
+    models: tuple[ModelAssignment, ...]
+    candidate_assets: tuple[RepositoryPath, ...]
+    status: InventoryStatus
+
+
+class ModelInventoryReport(StrictModel):
+    """Static model assignments, without native geometry or manufacturing approval."""
+
+    schema_version: Literal["1"] = "1"
+    scope: Literal["static_inventory"] = "static_inventory"
+    build_authorized: Literal[False] = False
+    project_id: Identifier
+    board: RepositoryPath
+    status: InventoryStatus
+    footprints: tuple[FootprintModels, ...]
+    findings: tuple[DiagnosticFinding, ...]
+    next_actions: tuple[NonEmptyText, ...]
+
+
+class ThreeDReport(StrictModel):
+    """A versioned 3D receipt for one board and source snapshot, never an approval."""
+
+    schema_version: Literal["1"] = "1"
+    build_authorized: Literal[False] = False
+    project_id: Identifier
+    mode: ExportMode
+    status: ExportStatus
+    run_directory: NonEmptyText
+    toolchain_id: Identifier | None = None
+    kicad_version: NonEmptyText | None = None
+    runner: SelectedRunner = "none"
+    board: RepositoryPath | None = None
+    source_sha256: Mapping[RepositoryPath, Digest] = Field(default_factory=dict)
+    models: ModelInventoryReport | None = None
+    commands: Mapping[Identifier, CommandEvidence] = Field(default_factory=dict)
+    artifacts_sha256: Mapping[RepositoryPath, Digest] = Field(default_factory=dict)
+    next_actions: tuple[NonEmptyText, ...] = ()
+    error: str | None = None
+
+
+class ModelMapAssignment(StrictModel):
+    """An exact placed-footprint reference mapped to reviewed model source."""
+
+    reference: str = Field(min_length=1)
+    model: str
+    candidate_assets: tuple[RepositoryPath, ...] = ()
+
+
+class ModelMap(StrictModel):
+    """Explicit assignments bound to the board bytes that the author reviewed."""
+
+    schema_version: Literal["1"] = "1"
+    project_id: Identifier
+    board_sha256: Digest
+    manifest_sha256: Digest
+    assignments: tuple[ModelMapAssignment, ...] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def unique_references(self) -> ModelMap:
+        references = [item.reference for item in self.assignments]
+        if len(references) != len(set(references)):
+            raise ValueError("Map has duplicate footprint references")
+        return self
+
+
+class ModelPopulationReport(StrictModel):
+    """A model-assignment plan or source edit that still requires engineering checks."""
+
+    schema_version: Literal["1"] = "1"
+    build_authorized: Literal[False] = False
+    checks_required: Literal[True] = True
+    status: Literal["DRAFT", "PLAN", "APPLIED", "FAIL", "ERROR"]
+    project_id: Identifier
+    run_directory: NonEmptyText
+    board: RepositoryPath | None = None
+    manifest: RepositoryPath | None = None
+    board_sha256: Digest | None = None
+    manifest_sha256: Digest | None = None
+    draft_map: str | None = None
+    model_sha256: Mapping[RepositoryPath, Digest] = Field(default_factory=dict)
+    board_diff: str = ""
+    manifest_diff: str = ""
+    review_notice: NonEmptyText = (
+        "A mapped path does not verify package identity, dimensions, orientation, "
+        "offset or enclosure fit; inspect the generated geometry in KiCad."
+    )
+    next_commands: tuple[NonEmptyText, ...] = ()
+    error: str | None = None

@@ -16,6 +16,7 @@ from mcp import Client, StdioServerParameters
 from mcp.types import CallToolResult, TextContent
 from pydantic import ValidationError
 
+from tests import test_visualize
 from tests.support import SOURCE_ROOT, initialize_git, reference_root
 from tools.hwrepo.contracts import read_model
 from tools.hwrepo.mcp_server import create_server
@@ -31,11 +32,13 @@ DEFAULT_TOOLS = {
     "list_projects", "get_project", "doctor", "read_document", "preview_import",
     "scan_imports", "diagnose_import", "rescue_project", "list_artifacts", "read_artifact",
     "read_project_file", "preview_project_edit", "inspect_contract", "check_release", "verify_package",
+    "inspect_3d_models", "preview_model_population",
 }
 CHECK_TOOLS = {"check_project", "diagnose_project", "capture_contract", "check_scope"}
 WRITE_TOOLS = {"new_project", "import_project"}
 EXPORT_TOOLS = {"package_release", "restore_package", "generate_views"}
-NATIVE_EXPORT_TOOLS = {"export_project", "prepare_review"}
+EDIT_TOOLS = {"apply_project_edit", "apply_model_population"}
+NATIVE_EXPORT_TOOLS = {"export_project", "prepare_review", "export_3d"}
 DOCUMENTS = {
     "start-here": "START_HERE.md",
     "first-board": "FIRST_BOARD.md",
@@ -51,6 +54,7 @@ DOCUMENTS = {
     "libraries": "LIBRARIES.md",
     "authority-model": "AUTHORITY_MODEL.md",
     "assurance-profiles": "ASSURANCE_PROFILES.md",
+    "three-d-workflow": "THREE_D_WORKFLOW.md",
 }
 
 
@@ -143,7 +147,7 @@ class McpTests(unittest.IsolatedAsyncioTestCase):
         for options, enabled in (
             ({"allow_checks": True}, CHECK_TOOLS),
             ({"allow_writes": True}, WRITE_TOOLS),
-            ({"allow_edits": True}, {"apply_project_edit"}),
+            ({"allow_edits": True}, EDIT_TOOLS),
             ({"allow_exports": True}, EXPORT_TOOLS),
             ({"allow_checks": True, "allow_exports": True},
              CHECK_TOOLS | EXPORT_TOOLS | NATIVE_EXPORT_TOOLS),
@@ -387,10 +391,12 @@ class McpTests(unittest.IsolatedAsyncioTestCase):
             "capture_contract": {"project_id": "controller"},
             "check_scope": {},
             "export_project": {"project_id": "controller", "export_id": "try-one"},
+            "export_3d": {"project_id": "controller", "view_id": "try-one"},
             "prepare_review": {"project_id": "controller", "release_id": "try-one"},
             "package_release": {"manifest": "build/manifest.json", "package_id": "try-one"},
             "restore_package": {"archive": "build/review.zip", "restore_id": "try-one"},
             "generate_views": {"view_id": "try-one"},
+            "apply_model_population": {"project_id": "controller", "plan": "build/plan.json"},
         }
         before = snapshot(self.root)
         async with Client(create_server(self.root), mode="legacy") as client:
@@ -404,12 +410,16 @@ class McpTests(unittest.IsolatedAsyncioTestCase):
             self.root, allow_checks=True, allow_writes=True, allow_edits=True, allow_exports=True,
         ), mode="legacy") as client:
             tools = {tool.name: tool for tool in (await client.list_tools()).tools}
-            for name in CHECK_TOOLS | NATIVE_EXPORT_TOOLS | {"apply_project_edit"}:
+            self.assertEqual(len(tools), 31)
+            self.assertEqual(len((await client.list_resources()).resources), 15)
+            for name in CHECK_TOOLS | NATIVE_EXPORT_TOOLS | EDIT_TOOLS:
                 self.assertFalse(tools[name].annotations.read_only_hint, name)
-            for name in ("read_artifact", "preview_project_edit", "scan_imports", "inspect_contract"):
+            for name in ("read_artifact", "preview_project_edit", "scan_imports", "inspect_contract", "inspect_3d_models"):
                 self.assertTrue(tools[name].annotations.read_only_hint, name)
             self.assertFalse(tools["diagnose_import"].annotations.read_only_hint)
             self.assertFalse(tools["rescue_project"].annotations.read_only_hint)
+            self.assertFalse(tools["preview_model_population"].annotations.read_only_hint)
+            self.assertFalse(tools["preview_model_population"].annotations.destructive_hint)
 
     async def test_import_triage_receipt_source_edit_and_recheck_sequence(self) -> None:
         async with Client(create_server(
@@ -511,6 +521,173 @@ class McpTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(result.is_error)
             self.assertIn("zip", self.text(result).lower())
             self.assertIn("File is not a zip file", self.text(result))
+
+    async def test_3d_inventory_is_read_only_and_preserves_model_review(self) -> None:
+        before = snapshot(self.root)
+        async with Client(create_server(self.root), mode="legacy") as client:
+            data = self.structured(await client.call_tool("inspect_3d_models", {
+                "project_id": "arduino-uno-status-led",
+            }))
+            self.assertEqual(data["status"], "REVIEW")
+            self.assertFalse(data["build_authorized"])
+            self.assertTrue(data["footprints"])
+            for project in ("../outside", "passive-signal-reference", "missing-project"):
+                rejected = await client.call_tool("inspect_3d_models", {"project_id": project})
+                self.assertTrue(rejected.is_error, rejected.content)
+        self.assertEqual(snapshot(self.root), before)
+
+    async def test_3d_export_handoff_keeps_review_and_rejects_unsafe_or_used_output(self) -> None:
+        payloads = {"top.png": test_visualize.PNG, "angled.png": test_visualize.PNG,
+                    "board.step": test_visualize.STEP, "board.glb": test_visualize.GLB}
+
+        def native(_root, output, _config, selected, cli, args, timeout=300):
+            self.assertEqual(selected, "local")
+            self.assertEqual(cli, "kicad-cli")
+            if args == ("version",):
+                return test_visualize.evidence(args, stdout="10.0.5\n")
+            filename = Path(args[args.index("-o") + 1]).name
+            (output / filename).write_bytes(payloads[filename])
+            return test_visualize.evidence(args)
+
+        options = {"project_id": "arduino-uno-status-led", "view_id": "review-one", "runner": "local"}
+        async with Client(create_server(
+            self.root, allow_checks=True, allow_exports=True,
+        ), mode="legacy") as client:
+            tool = next(item for item in (await client.list_tools()).tools if item.name == "export_3d")
+            self.assertFalse(tool.annotations.read_only_hint)
+            self.assertEqual(set(tool.input_schema["properties"]), {"project_id", "view_id", "runner"})
+            with (patch("tools.hwrepo.three_d.doctor", return_value=test_visualize.passing_doctor()),
+                  patch("tools.hwrepo.three_d._run_kicad", side_effect=native)):
+                report = self.structured(await client.call_tool("export_3d", options))
+            self.assertEqual(report["status"], "PASS")
+            self.assertEqual(report["models"]["status"], "REVIEW")
+            self.assertFalse(report["build_authorized"])
+            self.assertEqual(report["run_directory"], str(self.root / "build/3d/review-one"))
+            self.assertEqual(set(report["artifacts_sha256"]), set(payloads))
+            saved = self.structured(await client.call_tool("read_artifact", {
+                "path": "build/3d/review-one/visualization.json",
+            }))
+            self.assertEqual(json.loads(saved["text"])["models"]["status"], "REVIEW")
+            with patch("tools.hwrepo.three_d.generate") as generate:
+                for update in ({}, {"view_id": "../escape"}, {"view_id": "/tmp/escape"},
+                               {"view_id": "invalid-runner", "runner": "arbitrary-command"}):
+                    rejected = await client.call_tool("export_3d", options | update)
+                    self.assertTrue(rejected.is_error, rejected.content)
+                generate.assert_not_called()
+
+    def population_arguments(self):
+        project_id = "arduino-uno-status-led"
+        island = self.root / f"examples/projects/{project_id}"
+        board = island / f"kicad/{project_id}.kicad_pcb"
+        model = island / "kicad/models/Header_1x02.step"
+        model.parent.mkdir(parents=True, exist_ok=True)
+        model.write_bytes(test_visualize.STEP)
+        return {
+            "project_id": project_id,
+            "board_sha256": hashlib.sha256(board.read_bytes()).hexdigest(),
+            "assignments": [{"reference": "J1", "model": model.relative_to(self.root).as_posix()}],
+        }
+
+    async def test_model_population_preview_and_reviewed_apply_preserve_source_scope(self) -> None:
+        arguments = self.population_arguments()
+        before = snapshot(self.root)
+        async with Client(create_server(self.root), mode="legacy") as client:
+            plan = self.structured(await client.call_tool("preview_model_population", arguments))
+            self.assertEqual(plan["status"], "PLAN", plan["error"])
+            self.assertFalse(plan["build_authorized"])
+            self.assertTrue(plan["checks_required"])
+            self.assertIn("${KIPRJMOD}/models/Header_1x02.step", plan["board_diff"])
+            self.assertIn("kicad/models/Header_1x02.step", plan["manifest_diff"])
+            self.assertEqual({key: value for key, value in snapshot(self.root).items()
+                              if Path(key).parts[0] != "build"}, before)
+            receipt = Path(plan["run_directory"]).relative_to(self.root)
+            saved = self.structured(await client.call_tool("read_artifact", {
+                "path": (receipt / "model-map.json").as_posix(),
+            }))
+            saved_map = json.loads(saved["text"])
+            self.assertEqual(saved_map["manifest_sha256"], plan["manifest_sha256"])
+            self.assertEqual(saved_map["assignments"][0]["reference"], "J1")
+            self.assertEqual(saved_map["assignments"][0]["model"], arguments["assignments"][0]["model"])
+            apply_arguments = {"project_id": arguments["project_id"],
+                               "plan": (receipt / "model-population.json").as_posix()}
+            self.assertTrue((await client.call_tool("apply_model_population", apply_arguments)).is_error)
+        async with Client(create_server(self.root, allow_edits=True), mode="legacy") as client:
+            applied = self.structured(await client.call_tool("apply_model_population", apply_arguments))
+            self.assertEqual(applied["status"], "APPLIED", applied["error"])
+            self.assertFalse(applied["build_authorized"])
+            self.assertTrue(applied["checks_required"])
+            self.assertEqual(applied["board_diff"], plan["board_diff"])
+            self.assertNotEqual(applied["run_directory"], plan["run_directory"])
+            board = self.structured(await client.call_tool("read_project_file", {
+                "project_id": arguments["project_id"],
+                "path": f"kicad/{arguments['project_id']}.kicad_pcb",
+            }))
+            self.assertIn('${KIPRJMOD}/models/Header_1x02.step', board["text"])
+            repeated = self.structured(await client.call_tool("apply_model_population", apply_arguments))
+            self.assertEqual(repeated["status"], "FAIL")
+        after = {key: value for key, value in snapshot(self.root).items() if Path(key).parts[0] != "build"}
+        changed = {key for key in before | after if before.get(key) != after.get(key)}
+        self.assertEqual(changed, {plan["board"], plan["manifest"]})
+
+    async def test_model_population_apply_rejects_stale_source_assets_and_map(self) -> None:
+        arguments = self.population_arguments()
+        board = self.root / f"examples/projects/{arguments['project_id']}/kicad/{arguments['project_id']}.kicad_pcb"
+        manifest = board.parent.parent / "project.json"
+        model = self.root / arguments["assignments"][0]["model"]
+        originals = {path: path.read_bytes() for path in (board, manifest, model)}
+        async with Client(create_server(self.root, allow_edits=True), mode="legacy") as client:
+            for changed in ("board", "manifest", "model", "map"):
+                with self.subTest(changed=changed):
+                    for path, contents in originals.items():
+                        path.write_bytes(contents)
+                    plan = self.structured(await client.call_tool("preview_model_population", arguments))
+                    self.assertEqual(plan["status"], "PLAN", plan["error"])
+                    receipt = Path(plan["run_directory"])
+                    path = {"board": board, "manifest": manifest, "model": model,
+                            "map": receipt / "model-map.json"}[changed]
+                    if changed == "map":
+                        data = json.loads(path.read_text())
+                        data["assignments"][0]["reference"] = "J2"
+                        path.write_text(json.dumps(data))
+                    else:
+                        path.write_bytes(path.read_bytes() + b"\n")
+                    before = (board.read_bytes(), manifest.read_bytes())
+                    rejected = self.structured(await client.call_tool("apply_model_population", {
+                        "project_id": arguments["project_id"],
+                        "plan": (receipt / "model-population.json").relative_to(self.root).as_posix(),
+                    }))
+                    self.assertEqual(rejected["status"], "FAIL", rejected["error"])
+                    self.assertEqual((board.read_bytes(), manifest.read_bytes()), before)
+
+    async def test_model_population_rejects_unsafe_plan_and_map_before_source_edit(self) -> None:
+        arguments = self.population_arguments()
+        async with Client(create_server(self.root, allow_edits=True), mode="legacy") as client:
+            plan = self.structured(await client.call_tool("preview_model_population", arguments))
+            receipt = Path(plan["run_directory"])
+            name = (receipt / "model-population.json").relative_to(self.root).as_posix()
+            before = snapshot(self.root)
+            for path in ("../outside.json", str(receipt / "model-population.json"),
+                         "examples/projects/controller/project.json"):
+                with self.subTest(path=path):
+                    result = await client.call_tool("apply_model_population", {
+                        "project_id": arguments["project_id"], "plan": path,
+                    })
+                    self.assertTrue(result.is_error, result.content)
+            mismatch = await client.call_tool("apply_model_population", {
+                "project_id": "controller", "plan": name,
+            })
+            self.assertTrue(mismatch.is_error, mismatch.content)
+            self.assertEqual(snapshot(self.root), before)
+            spec = receipt / "model-map.json"
+            outside = self.base / "model-map.json"
+            spec.replace(outside)
+            spec.symlink_to(outside)
+            with patch("tools.hwrepo.mcp_workflow.model_population.populate_models") as populate:
+                result = await client.call_tool("apply_model_population", {
+                    "project_id": arguments["project_id"], "plan": name,
+                })
+                self.assertTrue(result.is_error, result.content)
+                populate.assert_not_called()
 
     async def test_stdio_cli_uses_explicit_checkout_from_unrelated_working_directory(self) -> None:
         caller = self.base / "caller"

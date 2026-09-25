@@ -12,7 +12,7 @@ from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
-from tests import test_contract_coach, test_release_evidence
+from tests import test_contract_coach, test_release_evidence, test_visualize
 from tests.support import initialize_git, reference_root
 from tools.hwrepo import mcp_workflow as workflow
 from tools.hwrepo.contracts import read_model, write_model
@@ -314,6 +314,44 @@ class McpWorkflowTests(unittest.TestCase):
         run.assert_not_called()
         self.assertFalse((self.root / "build/exports").exists())
         self.assertEqual(list(outside.iterdir()), [])
+
+
+    def test_3d_export_rejects_linked_output_before_native_dispatch(self) -> None:
+        external = self.root.parent / "external-3d"
+        external.mkdir()
+        (self.root / "build").mkdir()
+        try:
+            (self.root / "build/3d").symlink_to(external, target_is_directory=True)
+        except OSError:
+            self.skipTest("Directory symlinks unavailable")
+        with (patch("tools.hwrepo.three_d.generate") as generate,
+              self.assertRaisesRegex(ValueError, "Linked")):
+            workflow.export_3d(self.root, "arduino-uno-status-led", "escaped")
+        generate.assert_not_called()
+        self.assertEqual(list(external.iterdir()), [])
+
+    def test_3d_export_source_mutation_keeps_failure_and_receipt(self) -> None:
+        board = self.root / test_visualize.BOARD
+        original = board.read_bytes()
+        payloads = {"top.png": test_visualize.PNG, "angled.png": test_visualize.PNG,
+                    "board.step": test_visualize.STEP, "board.glb": test_visualize.GLB}
+
+        def native(_root, output, _config, _selected, _cli, args, timeout=300):
+            if args == ("version",):
+                return test_visualize.evidence(args, stdout="10.0.5\n")
+            filename = Path(args[args.index("-o") + 1]).name
+            (output / filename).write_bytes(payloads[filename])
+            if filename == "top.png":
+                board.write_bytes(original + b"\n")
+            return test_visualize.evidence(args)
+
+        with (patch("tools.hwrepo.three_d.doctor", return_value=test_visualize.passing_doctor()),
+              patch("tools.hwrepo.three_d._run_kicad", side_effect=native)):
+            report = workflow.export_3d(self.root, test_visualize.PROJECT, "stale-source", "local")
+        self.assertEqual(report.status, "FAIL")
+        self.assertIn("source changed", report.error)
+        self.assertFalse(report.build_authorized)
+        self.assertTrue((Path(report.run_directory) / "visualization.json").is_file())
 
 
 

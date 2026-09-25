@@ -6,12 +6,9 @@ import os
 import re
 import subprocess
 import sys
-from collections.abc import Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
-
-from pydantic import Field
 
 from ..check_toolchain import cli_executable
 from ..validate import hashes
@@ -19,40 +16,28 @@ from .contracts import repo_path
 from .diagnostic_journal import DiagnosticJournal
 from .discovery import load_config, load_registry
 from .doctor import NativeRunner, doctor
-from .model_inventory import ModelInventoryReport, inspect_models
+from .model_inventory import inspect_models
 from .models import (
     CommandEvidence,
-    Digest,
-    Identifier,
+    ExportMode,
+    ExportStatus,
+    ModelInventoryReport,
     ProjectConfig,
     ProjectKind,
-    RepositoryPath,
-    StrictModel,
+    SelectedRunner,
+    ThreeDReport,
 )
 
-ExportMode = Literal["inspect", "generate"]
-ExportStatus = Literal["PASS", "FAIL", "ERROR"]
-SelectedRunner = Literal["none", "local", "container"]
-
-
-class ThreeDReport(StrictModel):
-    """A versioned receipt for one selected board and one source snapshot."""
-
-    schema_version: Literal["1"] = "1"
-    project_id: Identifier
-    mode: ExportMode
-    status: ExportStatus
-    run_directory: str
-    toolchain_id: Identifier | None = None
-    kicad_version: str | None = None
-    runner: SelectedRunner = "none"
-    board: RepositoryPath | None = None
-    source_sha256: Mapping[RepositoryPath, Digest] = Field(default_factory=dict)
-    models: ModelInventoryReport | None = None
-    commands: Mapping[Identifier, CommandEvidence] = Field(default_factory=dict)
-    artifacts_sha256: Mapping[RepositoryPath, Digest] = Field(default_factory=dict)
-    next_actions: tuple[str, ...] = ()
-    error: str | None = None
+# Preserve the original service-module import surface for existing consumers.
+__all__ = [
+    "ExportMode",
+    "ExportStatus",
+    "ModelInventoryReport",
+    "SelectedRunner",
+    "ThreeDReport",
+    "generate",
+    "render_text",
+]
 
 
 def _command(root: Path, argv: tuple[str, ...], timeout: int) -> CommandEvidence:
@@ -129,7 +114,8 @@ def _selected(root: Path, project_id: str) -> tuple[ProjectConfig, str]:
     if record.kind not in {ProjectKind.PCB, ProjectKind.PCB_ONLY}:
         raise ValueError(f"Project {project_id} is {record.kind.value}; 3D views require a PCB")
     config = load_config(root, record.config)
-    board = repo_path(root, config.project).with_suffix(".kicad_pcb")
+    derived = repo_path(root, config.project).with_suffix(".kicad_pcb")
+    board = repo_path(root, derived.relative_to(root).as_posix())
     if not board.is_file():
         raise ValueError(f"Project {project_id} has no PCB source: {board.relative_to(root)}")
     return config, board.relative_to(root).as_posix()
@@ -207,10 +193,12 @@ def generate(
     root = root.resolve()
     if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", project_id) is None:
         raise ValueError("Project ID must use letters, digits, periods, underscores or hyphens")
+    repo_path(root, "build/diagnostics")
     if output is not None:
-        output = (root / output).resolve() if not output.is_absolute() else output.resolve()
+        output = root / output if not output.is_absolute() else output
         if not output.is_relative_to(root / "build"):
             raise ValueError("3D output must be under this repository's ignored build/")
+        output = repo_path(root, output.relative_to(root).as_posix())
     journal = DiagnosticJournal(root, project_id, output, label="visualize")
     mode: ExportMode = "inspect" if check_models else "generate"
     status: ExportStatus = "FAIL"

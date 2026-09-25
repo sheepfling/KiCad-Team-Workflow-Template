@@ -36,7 +36,7 @@ Choose text for a concise terminal view and JSON for the complete typed result:
 | `tools.template rescue --project-id <id>` | Brief local repair view, always unverified; `--detail full` expands it | `--format json` with `UNVERIFIED_GLOBAL` and no CI/release eligibility |
 | `tools.governance_audit` | `--format text` shows observed GitHub controls and next actions | JSON by default; `UNKNOWN` stays explicit |
 | `tools.contract_coach` | Short UNREVIEWED contract comparison; `--detail full` expands it | `--format json` |
-| `tools.visualize --project <id>` | 3D model audit and export paths; `--detail full` expands findings | `--format json` |
+| `tools.visualize --project <id>` | 3D model audit and export paths; `--init-model-map` drafts explicit assignments, `--map-models` previews source edits and `--apply` writes reviewed edits | `--format json` |
 | Other `tools.template` commands; `tools.ci`, `tools.hardware`, `tools.sourcing`, `tools.metrics` | `--format text` | JSON by default |
 | `tools.release prepare` | Text by default | `--format json` or `--json` |
 | Other `tools.release` commands | `--format text` | JSON by default |
@@ -59,7 +59,7 @@ package; reviewed source commits still use normal Git.
 | `native_deps` | Prepare Linux wheels for the pinned container's Python, without requiring pip inside the image |
 | `validate`, `check_toolchain`, `fault_probe` | Adapt the pinned KiCad CLI, preserve source hashes and test deliberate native defects |
 | `contract_coach`, `hwrepo/contract_coach.py` | Capture or inspect a source-bound netlist using exact local KiCad or the digest-pinned Docker image, compare it with independently authored expectations and retain ignored review evidence |
-| `visualize`, `hwrepo/model_inventory.py`, `hwrepo/three_d.py` | Check PCB 3D model references and generate ignored board images, STEP and GLB exchange files with the selected exact KiCad runner; see the [3D workflow](../docs/workflow/THREE_D_WORKFLOW.md) |
+| `visualize`, `hwrepo/model_inventory.py`, `hwrepo/model_population.py`, `hwrepo/three_d.py` | Check PCB 3D references, explicitly map reviewed source models onto unassigned footprints, and generate ignored board images, STEP and GLB with the selected exact KiCad runner; see the [3D workflow](../docs/workflow/THREE_D_WORKFLOW.md) |
 | `lint_registry`, `docs_policy` | Expose registry and Markdown policy |
 | `hardware` | Check products, generate ignored review views/schemas, create and verify snapshots |
 | `template`, `release`, `sourcing`, `metrics` | Expose environment and project diagnostics, adoption, release readiness, supplier snapshots and current policy metrics |
