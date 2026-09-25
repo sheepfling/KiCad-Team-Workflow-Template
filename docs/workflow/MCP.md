@@ -58,6 +58,53 @@ The transport is local stdio. There is no HTTP listener or hosted account to set
 up. Start a separate configuration for each checkout. The repository root, import
 roots and enabled capabilities are fixed at startup; reconnect after changing them.
 
+## First part through MCP
+
+For a first exact-part review, complete the [Python setup](../../README.md#first-run-setup)
+and install both optional adapters in that environment:
+
+```sh
+python -m pip install -e '.[mcp,cad]'
+```
+
+Use this client configuration, replacing both absolute paths with this checkout's
+paths. It enables exact CAD lookup, pinned STEP review and a reviewed project-local
+import. It does not enable supplier submission or creation of a new board.
+
+```json
+{
+  "mcpServers": {
+    "kicad-workflow": {
+      "command": "/absolute/path/to/checkout/.venv/bin/python",
+      "args": [
+        "-B", "-m", "tools.mcp",
+        "--root", "/absolute/path/to/checkout",
+        "--allow-exports", "--allow-checks", "--allow-edits", "--allow-downloads"
+      ]
+    }
+  }
+}
+```
+
+Reconnect the client after changing the configuration. Call `list_projects` to
+find the board ID, then `read_document` with `name: "cad-sourcing"` for the
+first-part walkthrough. Call `source_cad` with that `project_id`, a new `view_id`
+and the exact LCSC `supplier_id` (add `expected_mpn` when known). Check the reported
+identity and import diff. If STEP is available, call `check_step_alignment` with
+the same part and review its paired views; `REVIEW` still needs a person to inspect
+them. The `source_cad` response includes `import_plan.plan_path` and a diff.
+Remove the checkout prefix from that plan path and call `read_artifact` with the
+remaining `build/...` path to inspect the locked plan and obtain its `sha256`.
+Pass that same relative path and digest to `apply_cad_import`, then run
+`check_project` with `depth: "native"` and inspect the updated board in KiCad.
+If the board does not exist yet, follow [first board](FIRST_BOARD.md) or the
+[import workflow](IMPORT_WORKFLOW.md) before this sequence.
+
+The checkout's `.[dev,cad]` setup already includes these dependencies. Once an
+exact part is cached, you can remove `--allow-downloads` and still reuse the
+verified bundle. Remove `--allow-edits` if the client should only prepare review
+material; startup flags take effect after reconnecting.
+
 ## Choose the enabled capabilities
 
 Add the relevant flags to the startup `args` array. Each flag enables a distinct

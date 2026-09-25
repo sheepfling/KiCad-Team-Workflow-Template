@@ -100,7 +100,8 @@ when promoting project-local assets to a shared library.
 
 ## Agent use through MCP
 
-Connect to this checkout using [the MCP setup](MCP.md). Enable exports to call
+Connect to this checkout using the [first-part MCP setup](MCP.md#first-part-through-mcp).
+Enable exports to call
 `source_cad(project_id, view_id, supplier_id, expected_mpn)`; the response contains
 the exact frozen source and an import preview. A new provider fetch additionally
 requires `--allow-downloads` at server startup. Without that flag, an intact
