@@ -8,13 +8,13 @@ approval or an acceptable waveform from an observed export.
 ## Quickstart
 
 Start in a registered board's repository with the Python environment from
-[setup](START_HERE.md). Discover its ID with `tools.template list --format text`.
+[setup](START_HERE.md). Discover its ID with `kicad-team template list --format text`.
 Replace `my-board` and model paths below with that board's actual values.
 
 1. Create a connected starter:
 
    ```sh
-   python -B -m tools.electrical --project my-board --init
+   kicad-team electrical --project my-board --init
    ```
 
    This creates `tests/electrical.json` in the project island and connects it from
@@ -34,7 +34,7 @@ Replace `my-board` and model paths below with that board's actual values.
 3. Capture the files for model review:
 
    ```sh
-   python -B -m tools.electrical --project my-board --capture-inputs \
+   kicad-team electrical --project my-board --capture-inputs \
      --model projects/my-board/tests/electrical/startup.cir \
      --model projects/my-board/tests/electrical/signal.cir
    ```
@@ -49,8 +49,8 @@ Replace `my-board` and model paths below with that board's actual values.
 4. Check readiness and run the complete verification:
 
    ```sh
-   python -B -m tools.template doctor --electrical --project-id my-board --format text
-   python -B -m tools.verify --project my-board --depth electrical
+   kicad-team template doctor --electrical --project-id my-board --format text
+   kicad-team verify --project my-board --depth electrical
    ```
 
    Doctor checks the contract, bindings, exact KiCad runner and exact host ngspice
@@ -59,7 +59,7 @@ Replace `my-board` and model paths below with that board's actual values.
    pinned KiCad while the simulator still runs on the host. Fix the first reported
    prerequisite before running verification.
 
-Text output summarizes status and prints the receipt path. `tools.electrical`
+Text output summarizes status and prints the receipt path. `kicad-team electrical`
 adds `--detail full` for every check; `--format json` always preserves all findings.
 For scripting, setup exits `0` with `CREATED`, input capture exits `0` with
 `UNREVIEWED`, and analysis exits `0` only with `PASS`. These setup statuses are not
@@ -67,32 +67,32 @@ analysis results. Analysis failure exits `1`; invocation/setup errors exit `2`.
 
 ## Commands and scope
 
-| Command                                                                                           | Evidence produced                                                                                                 |
-| ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `python -B -m tools.electrical --project <id> --init`                                             | Connected pending contract; no invented requirements                                                              |
-| `python -B -m tools.electrical --project <id> --capture-inputs`                                   | UNREVIEWED hashes for design and already-declared models; no contract edits                                       |
-| `python -B -m tools.template doctor --electrical --project-id <id> --format text`                 | Contract, native runner and host simulator readiness; no simulation                                               |
-| `python -B -m tools.verify --project <id>`                                                        | Portable requirements, reviewed model/source bindings and simultaneous power budgets; no circuit simulation       |
-| `python -B -m tools.verify --project <id> --depth native`                                         | The portable lane plus ERC/DRC and configured grounding checks on the actual exported netlist                     |
-| `python -B -m tools.verify --project <id> --depth electrical --ngspice /path/to/ngspice`          | Native verification followed by every configured power and high-frequency simulation                              |
-| `python -B -m tools.electrical --project <id> --format json`                                      | Focused electrical run with an exact-version native netlist capture and an ngspice run; this does not run ERC/DRC |
-| `python -B -m tools.electrical --project <id> --native-summary build/<receipt>/<id>/summary.json` | Reuse an existing netlist only after checking its project, toolchain, source hashes and artifact hashes           |
-| `python -B -m tools.ci --electrical --project <id>`                                               | Separate electrical CI gate; the usual project/product/tag selectors apply                                        |
+| Command                                                                                   | Evidence produced                                                                                                 |
+| ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `kicad-team electrical --project <id> --init`                                             | Connected pending contract; no invented requirements                                                              |
+| `kicad-team electrical --project <id> --capture-inputs`                                   | UNREVIEWED hashes for design and already-declared models; no contract edits                                       |
+| `kicad-team template doctor --electrical --project-id <id> --format text`                 | Contract, native runner and host simulator readiness; no simulation                                               |
+| `kicad-team verify --project <id>`                                                        | Portable requirements, reviewed model/source bindings and simultaneous power budgets; no circuit simulation       |
+| `kicad-team verify --project <id> --depth native`                                         | The portable lane plus ERC/DRC and configured grounding checks on the actual exported netlist                     |
+| `kicad-team verify --project <id> --depth electrical --ngspice /path/to/ngspice`          | Native verification followed by every configured power and high-frequency simulation                              |
+| `kicad-team electrical --project <id> --format json`                                      | Focused electrical run with an exact-version native netlist capture and an ngspice run; this does not run ERC/DRC |
+| `kicad-team electrical --project <id> --native-summary build/<receipt>/<id>/summary.json` | Reuse an existing netlist only after checking its project, toolchain, source hashes and artifact hashes           |
+| `kicad-team ci --electrical --project <id>`                                               | Separate electrical CI gate; the usual project/product/tag selectors apply                                        |
 
-`tools.electrical` accepts `--runner auto|local|container` for netlist capture.
+`kicad-team electrical` accepts `--runner auto|local|container` for netlist capture.
 Its `--ngspice` argument selects the simulator executable, whose exact version must
 match the contract. Container selection applies to KiCad; ngspice runs on the host.
 Install the approved ngspice version on that runner before requesting the electrical
 gate. Ordinary portable CI does not require a simulator. A requested electrical
 run with no contract or no required runner exits nonzero, never a simulated pass.
-Without include selectors, `tools.ci --electrical` requests every discovered board;
+Without include selectors, `kicad-team ci --electrical` requests every discovered board;
 select a project or tag when only part of the repository has electrical contracts.
 
 ## Add a board contract
 
 1. Complete the independent components/nets in `tests/contract.json`. An electrical
    analysis requires an authoritative schematic (`pcb` or `schematic` kind).
-2. Run `tools.electrical --project <id> --init` to add the sidecar and its pointer.
+2. Run `kicad-team electrical --project <id> --init` to add the sidecar and its pointer.
    The pointer is relative to the project island; initialization preserves the
    existing native expectations and refuses to replace electrical requirements.
 3. Author `tests/electrical.json` with `schema_version: "1"`, the exact `project_id`,
@@ -107,12 +107,13 @@ select a project or tag when only part of the repository has electrical contract
    waveforms and findings, then review the limits and model scope with the engineer.
 
 The authoritative schema is `ElectricalAnalysisContract` in
-[models.py](../../tools/hwrepo/models.py). `python -B -m tools.hardware generate`
-exports its machine-readable schema to ignored `schemas/electrical-analysis-v1.schema.json`.
-The [standalone examples](../../templates/electrical/README.md) contain a complete
-worked JSON contract and SPICE decks, with intentionally invalid placeholder hashes.
-These demonstrate the tools; they are not design requirements for an adopted board.
-Do not copy their limits or ground-net choices into a real design.
+[models.py](https://github.com/sheepfling/KiCad-Tooling/blob/codex/tooling-split/kicad_tooling/hwrepo/models.py).
+`kicad-team hardware generate` exports its machine-readable schema to ignored
+`schemas/electrical-analysis-v1.schema.json`. The
+[standalone examples](../../templates/electrical/README.md) contain a complete worked JSON contract
+and SPICE decks, with intentionally invalid placeholder hashes. These demonstrate the tools; they
+are not design requirements for an adopted board. Do not copy their limits or ground-net choices
+into a real design.
 
 ## Priority 1: grounding
 
@@ -217,14 +218,14 @@ The tool refuses stale hashes and does not rewrite them to make a run pass.
 
 ## Charts and structured data from a saved run
 
-Install the optional chart support once with `python -m pip install -e '.[charts]'`. Matplotlib uses
+The [pinned environment](../../README.md#first-run-setup) includes chart support. Matplotlib uses
 a noninteractive
 [Agg/SVG backend](https://matplotlib.org/stable/users/explain/figure/backends.html), so the same
 command works on a desktop or in hosted CI. After an analysis run, pass its printed receipt
 directory (or its `electrical.json`) to:
 
 ```sh
-python -B -m tools.electrical_charts --receipt build/electrical/<id>-<run> --format text
+kicad-team electrical-charts --receipt build/electrical/<id>-<run> --format text
 ```
 
 This reads the saved requirements and ASCII ngspice waveforms. It verifies their
@@ -241,8 +242,8 @@ simulation may leave some cases without waveforms; the chart report calls them
 `SKIPPED` and returns a partial status. A changed or unrecorded waveform is a
 failure, not chart input.
 
-For a saved focused suite from `tools.ci --electrical`, use
-`tools.electrical_charts --suite build/electrical-suite.json`; it exports every
+For a saved focused suite from `kicad-team ci --electrical`, use
+`kicad-team electrical-charts --suite build/electrical-suite.json`; it exports every
 project to a single new chart suite receipt. The manual **Electrical analysis**
 GitHub Action runs this step automatically and retains the charts with the
 analysis evidence. Charts visualize the declared circuit model and limits; they
@@ -256,12 +257,12 @@ source archive. The defaults are version `47` and its recorded archive checksum.
 The simulator version must match the board contract; when changing versions,
 review and update the checksum as a pair. The workflow checks portable requirements,
 builds ngspice from the checksum-verified official source archive, runs electrical
-and native readiness checks, then calls `tools.ci --electrical --project <id>`.
+and native readiness checks, then calls `kicad-team ci --electrical --project <id>`.
 It retains reports, waveforms, charts, CSV data and simulator build logs even after failure.
 
 This focused workflow checks declared grounding and circuit models. Run the normal
 **KiCad template acceptance** native lane for ERC/DRC as well, or use
-`tools.verify --depth electrical` locally to combine both. The manual electrical
+`kicad-team verify --depth electrical` locally to combine both. The manual electrical
 workflow does not add a required branch-protection check or change ordinary PR
 runs. Adopt those enforcement decisions through the repository's review process.
 

@@ -20,5 +20,5 @@ before using it as an electrical or manufacturing deliverable.
 
 Wiring/harness views reference the optional product whose relationships they describe. A schematic
 line by itself does not establish cable construction, mechanical fit or an approved electrical
-interface. Use [project-local test contracts](../../tests/README.md) and the
+interface. Use [project-local test contracts](PROJECT_TESTS.md) and the
 [product workflow](PRODUCT_WORKFLOW.md).

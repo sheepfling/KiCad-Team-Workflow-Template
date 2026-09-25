@@ -1,17 +1,18 @@
 # Markdown documentation policy
 
 Markdown has three independent checks. Install the pinned development tools once with
-`python -m pip install -e '.[dev]'`, then run these read-only commands from the repository root:
+`python -m pip install -r requirements-tooling.txt`, then run these read-only commands from the
+repository root:
 
 ```sh
 rumdl check . --no-cache
 python -B -m mdrepo check .
-python -B -m tools.docs_policy
+kicad-team docs-policy
 ```
 
-The full `python -B -m tools.ci` gate runs all three. A documentation-only hosted run and a
+The full `kicad-team ci` gate runs all three. A documentation-only hosted run and a
 focused run with changed Markdown also run all three. `rumdl` checks document format, `mdrepo`
-checks repository links and document reachability, and `tools.docs_policy` checks this
+checks repository links and document reachability, and `kicad-team docs-policy` checks this
 repository's typed documentation ownership and engineering rules. The tools do not follow
 external URLs or claim that linked vendor content is current.
 
@@ -24,10 +25,10 @@ prose and fix table alignment; run `rumdl check --fix .` when a formatting findi
 then review the diff and rerun the read-only checks.
 
 `[tool.mdrepo]` checks portable repository-bound paths, exact on-disk case, durable targets,
-and reachability from its declared roots. `rumdl` and `tools.docs_policy` check missing local
+and reachability from its declared roots. `rumdl` and `kicad-team docs-policy` check missing local
 targets and heading fragments, so `mdrepo` leaves its overlapping missing-target check off.
 The GitHub issue and PR templates are excluded from these two tools because they are GitHub
-form content rather than conventional documents; `tools.docs_policy` also excludes them.
+form content rather than conventional documents; `kicad-team docs-policy` also excludes them.
 No broad source-document exclusion is configured.
 
 ## Roots and narrow exceptions
@@ -39,7 +40,7 @@ and product READMEs. When adding a new independent project or product, update th
 alongside its README. Otherwise link the document from an existing root. Keep the two
 root lists aligned.
 
-`tools.docs_policy` applies these local rule IDs:
+`kicad-team docs-policy` applies these local rule IDs:
 
 - `MD001` and `MD002`: no tabs or trailing whitespace.
 - `MD003` through `MD005`: one H1, no skipped heading levels, and balanced fences.

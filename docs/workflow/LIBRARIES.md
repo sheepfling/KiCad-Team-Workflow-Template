@@ -78,6 +78,6 @@ changes outside review.
 
 `generated/library-sbom-v1.json` is the deterministic inventory of controlled shared CAD libraries,
 including each ID, version, path, owner/status and provenance/licensing record hashes. It is
-regenerated with `python -B -m tools.hardware generate` and exported as ignored output; the shared
+regenerated with `kicad-team hardware generate` and exported as ignored output; the shared
 CI gate checks fresh generation. It does not assert that a library's legal review or physical
 footprint qualification is complete.

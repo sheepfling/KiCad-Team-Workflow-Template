@@ -51,8 +51,8 @@ portable checks, native-report inspection or BOM inspection stopped.
 ## Before importing
 
 ```sh
-python -B -m tools.template doctor --format text
-python -B -m tools.template diagnose --source "/path/to/board.kicad_pro" --project-id battery-board --toolchain kicad-10.0.5
+kicad-team template doctor --format text
+kicad-team template diagnose --source "/path/to/board.kicad_pro" --project-id battery-board --toolchain kicad-10.0.5
 ```
 
 The second command previews the same import inventory as `import-project --dry-run`.
@@ -67,23 +67,23 @@ inside the new island.
 ## After creating or importing a project
 
 ```sh
-python -B -m tools.template diagnose --project-id battery-board
-python -B -m tools.verify --project battery-board
+kicad-team template diagnose --project-id battery-board
+kicad-team verify --project battery-board
 ```
 
 `diagnose` runs the selected portable policy and project test lane. Its `NEEDS_WORK`
 result names the failed input and next action. A `PASS` means only that this local
 diagnostic scope has no blockers; it does not replace the full CI gate or native
-KiCad. Add `--depth native` to `tools.verify` after KiCad source changes. Use
+KiCad. Add `--depth native` to `kicad-team verify` after KiCad source changes. Use
 `--format json` when a script needs stable fields.
 
 If an unrelated malformed project manifest prevents normal discovery, use the
 local rescue command to inspect one direct island while repairing the registry:
 
 ```sh
-python -B -m tools.template rescue --project-id battery-board
-python -B -m tools.template rescue --project-id battery-board --detail full
-python -B -m tools.template rescue --project-id battery-board --format json
+kicad-team template rescue --project-id battery-board
+kicad-team template rescue --project-id battery-board --detail full
+kicad-team template rescue --project-id battery-board --format json
 ```
 
 Rescue reads the configured project roots, the selected `project.json`, its
@@ -103,23 +103,23 @@ test contract just to make a red check green. `REVIEW` rows can remain after the
 portable lane passes, but they must be resolved before the activity they name
 (such as purchasing or manufacturing).
 
-| Finding                                                                         | Engineer's repair                                                                                                                                                                                                                                                     |
-| ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `IMPORT` missing matching design or sheet                                       | Select a complete saved project, repair the sheet reference in KiCad, or use the explicit PCB-only lane for a real board-only source. Do not make up a missing schematic.                                                                                             |
-| `IMPORT` nonportable/case-colliding/linked path                                 | Rename the source and its references to an exact portable spelling, or bring the real asset into a declared local/shared library. Preview again before copying.                                                                                                       |
-| `IMPORT_EXCLUSIONS`                                                             | Open `import-preview.json` to see every excluded path. Regenerate exports, leave caches behind, review restricted authored assets separately, and import sibling/nested designs as separate islands.                                                                  |
-| `CAD_PATH` installed KiCad library path                                         | Replace the operating-system installation prefix with the pinned versioned KiCad library variable and verify the named library exists. Do not copy the whole standard library into the project.                                                                       |
-| `CAD_PATH` private machine path                                                 | Bring the actual custom asset into the project or a declared shared library, then update the KiCad reference to a portable path.                                                                                                                                      |
-| `CAD_PATH` old variable                                                         | Use the correct library variable for the pinned KiCad version, or a reviewed project-local asset via `KIPRJMOD`; verify the target exists.                                                                                                                            |
-| `CAD_PATH` missing, embedded or case-mismatched target                          | Correct exact spelling/case or add the intended asset and verify it opens in KiCad. Do not add a dummy file.                                                                                                                                                          |
-| `TRACKED_GENERATED_OUTPUT`, `TRACKED_LOCAL_STATE`, `TRACKED_UNMANAGED_ARTIFACT` | Keep generated exports and local state under ignored `build/`; remove already tracked copies from the Git index with `git rm --cached -- <path>` after confirming their source of truth. Review any authored document or image placement before moving it.            |
-| `UNREGISTERED_DESIGN`                                                           | Give a separate native design its own registered island; do not hide it in another project's input inventory.                                                                                                                                                         |
-| `EMPTY_COMPONENT_CONTRACT`                                                      | Run `tools.contract_coach --project-id <id> --capture` to inventory UNREVIEWED components and nets with exact local KiCad or the catalogued digest-pinned Docker image. Compare them with requirements, then write independent expectations in `tests/contract.json`. |
-| `EMPTY_NET_CONTRACT`                                                            | Review the empty net expectation; author real expected connectivity or record that the design is intentionally net-free.                                                                                                                                              |
-| `ELECTRICAL_SETUP`                                                              | Review the named electrical sidecar, pending requirements, model bindings or power budget. Run `tools.template doctor --electrical --project-id <id> --format text`; follow the [electrical quickstart](ELECTRICAL_ANALYSIS.md#quickstart).                           |
-| `PROJECT_TEST`                                                                  | Read the failing assertion and requirement, repair the design or test fixture, then rerun the selected lane.                                                                                                                                                          |
-| `PART_ID_SCOPE` or `EXPORT_SETTINGS`                                            | Complete these reviewed records before purchasing or manufacturing work; a portable pass does not imply release readiness.                                                                                                                                            |
-| `PCB_ONLY_SCOPE`                                                                | Keep board capture in development. Add an authoritative schematic before electrical or manufacturing claims.                                                                                                                                                          |
+| Finding                                                                         | Engineer's repair                                                                                                                                                                                                                                                          |
+| ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `IMPORT` missing matching design or sheet                                       | Select a complete saved project, repair the sheet reference in KiCad, or use the explicit PCB-only lane for a real board-only source. Do not make up a missing schematic.                                                                                                  |
+| `IMPORT` nonportable/case-colliding/linked path                                 | Rename the source and its references to an exact portable spelling, or bring the real asset into a declared local/shared library. Preview again before copying.                                                                                                            |
+| `IMPORT_EXCLUSIONS`                                                             | Open `import-preview.json` to see every excluded path. Regenerate exports, leave caches behind, review restricted authored assets separately, and import sibling/nested designs as separate islands.                                                                       |
+| `CAD_PATH` installed KiCad library path                                         | Replace the operating-system installation prefix with the pinned versioned KiCad library variable and verify the named library exists. Do not copy the whole standard library into the project.                                                                            |
+| `CAD_PATH` private machine path                                                 | Bring the actual custom asset into the project or a declared shared library, then update the KiCad reference to a portable path.                                                                                                                                           |
+| `CAD_PATH` old variable                                                         | Use the correct library variable for the pinned KiCad version, or a reviewed project-local asset via `KIPRJMOD`; verify the target exists.                                                                                                                                 |
+| `CAD_PATH` missing, embedded or case-mismatched target                          | Correct exact spelling/case or add the intended asset and verify it opens in KiCad. Do not add a dummy file.                                                                                                                                                               |
+| `TRACKED_GENERATED_OUTPUT`, `TRACKED_LOCAL_STATE`, `TRACKED_UNMANAGED_ARTIFACT` | Keep generated exports and local state under ignored `build/`; remove already tracked copies from the Git index with `git rm --cached -- <path>` after confirming their source of truth. Review any authored document or image placement before moving it.                 |
+| `UNREGISTERED_DESIGN`                                                           | Give a separate native design its own registered island; do not hide it in another project's input inventory.                                                                                                                                                              |
+| `EMPTY_COMPONENT_CONTRACT`                                                      | Run `kicad-team contract-coach --project-id <id> --capture` to inventory UNREVIEWED components and nets with exact local KiCad or the catalogued digest-pinned Docker image. Compare them with requirements, then write independent expectations in `tests/contract.json`. |
+| `EMPTY_NET_CONTRACT`                                                            | Review the empty net expectation; author real expected connectivity or record that the design is intentionally net-free.                                                                                                                                                   |
+| `ELECTRICAL_SETUP`                                                              | Review the named electrical sidecar, pending requirements, model bindings or power budget. Run `kicad-team template doctor --electrical --project-id <id> --format text`; follow the [electrical quickstart](ELECTRICAL_ANALYSIS.md#quickstart).                           |
+| `PROJECT_TEST`                                                                  | Read the failing assertion and requirement, repair the design or test fixture, then rerun the selected lane.                                                                                                                                                               |
+| `PART_ID_SCOPE` or `EXPORT_SETTINGS`                                            | Complete these reviewed records before purchasing or manufacturing work; a portable pass does not imply release readiness.                                                                                                                                                 |
+| `PCB_ONLY_SCOPE`                                                                | Keep board capture in development. Add an authoritative schematic before electrical or manufacturing claims.                                                                                                                                                               |
 
 When `PROJECT_TEST` names `discovery`, check that the island has discoverable
 `test_*.py` files, package markers in nested test folders, and valid imports.
@@ -157,7 +157,7 @@ issue/PR; keep durable design decisions in that project's `docs/`.
 
 ## After a native check
 
-Run `python -B -m tools.verify --project battery-board --depth native` for
+Run `kicad-team verify --project battery-board --depth native` for
 selected portable and native validation with a fresh ignored receipt. It picks
 an exact local KiCad CLI when installed, otherwise the board's digest-pinned
 Docker image. Use `--runner local` or `--runner container` for an explicit
@@ -172,8 +172,8 @@ Keep each native output directory distinct and point the coach at the **project*
 summary beneath that output:
 
 ```sh
-python -B -m tools.ci --kicad --project battery-board --output projects/battery-board/build/review-001 --format text
-python -B -m tools.template diagnose --project-id battery-board --native-report projects/battery-board/build/review-001/battery-board/summary.json
+kicad-team ci --kicad --project battery-board --output projects/battery-board/build/review-001 --format text
+kicad-team template diagnose --project-id battery-board --native-report projects/battery-board/build/review-001/battery-board/summary.json
 ```
 
 If the declared design files changed since that report, the coach marks it stale;
@@ -189,16 +189,16 @@ disabled-check inventory changed, enable the named checks in KiCad's Schematic
 Setup or Board Setup and resolve the new findings. Do not copy disabled defaults into
 a development contract to obtain a pass. A netlist mismatch requires a reviewed
 decision about the circuit and the independent contract; neither should be changed
-automatically to match the other. `tools.contract_coach --project-id <id>
+automatically to match the other. `kicad-team contract-coach --project-id <id>
 --native-summary <project-summary.json> --detail full` verifies the native netlist
 hash and current declared design hashes, then shows every observed component and
 net beside a concise difference list. JSON output retains both full inventories
 for agents. A failed native contract comparison may still provide usable
 UNREVIEWED observations when the KiCad export itself succeeded; it does not turn
 the failed validation green. See [checks and CI](CHECKS_AND_CI.md) and
-[test authority](../../tests/README.md).
+[test authority](PROJECT_TESTS.md).
 
-For an empty electrical contract, `tools.contract_coach --project-id <id> --capture`
+For an empty electrical contract, `kicad-team contract-coach --project-id <id> --capture`
 exports an observed netlist before native validation can pass. The default
 `--runner auto` tries an exact local KiCad CLI, then the digest-pinned Docker
 image. `--runner local --cli <path>` and `--runner container` select one path.
@@ -213,7 +213,7 @@ launch error. The coach never writes or approves `tests/contract.json`.
 After a native schematic BOM export, check its controlled part identities:
 
 ```sh
-python -B -m tools.template diagnose --project-id battery-board --native-report projects/battery-board/build/review-001/battery-board/summary.json --bom build/release-candidate/assembly/bom.csv
+kicad-team template diagnose --project-id battery-board --native-report projects/battery-board/build/review-001/battery-board/summary.json --bom build/release-candidate/assembly/bom.csv
 ```
 
 The matching native report binds the BOM rows to this project's source and netlist.
@@ -232,19 +232,19 @@ upstream archive's completeness.
 
 ## Electrical readiness and failed simulations
 
-Run `python -B -m tools.template doctor --electrical --project-id <id> --format text`
-before requesting `tools.verify --depth electrical`. Missing configuration points to
-`tools.electrical --project <id> --init`; pending sections need engineering input.
+Run `kicad-team template doctor --electrical --project-id <id> --format text`
+before requesting `kicad-team verify --depth electrical`. Missing configuration points to
+`kicad-team electrical --project <id> --init`; pending sections need engineering input.
 A simulator failure names the exact version and `--ngspice` override. Selecting a
 KiCad container does not install ngspice on the host.
 
-For stale design or model bindings, run `tools.electrical --project <id> --capture-inputs`
+For stale design or model bindings, run `kicad-team electrical --project <id> --capture-inputs`
 and review the new ignored `inputs.json` before intentionally updating the contract.
 Specify repeated `--model` paths when adding models. Capture never approves a changed
 model or rewrites existing bindings.
 
 For a failed electrical run, open the printed receipt's `electrical.txt` or use
-`tools.electrical --project <id> --detail full`. Inspect the named case's
+`kicad-team electrical --project <id> --detail full`. Inspect the named case's
 `ngspice.command.json`, generated deck and `waveforms.raw`. Missing/non-finite
 measurements, simulator errors, truncated data and uncovered measurement windows
 all fail the run. Repair the model or runner based on that evidence; change limits

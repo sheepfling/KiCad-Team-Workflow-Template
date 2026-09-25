@@ -26,6 +26,8 @@ rather than adding a dated report to this directory.
 - [Product workflow](workflow/PRODUCT_WORKFLOW.md)
 - [Import workflow](workflow/IMPORT_WORKFLOW.md)
 - [Checks and CI](workflow/CHECKS_AND_CI.md)
+- [Project and product tests](workflow/PROJECT_TESTS.md)
+- [Template and tooling ownership](workflow/TOOLING_SPLIT.md)
 - [Grounding, power and high-frequency analysis](workflow/ELECTRICAL_ANALYSIS.md)
 - [Diagnose and repair a project](workflow/DIAGNOSTICS.md)
 - [Connect an agent through MCP](workflow/MCP.md)

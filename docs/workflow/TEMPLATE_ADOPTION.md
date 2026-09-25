@@ -4,7 +4,7 @@ The template contract in `templates/template-contract.json` names the portable
 files required for a reusable starting point. Verify it before copying the template:
 
 ```sh
-python -B -m tools.template preflight
+kicad-team template preflight
 ```
 
 ## Bootstrap
@@ -12,15 +12,15 @@ python -B -m tools.template preflight
 For a GitHub fork or template copy, install the Python dependencies, then run:
 
 ```sh
-python -B -m tools.template init --project-id my-hardware
-python -B -m tools.ci
+kicad-team template init --project-id my-hardware
+kicad-team ci
 ```
 
 For a fresh GitHub fork or template-generated repository, the equivalent guided path is:
 
 ```sh
-python -B -m tools.template doctor
-python -B -m tools.template adopt --project-id my-hardware
+kicad-team template doctor
+kicad-team template adopt --project-id my-hardware
 ```
 
 `adopt` runs preflight, the same transactional initialization, and the complete
@@ -38,7 +38,7 @@ To create a new local copy from a **clean, committed** template source, choose a
 new, nonexistent directory outside the source template:
 
 ```sh
-python -B -m tools.template bootstrap --destination ../my-hardware-repo --project-id my-board
+kicad-team template bootstrap --destination ../my-hardware-repo --project-id my-board
 ```
 
 The command copies the controlled template into a staging directory and atomically places it only
@@ -46,11 +46,11 @@ after writing `template-adoption.json` and removing the known root template `LIC
 only Git-tracked source and excludes generated exports and local state; ignored downloads and
 untracked files cannot be copied. It never overwrites a destination, initializes a remote, creates a
 commit, changes repository permissions, opens KiCad or modifies a design. Bootstrap copies the
-synthetic examples as regression inputs. Retain them while replacing their live catalog entries with
-adopted source; see the
+synthetic examples as explicit training inputs. Retain them while replacing their live catalog
+entries with adopted source; see the
 [folder standard](REPOSITORY_STRUCTURE.md).
 
-Run `tools.template init --project-id my-board` inside that copy. The adopting
+Run `kicad-team template init --project-id my-board` inside that copy. The adopting
 maintainer must then initialize/attach the correct Git remote, complete
 [Start here](START_HERE.md), select the approved KiCad version, configure hosted
 governance and commit the adoption record. A generated `template-adoption.json` only
@@ -63,13 +63,26 @@ commit or root-license version enters the company's history. A custom root licen
 already present in the source is preserved, as are all nested and third-party
 notices. See [licensing and adoption](LICENSING.md) for the precise cleanup boundary.
 
+## Version 1.4.0 installed-tooling migration
+
+Version 1.4.0 separates project-owned engineering source from shared Python tooling. Existing
+adopters should request `kicad-team template upgrade-plan --target-version 1.4.0` and follow the
+[cutover procedure](TOOLING_SPLIT.md#update-an-adopted-repository) on a review branch. Preserve
+designs, catalog identities, requirements, project/product tests, licensing and approvals. Install
+the exact tooling Git pin and update CLI/MCP/hosted launch paths before removing the old shared
+Python implementation and root regression suite. Do not rerun `init` or `adopt` on an existing
+design repository. Update the adoption version only after reviewed project acceptance.
+
+The template contract version is separate from the tooling package's SCM version and legacy
+policy version. None of these replaces each project's approved KiCad toolchain pin.
+
 ## Upgrade plan
 
 Every template change that needs adopter action adds one forward migration record to
 `templates/template-upgrades.json`. Ask the helper for the unique reviewed path:
 
 ```sh
-python -B -m tools.template upgrade-plan --target-version <target-version>
+kicad-team template upgrade-plan --target-version <target-version>
 ```
 
 The helper only returns ordered typed steps. It refuses downgrades, missing paths and
@@ -86,7 +99,7 @@ review. Without an adoption record, the current template contract supplies the s
 
 The upgrade catalog includes the reviewed steps from 0.1.0 to 0.2.0. Apply the new
 upgrade catalog to the older copy while its template contract still records 0.1.0,
-then ask `python -B -m tools.template upgrade-plan --target-version 0.2.0` for the plan.
+then ask `kicad-team template upgrade-plan --target-version 0.2.0` for the plan.
 Update the contract and adoption record when the migration is reviewed. On a current
 0.2.0 copy, requesting 0.2.0 correctly returns an empty plan.
 
@@ -101,7 +114,7 @@ project folder. `catalog/projects.json` now configures discovery roots rather th
 listing projects. Local manifests select a shared toolchain by ID. Product records
 move into their own folders, and generated product views move to their local `build/`.
 
-Use `tools.template new-project` for new islands. Existing adopters can load the
+Use `kicad-team template new-project` for new islands. Existing adopters can load the
 updated upgrade catalog while retaining their old contract version to inspect the
 0.2.0-to-0.3.0 plan. Follow the [folder standard](REPOSITORY_STRUCTURE.md) and
 [BOM policy](BOM_POLICY.md), then update adoption metadata after review.

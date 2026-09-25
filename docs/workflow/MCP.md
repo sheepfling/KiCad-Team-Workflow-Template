@@ -8,41 +8,35 @@ call can contain a failing engineering or environment result.
 
 ## Install and connect
 
-Use a trusted checkout and the [Python environment setup](../../README.md#first-run-setup).
-From that checkout, install the optional dependency:
+Use a trusted checkout and complete the [Python environment setup](../../README.md#first-run-setup):
 
 ```sh
-python -m pip install -e '.[mcp]'
+python -m pip install -r requirements-tooling.txt
+kicad-team-mcp --root /absolute/path/to/checkout
 ```
 
-Install `.[dev]` when enabling checks or developing the adapter; it includes the
-pinned MCP SDK, chart renderer and repository quality tools. Install `.[charts]`
-for electrical chart export in a smaller runtime. Exact-part community CAD lookup
-needs `.[cad]` when a new bundle must be converted; saved intact bundles can be
-reviewed without that optional converter. The base installation keeps MCP
-optional. Clients with shell access can also use the CLIs directly.
+The pinned installation includes the MCP SDK, project check tools, chart renderer and CAD
+converter. The command above starts a local stdio server; normally your agent client starts it.
+Clients with shell access can also use `kicad-team` directly.
 
-Configure the client to launch the checkout's virtual-environment interpreter.
 For a client accepting `mcpServers`, replace both absolute paths in this example:
 
 ```json
 {
   "mcpServers": {
     "kicad-workflow": {
-      "command": "/absolute/path/to/checkout/.venv/bin/python",
-      "args": [
-        "-B", "-m", "tools.mcp",
-        "--root", "/absolute/path/to/checkout"
-      ]
+      "command": "/absolute/path/to/checkout/.venv/bin/kicad-team-mcp",
+      "args": ["--root", "/absolute/path/to/checkout"]
     }
   }
 }
 ```
 
-On Windows, use the absolute `.venv\Scripts\python.exe` path and escape each
-backslash in JSON. The editable installation makes `tools.mcp` importable without
-setting the client's working directory. Keep the interpreter and `--root` pointed
-at the same checkout, especially when using several worktrees.
+On Windows, use the absolute `.venv\Scripts\kicad-team-mcp.exe` path and escape each
+backslash in JSON. The installed entry point works without setting the client's working
+directory. Choose the environment containing the intended tooling pin and bind `--root`
+to the project checkout, especially when using several worktrees. For an interpreter-based
+launcher, the equivalent is `python -B -m kicad_tooling.mcp --root /absolute/path/to/checkout`.
 
 Native container work also needs `docker` on the server process's `PATH` and a
 running Docker service. Desktop clients may inherit a different environment from
@@ -60,12 +54,8 @@ roots and enabled capabilities are fixed at startup; reconnect after changing th
 
 ## First part through MCP
 
-For a first exact-part review, complete the [Python setup](../../README.md#first-run-setup)
-and install both optional adapters in that environment:
-
-```sh
-python -m pip install -e '.[mcp,cad]'
-```
+For a first exact-part review, complete the [Python setup](../../README.md#first-run-setup).
+It includes both MCP and exact-part CAD conversion support.
 
 Use this client configuration, replacing both absolute paths with this checkout's
 paths. It enables exact CAD lookup, pinned STEP review and a reviewed project-local
@@ -75,9 +65,8 @@ import. It does not enable supplier submission or creation of a new board.
 {
   "mcpServers": {
     "kicad-workflow": {
-      "command": "/absolute/path/to/checkout/.venv/bin/python",
+      "command": "/absolute/path/to/checkout/.venv/bin/kicad-team-mcp",
       "args": [
-        "-B", "-m", "tools.mcp",
         "--root", "/absolute/path/to/checkout",
         "--allow-exports", "--allow-checks", "--allow-edits", "--allow-downloads"
       ]
@@ -100,7 +89,7 @@ Pass that same relative path and digest to `apply_cad_import`, then run
 If the board does not exist yet, follow [first board](FIRST_BOARD.md) or the
 [import workflow](IMPORT_WORKFLOW.md) before this sequence.
 
-The checkout's `.[dev,cad]` setup already includes these dependencies. Once an
+The pinned requirements already include these dependencies. Once an
 exact part is cached, you can remove `--allow-downloads` and still reuse the
 verified bundle. Remove `--allow-edits` if the client should only prepare review
 material; startup flags take effect after reconnecting.
@@ -143,10 +132,10 @@ the team's release process for approvals and retained storage.
 4. Read `first-board`, `diagnostics` or `import-workflow` through `read_document`.
 
 Use `inspect_tool_surfaces` to compare the shared CLI and MCP operation catalog;
-`python -B -m tools.surface` exposes the same inventory from a terminal. The catalog
+`kicad-team surface` exposes the same inventory from a terminal. The catalog
 requires core workflow parity and behavioral test references, tracks administrative
 exceptions separately, and catches declaration drift. Inspection reports
-`behavior_verification: NOT_RUN`; the full CI gate runs the comparisons. Read
+`behavior_verification: NOT_RUN`; the tooling repository CI runs the comparisons. Read
 `tool-surfaces` for the policy and its limits.
 
 Discovery's `INPUTS_PRESENT` state describes file presence. It does not establish
@@ -266,7 +255,7 @@ tools. Supply exactly one mode:
   A shard changes even a full plan to focused scope; it is not release evidence.
 
 Git references resolve to commits before comparison. Unknown ownership and unsafe
-changed paths conservatively select full scope, matching `python -B -m tools.impact`.
+changed paths conservatively select full scope, matching `kicad-team impact`.
 The result records selected projects, changed paths, documentation impact and the
 reasons for its scope. Use it to choose a subsequent check; a plan contains no
 validation or release evidence.
@@ -288,12 +277,12 @@ when available, otherwise the project's pinned image. A local or container runne
 electrical depth for `check_project` and `native: true` or `electrical: true` for `doctor`. Doctor
 can inspect a toolchain before a project exists; a supplied project and toolchain must agree. Scope
 include selectors form a union, then `exclude_tags` removes matches; with only exclusions, selection
-starts from all projects. The grouped `check_native_scope` operation matches `tools.ci --kicad`; use
-`check_project` for per-project automatic or container runner selection. Native failures retain
-runner and command evidence. A `shard` selects a partial focused lane, never full
-acceptance; `jobs` controls bounded project-test workers as on the CLI. For example,
-`check_scope(tags=["training"], shard="1/3", jobs=4)` tests one training shard.
-Portable checks do not establish native acceptance.
+starts from all projects. The grouped `check_native_scope` operation matches
+`kicad-team ci --kicad`; use `check_project` for per-project automatic or container runner
+selection. Native failures retain runner and command evidence. A `shard` selects a partial focused
+lane, never full acceptance; `jobs` controls bounded project-test workers as on the CLI. For
+example, `check_scope(tags=["training"], shard="1/3", jobs=4)` tests one training shard. Portable
+checks do not establish native acceptance.
 
 Read `events.log`, the full diagnostic report and captured portable/native outputs from the returned
 `run_directory`. When that directory is absolute, remove the configured `--root` prefix for an
@@ -375,7 +364,7 @@ Inspection and export preserve authored source. Only the explicitly enabled
 ## Convert an existing foreign board
 
 `convert_pcb(source, project_id, toolchain_id, input_format="auto", runner="auto")`
-uses the same guarded conversion service as `tools.template convert-pcb`. It needs
+uses the same guarded conversion service as `kicad-team template convert-pcb`. It needs
 checks and exports capabilities. `source` must be within the checkout or a startup
 `--import-root`. Supported format selections are `auto`, `pads`, `altium`, `eagle`,
 `cadstar`, `fabmaster`, `pcad` and `solidworks`.
@@ -393,7 +382,7 @@ nor claims schematic/electrical completeness. See [import workflow](IMPORT_WORKF
 | `init_electrical`               | `project_id`; optional `ngspice_version` defaults to `UNREVIEWED`. Creates pending requirements without replacing an existing contract. Requires edits.                                 |
 | `capture_electrical_inputs`     | `project_id`, `view_id`; optional repository-relative `models` list. Captures unreviewed source/model hashes in ignored build output. Requires exports.                                 |
 | `analyze_electrical`            | `project_id`, `view_id`; optional source-bound `native_summary` and `runner`. Runs declared grounding, power and frequency analysis with fixed KiCad/ngspice commands. Requires checks. |
-| `check_electrical_scope`        | Optional `project_ids`, `product_ids`, `tags`, `exclude_tags`. Uses the same union/exclusion selection as `tools.ci --electrical`. Requires checks.                                     |
+| `check_electrical_scope`        | Optional `project_ids`, `product_ids`, `tags`, `exclude_tags`. Uses the same union/exclusion selection as `kicad-team ci --electrical`. Requires checks.                                |
 | `export_electrical_charts`      | `view_id`, saved `receipt` directory or `electrical.json`. Exports PNG/SVG and full precision CSV from retained waveforms; requires exports and the pinned charts extra.                |
 | `export_electrical_chart_suite` | `view_id`, saved electrical `suite` JSON. Exports each project from the retained suite; requires exports and the pinned charts extra when waveforms exist.                              |
 
@@ -406,7 +395,7 @@ summary. `NOT_CONFIGURED`, pending requirements and failed checks remain visible
 Simulation results do not prove real ground paths, physical startup, RF/EMC or
 manufacturing acceptance.
 
-The two chart tools run the same saved-receipt service as `tools.electrical_charts`.
+The two chart tools run the same saved-receipt service as `kicad-team electrical-charts`.
 They reread the analysis report and its recorded hashes, keep partial or failed
 waveforms visible, and write a fresh `build/electrical-charts/<view_id>` receipt.
 Use `read_artifact` for the CSV and report, then open PNG/SVG charts for visual
@@ -457,7 +446,7 @@ created before the POST. Repeated calls do not resubmit, including an uncertain
 response. `UNCERTAIN` means delivery could not be confirmed; inspect the supplier
 before preparing a new submission. A returned review link is not an order.
 
-The CLI has matching `tools.parts --prepare-handoff REPORT` and
+The CLI has matching `kicad-team parts --prepare-handoff REPORT` and
 `--submit-handoff PLAN --expected-sha256 SHA --allow-supplier-submissions` modes.
 The existing offline BOM/CSV workflow remains usable without supplier submission.
 
@@ -514,7 +503,7 @@ for board-count/spare calculations and the DigiKey upload settings.
 
 `inspect_sourcing_snapshot` accepts `path`, a checkout-relative artifact containing
 manually captured sourcing-snapshot JSON under managed `build/`. It uses the same
-typed file format and validation as `python -B -m tools.sourcing --snapshot ...`.
+typed file format and validation as `kicad-team sourcing --snapshot ...`.
 The default tool reads only that snapshot and the repository catalog; it does not
 contact suppliers or create files.
 
@@ -621,8 +610,8 @@ exports for this complete workflow, and authorize only the needed external impor
 
 ## Troubleshoot the connection
 
-- If launch fails, check the absolute interpreter path and install `.[mcp]` into
-  that interpreter's environment. Run `python -B -m tools.mcp --help` there.
+- If launch fails, check the absolute server executable path and reinstall
+  `requirements-tooling.txt` in the selected environment. Run `kicad-team-mcp --help` there.
 - If the board inventory is wrong, inspect `--root` and the checkout's branch, then
   reconnect. Do not infer live board IDs from example names in this guide.
 - If an operation is absent, inspect the startup flags. Export and review preparation

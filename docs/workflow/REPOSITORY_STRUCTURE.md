@@ -10,15 +10,17 @@ in `project.json`; it does not add another directory level.
 | `products/<id>/`         | System integrator                      | `product.json`, integration docs/tests and release records linking project IDs               |
 | `docs/workflow/`         | Scaffold maintainers                   | Durable reusable workflow, policy and adoption guidance                                      |
 | `docs/team/`             | Adopting team                          | Durable organization-wide decisions and process                                              |
-| `tools/`                 | Tool maintainers                       | Shared runners, typed models, discovery, validation and exports                              |
-| `tests/`                 | Tool maintainers                       | Regression tests of the shared tooling                                                       |
 | `catalog/`               | Library, electrical and process owners | Shared identities, approved toolchains, product index and project discovery roots            |
 | `libraries/<id>/`        | Library owners                         | Shared symbols, footprints, models and provenance/licensing                                  |
 | `templates/`             | Process maintainers                    | Copyable manifests, test contracts, handoff and governance records                           |
-| `examples/`              | Tool maintainers                       | Regression inputs using the same project/product layout                                      |
+| `examples/`              | Template maintainers                   | Small training designs with their source, contracts and engineering notes                    |
 | `.github/`               | Repository maintainers                 | Shared workflows and review forms                                                            |
 | `generated/`, `schemas/` | Tooling                                | Only their guidance files; derived shared exports are ignored                                |
 | Any `build/`             | The generating run                     | Nothing tracked; local generated views, native exports and test evidence                     |
+
+The installed [tooling package](https://github.com/sheepfling/KiCad-Tooling) owns shared
+runners, typed models and implementation regression tests. `requirements-tooling.txt` pins
+that package; this template is not itself a Python package.
 
 ## Documentation ownership
 
@@ -81,7 +83,7 @@ documentation-link edit; its other Markdown pages still need links from that REA
 
 Use `projects` for adopted work. `examples/projects` can remain enabled for rehearsal;
 disable it in the live discovery settings when the examples should no longer create
-native CI lanes. Keep the example files for isolated shared-tool regression tests.
+native CI lanes. Keep the examples as explicit training and acceptance inputs.
 
 A manifest chooses one toolchain ID; exact version and image come from the shared
 catalog. Shared libraries are explicit dependencies. Copying an island alone does
@@ -96,8 +98,9 @@ Keep that product's `product.json`, docs and tests in one folder and register it
 `catalog/products.json`. Product cross-references use repository-relative paths and
 stable project IDs. Product directories may also contain test and release JSON files.
 
-Root tests verify the shared tools; project tests verify board-specific requirements;
-product tests verify integration. The full gate runs all three. A selected-project
+Project tests verify board-specific requirements; product tests verify integration.
+The full project gate runs both. Shared tooling regressions run in the tooling repository.
+See [project tests](PROJECT_TESTS.md). A selected-project
 check includes that board and products whose index lists its ID. Each custom suite
 runs in a separate process, so identical test module names in two boards do not collide.
 

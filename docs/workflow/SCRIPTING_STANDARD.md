@@ -1,7 +1,9 @@
 # Python scripting standard
 
-This repository uses Python as a small engineering-policy toolchain, not as an
-unstructured collection of file manipulation scripts.
+The installed tooling uses Python 3.11+ for typed engineering policy. Shared implementation
+changes belong in [KiCad Tooling](https://github.com/sheepfling/KiCad-Tooling); this template keeps
+project/product records and optional local tests. Follow [project test guidance](PROJECT_TESTS.md)
+for board-owned Python and these boundary rules when extending shared tooling.
 
 ## Boundary rule
 
@@ -24,7 +26,7 @@ use a typed Python name plus an explicit serialization alias.
 
 ## Model and serialization rules
 
-1. Define serialized contracts in tools/hwrepo/models.py, including schema version,
+1. Define serialized contracts in kicad_tooling/hwrepo/models.py, including schema version,
    closed enums, identifiers, units and nullability.
 2. Decode files with read_model(path, Model), or network response text with
    parse_model(document, Model), never json.loads() in application code. Both
@@ -44,30 +46,31 @@ use a typed Python name plus an explicit serialization alias.
 Published schema policy: export JSON Schema only for durable input, configuration,
 or release contracts that non-Python consumers may validate. Models are the tracked
 authority. Schemas and generated JSON/CSV review projections are ignored outputs.
-Run `python -B -m tools.hardware generate` for local exports; CI regenerates in a
+Run `kicad-team hardware generate` for local exports; CI regenerates in a
 temporary directory and tests deterministic output without requiring committed copies.
 
-## Script layout
+## Installed entry points and source layout
 
-- tools/hwrepo/models.py — versioned serialized contracts and typed report/view
-  records.
-- tools/hwrepo/contracts.py — file-JSON boundary and portable repository paths.
-- tools/hwrepo/product.py — cross-record product policy.
-- tools/hwrepo/generation.py — deterministic typed projections.
-- tools/hwrepo/repository.py — portability and discovery adapters.
-- tools/hwrepo/documentation.py — typed Markdown layout and repository-documentation graph policy.
-- tools/hwrepo/markdown.py — typed SnakeMD builders for workflow-created Markdown.
-- tools/*.py — narrow CLI/KiCad adapters, invoked from the repository root as
-  `python -m tools.<command>`. Direct execution (`python tools/<command>.py`) is
-  unsupported because it changes Python's import root.
-  New substantial policy belongs under
-  hwrepo/, not in an argument-parsing script.
+Use the installed dispatcher from the project checkout:
 
-The `-m` module boundary is mandatory for every repository CLI. On a POSIX host
-whose interpreter is named `python3`, `python3 -m tools.<command>` is equivalent;
-the executable name may vary by host, but a script path may not replace the
-module invocation. CI must call the central `tools.ci` module rather than
-invoking a lower-level tool by file path.
+```sh
+kicad-team template list --format text
+kicad-team verify --project <id>
+kicad-team ci
+```
+
+Automation may use `python -B -m kicad_tooling.<module>`, for example
+`python -B -m kicad_tooling.ci`. The dispatcher accepts hyphenated command names such as
+`contract-coach`, while Python module names use underscores (`contract_coach`).
+Do not execute a package's `.py` file directly; module execution preserves import boundaries.
+Pass `--root /absolute/project/path` when the current directory is not the project checkout.
+MCP uses `kicad-team-mcp --root /absolute/project/path` and fixes that root at startup.
+
+The tooling repository owns `kicad_tooling/hwrepo/models.py` for versioned records, `contracts.py`
+for typed JSON and paths, and named policy/generation/validation services under
+`kicad_tooling/hwrepo/`. Its top-level `kicad_tooling/*.py` files are narrow CLI adapters.
+Substantial engineering policy belongs in a shared service, not argument parsing. Project
+repositories consume those services through a reviewed tooling pin; they do not carry copies.
 
 ## Tests and quality gates
 
@@ -76,16 +79,16 @@ type, unknown field and unsupported-version tests; a semantic negative fixture f
 every engineering rule; deterministic/stale-output tests for each generator; and a
 direct-entry-point test proving a policy check cannot be bypassed.
 
-Run `python -B -m tools.ci`; it invokes the local Markdown policy plus pinned `rumdl`
-and `mdrepo`, then Ruff, Pyright and behavior tests before reporting the portable
-policy result. `python -m tools.ci
---matrix`, `python -m tools.ci --kicad` and `python -m tools.ci --fault-probes`
-are the corresponding GitHub pipeline modes. The pinned runtime and development set
-includes Pydantic 2.13.5, SnakeMD 2.4.1, snakemd-stubs 2.4.1.0, Ruff 0.16.1 and
-Pyright 1.1.411; hosted CI
-installs those exact versions for the full Linux/macOS lanes. Linux also checks
-Windows-targeted types; the Windows lane installs the runtime package and runs
-focused portability smoke tests. Native KiCad remains a separate, pinned-toolchain lane.
+Run `kicad-team ci` in the project repository for live discovery, source/dependency policy,
+fresh generation, Markdown checks and project/product suites. Its Markdown checks include the
+local typed policy plus pinned `rumdl` and `mdrepo`. `kicad-team ci --matrix`,
+`kicad-team ci --kicad` and `kicad-team ci --fault-probes` expose the corresponding project lanes.
+Native KiCad remains a separate pinned-toolchain check.
+
+Run shared implementation tests, CLI/MCP behavioral comparisons, Ruff and strict Pyright in the
+tooling repository using its development setup. Dependency pins belong to that package;
+`requirements-tooling.txt` selects the installed build and project-facing extras here.
+A passing project gate is evidence for this project's scope, not a rerun of package regressions.
 
 Pydantic does not establish electrical correctness, source provenance, an approved
 supplier record, physical fit or a human sign-off. It makes the software boundary

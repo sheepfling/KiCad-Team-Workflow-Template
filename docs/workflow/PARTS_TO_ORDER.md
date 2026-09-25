@@ -4,7 +4,7 @@ Open one local page to resolve the models paired with your existing PCB footprin
 fetch exact-part CAD, choose reviewed catalog parts, and prepare an order file:
 
 ```sh
-python -B -m tools.parts --project my-board --assist
+kicad-team parts --project my-board --assist
 ```
 
 The **Find CAD for a part** card imports an exact LCSC part into project-local
@@ -61,8 +61,8 @@ Run these commands from the repository root, replacing `my-board` with an ID lis
 by the first command:
 
 ```sh
-python -B -m tools.template list --format text
-python -B -m tools.parts --project my-board --picker
+kicad-team template list --format text
+kicad-team parts --project my-board --picker
 ```
 
 The command uses the exact local KiCad CLI or the project's digest-pinned Docker
@@ -93,7 +93,7 @@ designs. DNP and exclude-from-BOM symbols remain outside purchasing quantities.
 If a runner is unavailable, run the project preflight:
 
 ```sh
-python -B -m tools.template doctor --native --project-id my-board --format text
+kicad-team template doctor --native --project-id my-board --format text
 ```
 
 Use `--runner local --cli /path/to/kicad-cli` to select an exact local executable,
@@ -103,7 +103,7 @@ version mismatch needs the approved toolchain or a reviewed toolchain migration.
 In an uninitialized template checkout, try the training fixture:
 
 ```sh
-python -B -m tools.parts --project raspberry-pi-status-led --picker
+kicad-team parts --project raspberry-pi-status-led --picker
 ```
 
 Expect a catalog-needs-attention result: its placeholder parts are not purchasable
@@ -117,7 +117,7 @@ Save and close KiCad before changing source. Pass the downloaded selection to a
 preview command, using its actual path:
 
 ```sh
-python -B -m tools.parts --project my-board --selection /path/to/downloaded-selection.json
+kicad-team parts --project my-board --selection /path/to/downloaded-selection.json
 ```
 
 Read the proposed source diffs in the new receipt's `index.html` or `selection.diff`.
@@ -125,7 +125,7 @@ The preview creates `selection-locked.json`, bound to the exact source, catalog 
 model files being reviewed. Use the locked path printed by that command when applying:
 
 ```sh
-python -B -m tools.parts --project my-board --selection PASTE_LOCKED_SELECTION_PATH --apply
+kicad-team parts --project my-board --selection PASTE_LOCKED_SELECTION_PATH --apply
 ```
 
 The unlocked browser download is a proposal and cannot be applied directly. If a
@@ -158,7 +158,7 @@ project in KiCad, use **Update PCB from Schematic (F8)**, review its changes, pl
 the new footprints, and save. Close KiCad, then preview model synchronization:
 
 ```sh
-python -B -m tools.parts --project my-board --sync-models
+kicad-team parts --project my-board --sync-models
 ```
 
 This reads the current fitted schematic `PART_ID` selections and their reviewed CAD
@@ -166,7 +166,7 @@ bindings against the updated PCB. It produces a fresh preview and locked selecti
 it does not choose models by filename. Inspect its diffs and apply the printed locked path:
 
 ```sh
-python -B -m tools.parts --project my-board --selection PASTE_NEW_LOCKED_SELECTION_PATH --apply
+kicad-team parts --project my-board --selection PASTE_NEW_LOCKED_SELECTION_PATH --apply
 ```
 
 If selected part IDs or footprints differ from the independently authored contract,
@@ -176,8 +176,8 @@ update expectations only when the reviewed requirements justify the change. The
 picker never edits this contract; do not copy observed values into it merely to pass.
 
 ```sh
-python -B -m tools.verify --project my-board --depth native
-python -B -m tools.visualize --project my-board --check-models
+kicad-team verify --project my-board --depth native
+kicad-team visualize --project my-board --check-models
 ```
 
 Inspect the actual 3D geometry and adjust model transforms in KiCad where needed.
@@ -207,8 +207,8 @@ Follow the report's references back to the source. A generic value such as `1k` 
    but contribute no order quantities. Save the schematic, then use **Update PCB
    from Schematic (F8)** to transfer footprints and connections to the PCB. Place
    and route the board in KiCad.
-4. Run `python -B -m tools.verify --project my-board --depth native` after changing
-   KiCad source. Review the resulting evidence, then rerun `tools.parts` for a
+4. Run `kicad-team verify --project my-board --depth native` after changing
+   KiCad source. Review the resulting evidence, then rerun `kicad-team parts` for a
    fresh checklist. Repair source records instead of editing a generated CSV.
 
 The [KiCad Schematic Editor manual](https://docs.kicad.org/10.0/en/eeschema/eeschema.html)
@@ -220,7 +220,7 @@ If the apply step created `docs/purchasing.json` in your project, edit and revie
 that file. Otherwise create it once:
 
 ```sh
-python -B -m tools.parts --project my-board --init-preferences projects/my-board/docs/purchasing.json
+kicad-team parts --project my-board --init-preferences projects/my-board/docs/purchasing.json
 ```
 
 This creates a new JSON file under the selected island's `docs/` without capturing
@@ -256,7 +256,7 @@ not `--picker`, `--selection` or `--sync-models`. Command options override that 
 saved numbers without rewriting the preferences:
 
 ```sh
-python -B -m tools.parts --project my-board --boards 10 --spare-percent 10 --spare-minimum 3
+kicad-team parts --project my-board --boards 10 --spare-percent 10 --spare-minimum 3
 ```
 
 For a guarded command-line update, use `--save-preferences`. It writes the same
@@ -266,8 +266,8 @@ Supply a reviewed alternative file with `--preferences` to change supplier SKUs;
 quantity options override its numbers. An outdated digest fails before writing.
 
 ```sh
-python -B -m tools.parts --project my-board --save-preferences --boards 10 --format json
-python -B -m tools.parts --project my-board --save-preferences --boards 12 --expected-sha256 CURRENT_FILE_SHA256 --format json
+kicad-team parts --project my-board --save-preferences --boards 10 --format json
+kicad-team parts --project my-board --save-preferences --boards 12 --expected-sha256 CURRENT_FILE_SHA256 --format json
 ```
 
 Reviewed project preferences can be committed as authored input. Keep temporary
@@ -280,8 +280,8 @@ which can add an empty `PART_ID` field automatically. User-wide templates live i
 conveniences still require a real part selection; they do not validate it. See
 [KiCad field-name templates](https://docs.kicad.org/10.0/en/eeschema/eeschema.html#field-name-templates).
 Keep stock, price and lead-time observations in sourcing evidence rather than embedding them as
-permanent library facts. Approved alternatives are recorded for review; `tools.parts` never chooses
-one automatically.
+permanent library facts. Approved alternatives are recorded for review; `kicad-team parts` never
+chooses one automatically.
 
 ## Review and upload
 
@@ -289,7 +289,7 @@ After applying choices and completing the KiCad review, prepare the purchasing
 checklist. This command reads source and does not edit CAD:
 
 ```sh
-python -B -m tools.parts --project my-board
+kicad-team parts --project my-board
 ```
 
 Open its `index.html` for a searchable component checklist and DigiKey search
@@ -360,8 +360,8 @@ Both the picker and the read-only purchasing checklist can reuse an existing
 native result. Point to its project summary:
 
 ```sh
-python -B -m tools.parts --project my-board --picker --native-summary build/native/my-board/summary.json --format json
-python -B -m tools.parts --project my-board --native-summary build/native/my-board/summary.json --format json
+kicad-team parts --project my-board --picker --native-summary build/native/my-board/summary.json --format json
+kicad-team parts --project my-board --native-summary build/native/my-board/summary.json --format json
 ```
 
 Replace the example path with the actual summary from your receipt. The tool validates project
@@ -369,8 +369,8 @@ identity, source hashes and native netlist evidence before using it. Changed sou
 capture. `--format json` is the agent/script interface; parse its structured result instead of
 scraping terminal text. The read-only purchasing review returns exit code `0` when ready for order
 review and `1` when parts or evidence need attention; invalid command arguments return `2`. A
-purchasing checklist does not replace `tools.verify`, ERC/DRC review or the full shared gate after
-catalog or tooling changes.
+purchasing checklist does not replace `kicad-team verify`, ERC/DRC review or the full shared gate
+after catalog or tooling changes.
 
 ## Use the MCP workflow
 
@@ -379,7 +379,7 @@ Discover the selected board with `list_projects` and read this guide through
 `read_document` using `parts-to-order`, or `kicad://docs/parts-to-order`.
 `inspect_tool_surfaces` shows which CLI operations have MCP tools, their capability
 gates and explicit reasons for CLI-only operations; its catalog is also available
-through `python -B -m tools.surface`.
+through `kicad-team surface`.
 
 Call `prepare_parts` with `project_id` and a new `view_id`. Enable
 `--allow-exports` and supply a checkout-relative `native_summary` to reuse saved

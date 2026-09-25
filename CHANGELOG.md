@@ -9,6 +9,20 @@ These versions describe the reusable workflow, independently of board and produc
   and purchasing-BOM repairs without editing design source.
 - Include CAD dependency line numbers in portable policy findings.
 
+## 1.4.0 — 2026-09-25
+
+- Move shared CLI/MCP implementation and regression tests to public KiCad Tooling.
+  This template retains project structure, catalogs, engineering guidance and island tests.
+- Install an exact tooling Git pin from `requirements-tooling.txt`; use `kicad-team`
+  and `kicad-team-mcp` locally and the same installed package in hosted/native checks.
+- Add explicit agent coaching for electrical and mechanical review, preserving source-bound
+  evidence and separate authority for edits, execution, downloads and supplier submissions.
+
+Existing 1.3.2 adopters must follow the
+[installed-tooling migration](docs/workflow/TEMPLATE_ADOPTION.md#version-140-installed-tooling-migration).
+Preserve their designs, requirements, licensing and approvals; do not initialize the repository
+again.
+
 ## 1.3.2 — 2026-09-11
 
 - Include every project declared for a selected product in release evidence checks.

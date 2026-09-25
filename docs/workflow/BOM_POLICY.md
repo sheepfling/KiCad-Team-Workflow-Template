@@ -40,7 +40,7 @@ snapshot. See the complete [prepare/package/restore path](RELEASE_READINESS.md).
 
 ## Working purchasing checklist
 
-Use [parts to order](PARTS_TO_ORDER.md) and `tools.parts --project <id>` for a fresh
+Use [parts to order](PARTS_TO_ORDER.md) and `kicad-team parts --project <id>` for a fresh
 source-bound checklist and grouped BOM under ignored `build/parts/`. It uses native
 fitted references and declared catalog `PART_ID` records. The optional
 `docs/purchasing.json` inside the project island is authored input: it records board

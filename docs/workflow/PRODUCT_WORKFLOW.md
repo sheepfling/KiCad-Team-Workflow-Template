@@ -38,20 +38,20 @@ system when builds scale; a tag identifies design intent, not a manufactured uni
 From the repository root:
 
 ```sh
-python -B -m tools.ci
-python -B -m tools.verify --project arduino-uno-status-led
-python -B -m tools.hardware generate
-python -B -m tools.ci
-python -B -m tools.verify --project arduino-uno-status-led --depth native
-python -B -m tools.ci --kicad --output build/review-001
+kicad-team ci
+kicad-team verify --project arduino-uno-status-led
+kicad-team hardware generate
+kicad-team ci
+kicad-team verify --project arduino-uno-status-led --depth native
+kicad-team ci --kicad --output build/review-001
 ```
 
 The first command runs registry/discovery/path/link/local-state policy, product
-validation, fresh isolated generation and unit/mutation tests. It explicitly
-reports `static_only` and KiCad `NOT_RUN`. `tools.verify --project <id>` checks
+validation, fresh isolated generation and project/product Python suites. It explicitly
+reports `static_only` and KiCad `NOT_RUN`. `kicad-team verify --project <id>` checks
 the selected board plus its declared dependencies, retains a fresh ignored
 receipt, and gives repair guidance. Add `--depth native` for exact KiCad checks
-of that board. The final lower-level `tools.ci --kicad` command deliberately
+of that board. The final lower-level `kicad-team ci --kicad` command deliberately
 checks every discovered native project; use a new evidence directory for it.
 Close KiCad before checking source. Native checks use an exact local CLI or the
 project's digest-pinned container image.
@@ -61,18 +61,16 @@ No command stashes, resets, commits, pushes, merges, buys parts or changes permi
 current inventory, use a new snapshot directory or download the CI artifact.
 CI checks fresh generation without requiring cached exports in the checkout.
 
-The helper uses Python 3.11+, Pydantic 2.13.5 and SnakeMD 2.4.1, pinned in
-pyproject.toml; snakemd-stubs 2.4.1.0 covers generated Markdown under strict
-Pyright. The hosted matrix targets Python 3.11 on Windows, Linux and macOS. JSON
-avoids an extra YAML loader in the pinned KiCad container. Every repository JSON record is
-decoded once at the file boundary, rejects duplicate keys/non-finite numbers, then
-becomes a strict immutable Pydantic model. Extra fields, wrong types and unsupported
-versions fail before engineering policy runs. Published schemas are generated from
-those Pydantic models and exported on demand. See [the scripting standard](SCRIPTING_STANDARD.md).
+The installed helper uses Python 3.11+ with typed Pydantic records and SnakeMD-generated
+Markdown. The project's `requirements-tooling.txt` selects a reviewed tooling build; dependency
+and implementation-quality pins live in the tooling repository. Project acceptance runs on the
+configured portable platforms, with native KiCad checked separately.
 
-Ruff 0.16.1 and strict Pyright 1.1.411 are pinned quality gates. Dependency hash
-locking and migration commands remain adoption work, not claims of completed
-quality gates.
+Every repository JSON record is decoded once at the file boundary, rejects duplicate keys and
+non-finite numbers, then becomes a strict immutable model. Extra fields, wrong types and unsupported
+versions fail before engineering policy. Published schemas are generated from those models on
+demand. See [the scripting standard](SCRIPTING_STANDARD.md). Shared implementation regression,
+Ruff and Pyright gates belong to the tooling repository; project tests remain in their islands.
 
 ## Coordinate edits at the design-unit boundary
 
@@ -145,9 +143,9 @@ fields.
 ## Review snapshots, not releases
 
 ```sh
-python -B -m tools.hardware snapshot --output build/product-review-001
-python -B -m tools.hardware verify-snapshot --output build/product-review-001
-python -B -m tools.hardware check --release
+kicad-team hardware snapshot --output build/product-review-001
+kicad-team hardware verify-snapshot --output build/product-review-001
+kicad-team hardware check --release
 ```
 
 A snapshot retains generated artifacts and a manifest: exact current commit,

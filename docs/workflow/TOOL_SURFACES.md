@@ -6,18 +6,21 @@ artifacts and failure states. Paths, presentation and startup permissions are ad
 constraints. Those constraints do not count as missing workflow functionality.
 
 ```sh
-python -B -m tools.surface --format text
-python -B -m tools.surface --format json --require-live-mcp
-python -B -m tools.ci
+kicad-team surface --format text
+kicad-team surface --format json --require-live-mcp
+kicad-team ci
 ```
 
 MCP clients call `inspect_tool_surfaces()` or read `kicad://docs/tool-surfaces`.
-Inspection reads source, the catalog and tool metadata. It does not execute the
-referenced tests or start KiCad. The full CI gate runs the behavioral tests.
+Inspection reads the installed package declarations, packaged catalog and tool metadata.
+It does not execute the referenced tests or start KiCad. Tooling repository CI runs the behavioral
+comparisons; the template project gate validates this checkout’s policy and island tests.
 
 ## Core workflows and exceptions
 
-The versioned [catalog](../../catalog/tool-surfaces.json) separates three scopes:
+The versioned
+[packaged catalog](https://github.com/sheepfling/KiCad-Tooling/blob/codex/tooling-split/kicad_tooling/tool-surfaces.json)
+separates three scopes:
 
 | Scope            | Acceptance requirement                                                                                                        |
 | ---------------- | ----------------------------------------------------------------------------------------------------------------------------- |
@@ -35,7 +38,7 @@ selection, paired and exact sourced CAD imports, pinned STEP alignment review, a
 explicit supplier handoff. Downloads and submissions have separate MCP startup
 capabilities; these authority constraints are recorded without hiding functional gaps.
 The CI and MCP scope surfaces share project/tag selection, partial shard semantics
-and bounded project-test workers. `tools.ci_hosted` handles Actions orchestration
+and bounded project-test workers. `kicad-team ci-hosted` handles Actions orchestration
 as an operator-only administrative surface; it does not create an MCP bypass for
 Docker, release rehearsal or GitHub job scheduling. The required core IDs are
 pinned in the policy code. Deleting a row or calling it
@@ -69,10 +72,15 @@ The report uses schema version `2` and separates its outcomes:
 | Field                   | What a pass establishes                                                                                                                    |
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | `coverage_status`       | Discovered command/tool names and parameter names match the reviewed catalog                                                               |
-| `parity_status`         | Required core rows have both interfaces, no functional gaps/exceptions, and resolvable behavioral test methods                             |
+| `parity_status`         | Required core rows have both interfaces, no functional gaps/exceptions, and recorded behavioral test references                            |
 | `status`                | Both policy checks passed                                                                                                                  |
 | `mcp_verification`      | `LIVE` compares actual full-server registration; `STATIC_ONLY` means the optional SDK was absent; `UNAVAILABLE` means live checking failed |
-| `behavior_verification` | Always `NOT_RUN` in this inspection; run `tools.ci` for behavioral test results                                                            |
+| `behavior_verification` | Always `NOT_RUN` in this inspection; tooling repository CI supplies behavioral test results                                                |
+
+A source-checkout inspection also resolves referenced test methods in the tooling repository.
+Installed wheels exclude those test sources and report them as `NOT_AVAILABLE` in the notes;
+they do not resolve test references against the consuming project. In both modes,
+`behavior_verification` remains `NOT_RUN`. Run tooling CI for behavioral evidence.
 
 A catalog pass is a policy check, not a test execution result. Referenced tests
 compare actual CLI JSON with real MCP protocol responses, including failed results,
@@ -93,14 +101,15 @@ permissions or schemas change without a declaration-name change.
 
 ## Change a workflow
 
-1. Change the shared service and both adapters for core functionality. Keep any
-   runner, permission or output-path constraint explicit.
+1. Work in the tooling repository; change the shared service and both adapters for core
+   functionality. Keep any runner, permission or output-path constraint explicit.
 2. Add a CLI/MCP behavioral comparison for the change, including relevant failure
    states and written outputs; normalize only incidental receipt paths and timing.
 3. Update reviewed interface snapshots and mappings in the catalog. Record a real
    gap honestly: the core parity gate should fail until it is resolved.
-4. Run `tools.surface --require-live-mcp`, then the full [CI gate](CHECKS_AND_CI.md).
-   Keep behavioral tests, catalog and implementation in the same change.
+4. Run `kicad-team surface --require-live-mcp` and the tooling repository’s full development gate.
+   Keep tests, catalog and implementation together. Update the project tooling pin through review
+   and run project [acceptance checks](CHECKS_AND_CI.md), including affected native workflows.
 
 The report never rewrites its catalog. Store generated reports in ignored `build/`
 or CI artifacts; keep the reviewed policy and tests in source control.

@@ -38,16 +38,16 @@ jobs:
         with:
           python-version: '3.11'
           cache: pip
-          cache-dependency-path: pyproject.toml
+          cache-dependency-path: requirements-tooling.txt
       - name: Install policy tooling
         run: |
           python -m venv .venv
-          .venv/bin/python -m pip install --disable-pip-version-check '.[charts]'
+          .venv/bin/python -m pip install --disable-pip-version-check -r requirements-tooling.txt
       - name: Check selected project requirements
         shell: bash
         run: |
           set -euo pipefail
-          .venv/bin/python -B -m tools.ci --project "$PROJECT_ID" --output build/electrical-portable --format text
+          .venv/bin/python -B -m kicad_tooling.ci --project "$PROJECT_ID" --output build/electrical-portable --format text
       - name: Build the approved simulator from verified source
         shell: bash
         run: |
@@ -73,14 +73,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          .venv/bin/python -B -m tools.template doctor --electrical --project-id "$PROJECT_ID" \
+          .venv/bin/python -B -m kicad_tooling.template doctor --electrical --project-id "$PROJECT_ID" \
             --runner container --ngspice "$PWD/build/ngspice/bin/ngspice" --format json \
             | tee build/electrical-preflight.json
       - name: Run focused electrical analysis
         shell: bash
         run: |
           set -euo pipefail
-          .venv/bin/python -B -m tools.ci --electrical --project "$PROJECT_ID" \
+          .venv/bin/python -B -m kicad_tooling.ci --electrical --project "$PROJECT_ID" \
             --ngspice "$PWD/build/ngspice/bin/ngspice" --format json \
             | tee build/electrical-suite.json
       - name: Render charts and CSV from saved receipts
@@ -89,7 +89,7 @@ jobs:
         run: |
           set -euo pipefail
           if [[ -f build/electrical-suite.json ]]; then
-            .venv/bin/python -B -m tools.electrical_charts --suite build/electrical-suite.json --format json \
+            .venv/bin/python -B -m kicad_tooling.electrical_charts --suite build/electrical-suite.json --format json \
               | tee build/electrical-charts.json
           fi
       - name: Retain results and failure evidence

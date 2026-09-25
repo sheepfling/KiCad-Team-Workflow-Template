@@ -1,6 +1,6 @@
 # Electrical contract examples
 
-Start a real board with `python -B -m tools.electrical --project <id> --init`.
+Start a real board with `kicad-team electrical --project <id> --init`.
 It creates a project-specific contract with all three sections marked `pending`.
 Complete those engineering decisions before expecting verification to pass.
 See the [quickstart](../../docs/workflow/ELECTRICAL_ANALYSIS.md#quickstart).
@@ -21,7 +21,7 @@ Place your real decks and dependencies under the project's `tests/electrical/`.
 Capture design and model hash candidates without editing approved bindings:
 
 ```sh
-python -B -m tools.electrical --project my-board --capture-inputs --model projects/my-board/tests/electrical/startup.cir --model projects/my-board/tests/electrical/device.lib
+kicad-team electrical --project my-board --capture-inputs --model projects/my-board/tests/electrical/startup.cir --model projects/my-board/tests/electrical/device.lib
 ```
 
 Open the printed `inputs.json`. Review the circuit-to-model mapping and assumptions,

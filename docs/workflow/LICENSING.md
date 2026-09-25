@@ -29,10 +29,10 @@ can remove the current root template notice; it does not rewrite earlier commits
 
 ## What cleanup removes
 
-Both bootstrap and first-time initialization recognize only the exact bytes of the
-upstream root `LICENSE`, using the fingerprint in
-[the licensing helper](../../tools/hwrepo/licensing.py). Their reports include
-`"removed": ["LICENSE"]` when that file was removed from the new workspace.
+Both bootstrap and first-time initialization recognize only the exact bytes of the upstream root
+`LICENSE`, using the fingerprint in
+[the licensing helper](https://github.com/sheepfling/KiCad-Tooling/blob/codex/tooling-split/kicad_tooling/hwrepo/licensing.py).
+Their reports include `"removed": ["LICENSE"]` when that file was removed from the new workspace.
 
 A modified or replacement root license is preserved byte for byte. Nested licenses,
 copyright notices and third-party terms are never scanned for removal. The bundled

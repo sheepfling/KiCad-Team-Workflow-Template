@@ -12,7 +12,7 @@ Altium, Eagle, CADSTAR, Fabmaster, P-CAD or SolidWorks), convert it into an
 ignored, per-run review receipt with the exact catalogued KiCad version:
 
 ```sh
-python -B -m tools.template convert-pcb --source "/path/to/vendor-board.brd" --project-id battery-board --toolchain kicad-10.0.5 --input-format auto --format text
+kicad-team template convert-pcb --source "/path/to/vendor-board.brd" --project-id battery-board --toolchain kicad-10.0.5 --input-format auto --format text
 ```
 
 Use `--format json` for a typed receipt containing the source hash, runner,
@@ -36,7 +36,7 @@ or establish schematic parity, electrical truth or manufacturing readiness.
 For a directory containing several designs, first inventory it without copying:
 
 ```sh
-python -B -m tools.template scan-imports --source-dir "/path/to/old boards" --toolchain kicad-10.0.5 --format text
+kicad-team template scan-imports --source-dir "/path/to/old boards" --toolchain kicad-10.0.5 --format text
 ```
 
 The text view lists each `.kicad_pro`, suggested island ID, project kind, copied
@@ -48,10 +48,10 @@ run each accepted import separately. A clean inventory does not prove an archive
 is complete or a circuit is correct.
 
 ```sh
-python -B -m tools.template diagnose --source "/path/to/Old board.kicad_pro" --project-id battery-board --toolchain kicad-10.0.5 --format text
-python -B -m tools.template import-project --source "/path/to/Old board.kicad_pro" --project-id battery-board --toolchain kicad-10.0.5 --format text
-python -B -m tools.template diagnose --project-id battery-board
-python -B -m tools.verify --project battery-board
+kicad-team template diagnose --source "/path/to/Old board.kicad_pro" --project-id battery-board --toolchain kicad-10.0.5 --format text
+kicad-team template import-project --source "/path/to/Old board.kicad_pro" --project-id battery-board --toolchain kicad-10.0.5 --format text
+kicad-team template diagnose --project-id battery-board
+kicad-team verify --project battery-board
 ```
 
 `--root` selects a different candidate repository. The source argument names the
@@ -89,17 +89,17 @@ expectations in `tests/contract.json`.
 Native net names can include supply signs, buses and hierarchy; an unassigned
 footprint can be represented but still receives KiCad's own checks. An empty PCB
 contract cannot pass native validation. Add local `test_*.py` files for requirements
-that need executable assertions; see [test extension](../../tests/README.md).
+that need executable assertions; see [test extension](PROJECT_TESTS.md).
 
 After authoring those expectations, run the selected board through its exact
-native toolchain. `tools.verify` retains an ignored receipt and gives repair
+native toolchain. `kicad-team verify` retains an ignored receipt and gives repair
 guidance when a check fails:
 
 ```sh
-python -B -m tools.verify --project battery-board --depth native
+kicad-team verify --project battery-board --depth native
 ```
 
-Use `python -B -m tools.ci --matrix --format text` only to preview the native
+Use `kicad-team ci --matrix --format text` only to preview the native
 lanes that CI will schedule; it does not validate the board.
 
 When the source has a `.kicad_pcb` but no matching `.kicad_sch`, import creates a

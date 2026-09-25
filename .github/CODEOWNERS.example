@@ -1,14 +1,15 @@
 # Example only, deliberately inactive. Replace with real independently reviewing
 # users/teams with write access, then configure required ownership review.
 # /projects/ @YOUR-HARDWARE-REVIEWER
-# /tools/ @YOUR-PROCESS-MAINTAINER
+# /requirements-tooling.txt @YOUR-PROCESS-MAINTAINER
+# /AGENTS.md @YOUR-PROCESS-MAINTAINER
+# /CLAUDE.md @YOUR-PROCESS-MAINTAINER
 # /catalog/ @YOUR-HARDWARE-REVIEWER @YOUR-PROCESS-MAINTAINER
 # /examples/ @YOUR-HARDWARE-REVIEWER @YOUR-PROCESS-MAINTAINER
 # /.github/ @YOUR-PROCESS-MAINTAINER
 # Listing two owners does not require an approval from each discipline.
 # /products/ @YOUR-HARDWARE-REVIEWER
 # /libraries/ @YOUR-LIBRARY-OWNER @YOUR-HARDWARE-REVIEWER
-# /tests/ @YOUR-PROCESS-MAINTAINER
 # /templates/ @YOUR-PROCESS-MAINTAINER
 # /docs/ @YOUR-PROCESS-MAINTAINER
 # /pyproject.toml @YOUR-PROCESS-MAINTAINER
