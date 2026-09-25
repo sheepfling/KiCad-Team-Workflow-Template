@@ -9,6 +9,7 @@ from pathlib import Path
 from .hwrepo.impact import plan_paths
 from .hwrepo.models import ImpactPlan
 from .hwrepo.selection import ProjectSelector, resolve_project_ids
+from .hwrepo.sharding import shard_projects
 
 
 def resolve_commit(root: Path, value: str) -> str:
@@ -43,6 +44,7 @@ def build_plan(
     paths: tuple[str, ...] | None = None, full: bool = False,
     select_project: str | None = None, select_tag: str | None = None,
     select_product: str | None = None, exclude_tag: str | None = None,
+    shard: str | None = None,
 ) -> ImpactPlan:
     """Share CLI selection semantics with protocol clients without executing checks."""
     selectors = (select_project, select_tag, select_product)
@@ -64,13 +66,22 @@ def build_plan(
             product_ids=(select_product,) if select_product else (),
             excluded_tags=(exclude_tag,) if exclude_tag else (),
         )
-        return ImpactPlan(
+        plan = ImpactPlan(
             scope="focused", projects=resolve_project_ids(root, selector), changed_paths=(),
             reasons=(f"Manual {selector_name} selector: {selector_value}",),
         )
-    selected_paths = changed_paths(root, base, head) if base is not None else paths or ()
-    plan = plan_paths(root, selected_paths)
-    return plan.model_copy(update={"reasons": ("Full run requested",)}) if full else plan
+    else:
+        selected_paths = changed_paths(root, base, head) if base is not None else paths or ()
+        plan = plan_paths(root, selected_paths)
+        if full:
+            plan = plan.model_copy(update={"reasons": ("Full run requested",)})
+    if shard is not None:
+        projects = shard_projects(plan.projects, shard)
+        plan = plan.model_copy(update={
+            "scope": "focused", "projects": projects,
+            "reasons": (*plan.reasons, f"Partial project shard {shard}"),
+        })
+    return plan
 
 
 def main() -> int:
@@ -85,6 +96,7 @@ def main() -> int:
     source.add_argument("--select-tag", help="Request lanes with one metadata tag")
     source.add_argument("--select-product", help="Request all member lanes of one product")
     parser.add_argument("--exclude-tag", help="Remove tagged lanes from a manual selection")
+    parser.add_argument("--shard", help="One-based partial project shard INDEX/COUNT")
     parser.add_argument("--head", default="HEAD", help="Head commit (default: HEAD)")
     parser.add_argument("--format", choices=("json", "text"), default="json")
     args = parser.parse_args()
@@ -95,6 +107,7 @@ def main() -> int:
             paths=None if args.paths is None else tuple(args.paths), full=args.full,
             select_project=args.select_project, select_tag=args.select_tag,
             select_product=args.select_product, exclude_tag=args.exclude_tag,
+            shard=args.shard,
         )
     except (OSError, UnicodeError, ValueError) as exc:
         parser.error(str(exc))

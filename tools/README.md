@@ -2,7 +2,7 @@
 
 Run every CLI from the repository root as `python -B -m tools.<command>`. For one board, start with
 `tools.verify --project <id>`; add `--depth native` after editing KiCad source. `tools.ci` runs the
-shared or hosted gate and exposes lower-level selected lanes. See the
+shared local and hosted checks; `tools.ci_hosted` plans and logs the Actions jobs in Python. See the
 [command guide](../docs/workflow/CHECKS_AND_CI.md). Use
 `python -B -m tools.template list --format text` to find registered project, product, tag and
 toolchain IDs before selecting a lane. Its `readiness` field only reports whether declared inputs
@@ -12,8 +12,10 @@ are present; run checks to validate a design. For one engineer's board,
 automatically. Use `tools.ci --kicad` when direct native-lane control is needed. Use
 `--project <id>` for one island, `--product <id>` for a registered product's members, or
 `--tag <tag>` for a manifest cohort. These include selectors form a union; `--exclude-tag <tag>`
-removes matches. The selected portable lane runs applicable project/product checks; the unselected
-lane runs the full shared regression and quality gate. `tools.ci --matrix` and `tools.ci --kicad`
+removes matches. Add `--shard INDEX/COUNT` to run one deterministic partial project shard, and
+`--jobs <n>` to control independent project-test workers. The selected portable lane runs
+applicable project/product checks; the unselected lane runs the full shared regression and
+quality gate. `tools.ci --matrix` and `tools.ci --kicad`
 accept the same selectors for native work. Run `python -B -m tools.impact --base <ref> --head <ref>`
 to preview changed-file PR scope and why projects were chosen. For a manual hosted run, use
 `tools.impact --select-project <id>`, `--select-product <id>` or `--select-tag <tag>` to preview one
@@ -82,6 +84,7 @@ package; reviewed source commits still use normal Git.
 | `verify`                                                                                                               | One-board portable/native/electrical run, exact runner choice, and a fresh logged repair receipt                                                                                                                                             |
 | `parts`, `hwrepo/part_picker.py`, `hwrepo/parts_workflow.py`, `hwrepo/purchasing.py`                                   | Source-bound part selection and reviewed source updates, purchasing preferences, board/spare quantities and conditional DigiKey upload files                                                                                                 |
 | `ci`, `ci_matrix`, `check_all`                                                                                         | Coordinate the portable gate, registry-driven matrix and native lanes                                                                                                                                                                        |
+| `ci_hosted`                                                                                                            | Plan hosted branch/project/tag/shard scopes, run and log Actions lanes, and check final outcomes; project selection and portable checks use the same services as CLI and MCP                                                                 |
 | `impact`, `hwrepo/impact.py`                                                                                           | Plan affected PR project lanes from changed paths; broaden ambiguous/shared-tool changes to full scope                                                                                                                                       |
 | `native_deps`                                                                                                          | Prepare Linux wheels for the pinned container's Python, without requiring pip inside the image                                                                                                                                               |
 | `validate`, `check_toolchain`, `fault_probe`                                                                           | Adapt the pinned KiCad CLI, preserve source hashes and test deliberate native defects                                                                                                                                                        |

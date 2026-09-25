@@ -40,6 +40,8 @@ python -B -m tools.verify --project raspberry-pi-status-led --depth native --run
 python -B -m tools.ci --project raspberry-pi-status-led --format text
 python -B -m tools.ci --product status-indicator-system --format text
 python -B -m tools.ci --tag status-led --format text
+python -B -m tools.ci --tag legacy --format text
+python -B -m tools.ci --tag training --shard 1/3 --jobs 4 --format text
 python -B -m tools.ci --tag status-led --exclude-tag legacy --format text
 python -B -m tools.ci --exclude-tag legacy --format text
 python -B -m tools.ci --format text
@@ -63,6 +65,15 @@ matching no projects fail. No selector means the full set. Tags belong in each
 `project.json`; product membership belongs in `catalog/products.json`. Custom
 project/product tests run in separate Python processes; add `test_*.py` files
 without editing the workflow.
+`--shard INDEX/COUNT` divides the selected project IDs into one-based, sorted
+round-robin shards. For example, `--tag training --shard 1/3` runs the first third
+of the training project cohort; `--tag legacy` runs the legacy cohort directly.
+A shard is always a partial focused result, including when no tag is supplied.
+It never claims full acceptance or release coverage. Every shard must contain a
+project; invalid or empty selections fail. Run every shard and then the full
+gate before using complete repository evidence. The same `shard` option is
+available in `tools.impact`, MCP `plan_impact` and MCP `check_scope`.
+
 `--jobs <n>` runs up to that many independent project/product Python suites at
 once, with deterministic per-island results. The default is one for local runs;
 hosted portable jobs use four. Project tests must keep their temporary work in
@@ -132,7 +143,8 @@ projects on each edit, while still seeing when a change has broad impact.
 To preview a manual focused run, use
 `python -B -m tools.impact --select-project battery-board --format text`,
 `--select-product <product-id>` or `--select-tag <tag>`. Add
-`--exclude-tag <tag>` to remove a cohort; an empty or unknown selection fails.
+`--exclude-tag <tag>` to remove a cohort or `--shard INDEX/COUNT` to preview one
+partial shard; an empty or unknown selection fails.
 `python -B -m tools.impact --full --format text` previews full acceptance. The
 impact CLI prints a typed JSON plan by default for automation. Each manual
 selector chooses one project, product or tag; the local `tools.ci` command can
@@ -150,34 +162,45 @@ full portable coverage on Linux and macOS, a Windows smoke lane, and all native 
 full lane also type-checks the Windows target. Pushes to main always receive that full scope. In
 GitHub Actions, open **KiCad template acceptance** and choose **Run workflow** on the desired
 branch. The `focus` input defaults to `full`. For a fast hosted check, choose `project`, `product`
-or `tag`, enter its ID or tag in `value`, and optionally set `exclude_tag`. A focused manual run
-uses Ubuntu portable checks and selected native lanes; a full manual run uses Linux/macOS portable
-checks, Windows smoke, every native lane and the release rehearsal. The controller's native fault
-probes run only for its known reference path when that project is in scope. Manual runs use distinct
-concurrency groups, so starting a focused check cannot cancel a main-branch full acceptance run or
-another engineer's manual check. The template pins its direct runtime and development-tool
-dependencies in `pyproject.toml`; each direct dependency selects its published compatible transitive
-requirements. Update direct pins as a reviewed change and rerun the portable/native acceptance
-lanes. Dependabot opens bounded monthly Python and GitHub Actions update pull requests; these change
-common dependencies or workflow files and receive full acceptance. The final acceptance check
-requires the jobs scheduled for its declared scope to pass; a skipped native lane is acceptable only
-when no project is in scope. Full runs with projects also require a standalone release/restore
-rehearsal. The rehearsal commits a disposable reference checkout, exports using pinned KiCad,
-prepares an engineering-review manifest, packages it and verifies an actual restore. It does not
-approve hardware. Native jobs start after impact planning and run alongside the portable OS jobs;
-the full-scope release rehearsal starts after native jobs, without waiting for Windows. The Windows
-smoke installs the policy package, inventories projects through the CLI, and exercises subprocess
-entry points, path validation, PowerShell quoting and container command construction on a real
-Windows runner. It does not rerun the shared unit suite, project suites, or generated exports. Linux
-and macOS run the full portable gate; Linux also runs Pyright against the Windows target to catch
-Windows-specific typing errors. Adding projects increases the cost of a full run. A project-only PR
-adds work for its affected projects and their dependents, not every historical board. Native jobs
-can run concurrently subject to hosted runner capacity, so elapsed time need not grow one-for-one
-with project count; total CI compute and queue time can still grow. Portable jobs use a pip download
-cache keyed by `pyproject.toml`, Python and runner OS; installation and each job's planned checks
-still run on every job. Their project Python suites run with four bounded workers. Full portable
-jobs have a separate pipeline step timeout so evidence upload can still run after a timed-out check.
-The Windows smoke has its own shorter timeout and uploads its inventory and test log.
+or `tag`, enter its ID or tag in `value`, and optionally set `exclude_tag` or a partial `shard` such
+as `1/3`. Choose `branch` and set `value=origin/main` to check the selected workflow branch against
+that base ref. A shard converts even a full plan into a focused partial run; it never rehearses full
+acceptance. A focused manual run uses Ubuntu portable checks and selected native lanes; a full
+manual run uses Linux/macOS portable checks, Windows smoke, every native lane and the release
+rehearsal. The controller's native fault probes run only for its known reference path when that
+project is in scope. Manual runs use distinct concurrency groups, so starting a focused check cannot
+cancel a main-branch full acceptance run or another engineer's manual check. The template pins its
+direct runtime and development-tool dependencies in `pyproject.toml`; each direct dependency selects
+its published compatible transitive requirements. Update direct pins as a reviewed change and rerun
+the portable/native acceptance lanes. Dependabot opens bounded monthly Python and GitHub Actions
+update pull requests; these change common dependencies or workflow files and receive full
+acceptance. The final acceptance check requires the jobs scheduled for its declared scope to pass; a
+skipped native lane is acceptable only when no project is in scope. Full runs with projects also
+require a standalone release/restore rehearsal. The rehearsal commits a disposable reference
+checkout, exports using pinned KiCad, prepares an engineering-review manifest, packages it and
+verifies an actual restore. It does not approve hardware. Native jobs start after impact planning
+and run alongside the portable OS jobs; the full-scope release rehearsal starts after native jobs,
+without waiting for Windows. The Windows smoke installs the policy package, inventories projects
+through the CLI, and exercises subprocess entry points, path validation, PowerShell quoting and
+container command construction on a real Windows runner. It does not rerun the shared unit suite,
+project suites, or generated exports. Linux and macOS run the full portable gate; Linux also runs
+Pyright against the Windows target to catch Windows-specific typing errors. Adding projects
+increases the cost of a full run. A project-only PR adds work for its affected projects and their
+dependents, not every historical board. Native jobs can run concurrently subject to hosted runner
+capacity, so elapsed time need not grow one-for-one with project count; total CI compute and queue
+time can still grow. Portable jobs use a pip download cache keyed by `pyproject.toml`, Python and
+runner OS; installation and each job's planned checks still run on every job. Their project Python
+suites run with four bounded workers. Full portable jobs have a separate pipeline step timeout so
+evidence upload can still run after a timed-out check. The Windows smoke has its own shorter timeout
+and uploads its inventory and test log. The Actions YAML now declares scheduling, runner choice and
+artifact uploads; `tools.ci_hosted` owns planning, lane commands, native setup, release rehearsal
+and the final fail-closed outcome rules. It writes stage events and separate command stdout/stderr
+under ignored `build/ci-hosted/<lane>/`, including failures. Documentation-only jobs retain these
+logs as artifacts too. Run
+`python -B -m tools.ci_hosted plan --focus tag --value legacy` locally to inspect the same hosted
+selection, or use `--focus branch --value origin/main` to plan a branch diff.
+`tools.ci --tag legacy` or `tools.ci --project <id>` executes the portable tests directly; MCP
+`check_scope` offers the same tag/project/shard selection and bounded `jobs` concurrency.
 
 An initialized fork with no projects emits an empty matrix. The final check still
 requires applicable policy success and states that no hardware was validated.

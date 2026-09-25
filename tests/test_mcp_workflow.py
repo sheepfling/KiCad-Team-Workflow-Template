@@ -120,7 +120,7 @@ class McpWorkflowTests(unittest.TestCase):
         self.assertTrue((Path(report.run_directory) / "scope.json").is_file())
         with patch("tools.hwrepo.mcp_workflow.static_pipeline", return_value=report.report) as gate:
             workflow.check_scope(self.root)
-            gate.assert_called_once_with(self.root, None)
+            gate.assert_called_once_with(self.root, None, workers=1)
         with self.assertRaisesRegex(ValueError, "Unknown product"):
             workflow.check_scope(self.root, product_ids=("missing-product",))
 

@@ -224,6 +224,7 @@ def create_server(
         base: str | None = None, head: str = "HEAD", paths: tuple[str, ...] | None = None,
         full: bool = False, select_project: str | None = None, select_tag: str | None = None,
         select_product: str | None = None, exclude_tag: str | None = None,
+        shard: str | None = None,
     ) -> ImpactPlan:
         """Plan checks from one Git diff, path list, full request or manual selector.
 
@@ -233,7 +234,7 @@ def create_server(
         """
         with service_operation(operation):
             return planning.plan_impact(root, base, head, paths, full, select_project,
-                                        select_tag, select_product, exclude_tag)
+                                        select_tag, select_product, exclude_tag, shard)
 
     server.tool(annotations=READ_ONLY)(plan_impact)
 
@@ -512,6 +513,7 @@ def create_server(
         def check_scope(
             project_ids: list[str] | None = None, product_ids: list[str] | None = None,
             tags: list[str] | None = None, exclude_tags: list[str] | None = None,
+            shard: str | None = None, jobs: int = 1,
         ) -> McpScopeReport:
             """Run selected project/product/tag checks or the full portable gate when unselected.
 
@@ -521,7 +523,7 @@ def create_server(
             with service_operation(operation):
                 return workflow.check_scope(
                     root, tuple(project_ids or ()), tuple(product_ids or ()),
-                    tuple(tags or ()), tuple(exclude_tags or ()),
+                    tuple(tags or ()), tuple(exclude_tags or ()), shard, jobs,
                 )
 
         server.tool(annotations=EXECUTION)(check_scope)

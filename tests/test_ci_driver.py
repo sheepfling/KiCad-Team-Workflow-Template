@@ -2,11 +2,9 @@
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 import sys
 import tempfile
-import textwrap
 import tomllib
 import unittest
 from datetime import UTC, datetime
@@ -16,6 +14,7 @@ from unittest.mock import patch
 
 from tests.support import reference_root
 from tools.ci import main, project_static_pipeline, run_command, static_pipeline
+from tools.ci_hosted import gate_result
 from tools.hwrepo.documentation import check as documentation_check
 from tools.hwrepo.models import CommandEvidence, StaticPipelineReport
 
@@ -297,14 +296,13 @@ class CiDriverTests(unittest.TestCase):
 
     def test_native_workflow_passes_the_selected_project_and_uses_declared_dependencies(self) -> None:
         workflow = (ROOT / ".github/workflows/kicad-template.yml").read_text(encoding="utf-8")
-        native = workflow.split("- name: Check declared KiCad project", 1)[1].split("- name:", 1)[0]
-        self.assertIn("-e PROJECT_ID", native)
-        self.assertIn('--project "$PROJECT_ID"', native)
-        self.assertIn("-e PYTHONPATH=/work/build/policy-deps", native)
-        self.assertNotIn("pip install", native)
-        self.assertIn('tools.native_deps --image "$KICAD_IMAGE"', workflow)
+        native = workflow.split("  kicad:\n", 1)[1].split("  release-rehearsal:\n", 1)[0]
+        self.assertIn('tools.ci_hosted native --project "$PROJECT_ID"', native)
+        self.assertIn('--image "$KICAD_IMAGE" --pr-head "$PR_HEAD"', native)
+        self.assertIn('--fault-probes "$FAULT_PROBES"', native)
+        self.assertNotIn("docker run", native)
+        self.assertNotIn("tools.native_deps", native)
         self.assertNotIn("pydantic==", workflow)
-        self.assertNotIn("ruff==", workflow)
         self.assertIn("needs: [scope, project-matrix, python-tests, kicad, release-rehearsal]", workflow)
 
     def test_hosted_native_and_release_work_do_not_wait_for_windows(self) -> None:
@@ -322,65 +320,48 @@ class CiDriverTests(unittest.TestCase):
         matrix = workflow.split("  project-matrix:\n", 1)[1].split("  python-tests:\n", 1)[0]
         portable = workflow.split("  python-tests:\n", 1)[1].split("  kicad:\n", 1)[0]
         release = workflow.split("  release-rehearsal:\n", 1)[1].split("  engineering-gate:\n", 1)[0]
-
         self.assertIn("fetch-depth: 0", scope)
-        self.assertIn('if [ "$EVENT_NAME" = pull_request ]; then', scope)
-        self.assertIn('tools.impact --base "$BASE_SHA" --head HEAD', scope)
-        self.assertIn("tools.impact --full", scope)
-        self.assertIn('["ubuntu-24.04", "windows-2022", "macos-14"]', scope)
-        self.assertIn('if plan["scope"] == "full" else ["ubuntu-24.04"]', scope)
+        self.assertIn('tools.ci_hosted plan --event "$EVENT_NAME" --base "$BASE_SHA"', scope)
+        self.assertIn('--focus "$DISPATCH_FOCUS" --value "$DISPATCH_VALUE"', scope)
+        self.assertIn('tools.ci_hosted matrix --scope "$CHECK_SCOPE" --projects "$CI_PROJECTS"', matrix)
         self.assertIn("needs.scope.outputs.scope != 'docs'", matrix)
-        self.assertIn('args+=(--project "$project")', matrix)
-        self.assertIn('tools.ci --matrix "${args[@]}"', matrix)
         self.assertIn('fromJSON(needs.scope.outputs.portable-matrix)', portable)
-        self.assertIn('python -B -m tools.docs_policy', portable)
-        self.assertIn('rumdl check . --no-cache', portable)
-        self.assertIn('python -B -m mdrepo check .', portable)
-        self.assertIn('python -B -m tools.ci "${args[@]}" --jobs 4 --output build/portable', portable)
-        self.assertIn('python -B -m tools.ci --jobs 4 --output build/portable', portable)
-        self.assertIn('timeout-minutes: 13', portable)
-        self.assertIn('cache-dependency-path: pyproject.toml', portable)
-        self.assertIn('if [ "$DOCS_CHANGED" = true ]; then', portable)
+        self.assertIn('tools.ci_hosted portable --scope "$CHECK_SCOPE"', portable)
+        self.assertIn('--projects "$CI_PROJECTS" --docs-changed "$DOCS_CHANGED" --jobs 4', portable)
+        self.assertIn("timeout-minutes: 13", portable)
+        self.assertIn("cache-dependency-path: pyproject.toml", portable)
         self.assertIn("if: matrix.os != 'windows-2022'", portable)
         self.assertIn("if: matrix.os == 'ubuntu-24.04' && needs.scope.outputs.scope == 'full'", portable)
-        self.assertIn('--pythonplatform Windows --pythonversion 3.11 tools', portable)
-        self.assertIn("if: matrix.os == 'windows-2022'", portable)
-        self.assertIn('python -B -m tools.template list --format json', portable)
-        self.assertIn('tests.test_product.ProductTests.test_windows_posix_traversal_and_case_paths', portable)
+        self.assertIn("tools.ci_hosted windows-types", portable)
+        self.assertIn("tools.ci_hosted windows-smoke", portable)
+        self.assertIn("tools.ci_hosted source-clean", portable)
         self.assertIn("if: needs.scope.outputs.scope == 'full' && matrix.os != 'windows-2022'", portable)
         self.assertIn("if: needs.scope.outputs.scope == 'full' && needs.kicad.result == 'success'", release)
+        self.assertIn("tools.ci_hosted release", release)
 
     def test_manual_dispatch_wires_typed_focus_inputs_into_the_planner(self) -> None:
         workflow = (ROOT / ".github/workflows/kicad-template.yml").read_text(encoding="utf-8")
         dispatch = workflow.split("  workflow_dispatch:\n", 1)[1].split("  push:\n", 1)[0]
         scope = workflow.split("  scope:\n", 1)[1].split("  project-matrix:\n", 1)[0]
-        self.assertIn("options: [full, project, product, tag]", dispatch)
-        for field in ("focus", "value", "exclude_tag"):
+        self.assertIn("options: [full, branch, project, product, tag]", dispatch)
+        for field in ("focus", "value", "exclude_tag", "shard"):
             self.assertIn(f"      {field}:\n", dispatch)
         self.assertIn("DISPATCH_FOCUS: ${{ inputs.focus || 'full' }}", scope)
         self.assertIn("DISPATCH_VALUE: ${{ inputs.value || '' }}", scope)
         self.assertIn("DISPATCH_EXCLUDE_TAG: ${{ inputs.exclude_tag || '' }}", scope)
-        self.assertIn('test -n "$DISPATCH_VALUE"', scope)
-        for selector in ("project", "product", "tag"):
-            self.assertIn(
-                f'tools.impact --select-{selector} "$DISPATCH_VALUE" "${{args[@]}}"',
-                scope,
-            )
-        self.assertIn('args+=(--exclude-tag "$DISPATCH_EXCLUDE_TAG")', scope)
+        self.assertIn("DISPATCH_SHARD: ${{ inputs.shard || '' }}", scope)
+        self.assertIn('--exclude-tag "$DISPATCH_EXCLUDE_TAG" --shard "$DISPATCH_SHARD"', scope)
 
     def test_workflow_delegates_policy_work_to_the_driver(self) -> None:
-        workflow = (ROOT / ".github/workflows/kicad-template.yml").read_text(
-            encoding="utf-8"
-        )
-        self.assertNotRegex(
-            workflow,
-            r"\bpython(?:3)?\s+(?!-m\b)[^\n]*tools[/\\][^\n]*\.py",
-        )
-        for command in ("tools/ci_matrix.py", "tools/check_all.py", "tools/fault_probe.py"):
-            self.assertNotIn(command, workflow)
-        self.assertNotIn("tools/ci.py", workflow)
-        for mode in ("tools.ci --matrix", "tools.ci --kicad", "tools.ci --fault-probes"):
-            self.assertIn(mode, workflow)
+        workflow = (ROOT / ".github/workflows/kicad-template.yml").read_text(encoding="utf-8")
+        self.assertNotRegex(workflow, r"\bpython(?:3)?\s+(?!-m\b)[^\n]*tools[/\\][^\n]*\.py")
+        for embedded in ("docker run", "<<'PY'", 'case "$CHECK_SCOPE"',
+                         "tools/ci.py", "tools/check_all.py"):
+            self.assertNotIn(embedded, workflow)
+        for mode in ("plan", "matrix", "portable", "windows-types", "windows-smoke",
+                     "native", "release", "gate"):
+            self.assertIn(f"tools.ci_hosted {mode}", workflow)
+        self.assertLessEqual(len(workflow.splitlines()), 275)
 
     def test_dependency_updates_are_bounded_and_cover_python_and_actions(self) -> None:
         policy = (ROOT / ".github/dependabot.yml").read_text(encoding="utf-8")
@@ -389,44 +370,28 @@ class CiDriverTests(unittest.TestCase):
         self.assertEqual(policy.count("interval: monthly"), 2)
         self.assertEqual(policy.count("open-pull-requests-limit: 3"), 2)
 
-    @unittest.skipIf(os.name == "nt", "The hosted acceptance gate runs in Ubuntu Bash")
     def test_final_hosted_gate_rejects_incomplete_results(self) -> None:
-        workflow = (ROOT / ".github/workflows/kicad-template.yml").read_text(
-            encoding="utf-8"
-        )
-        gate = workflow.split("  engineering-gate:\n", 1)[1]
-        script = textwrap.dedent(gate.split("        run: |\n", 1)[1])
-        common = {"SCOPE_RESULT": "success", "UNIT_RESULT": "success"}
+        workflow = (ROOT / ".github/workflows/kicad-template.yml").read_text(encoding="utf-8")
+        self.assertIn("run: python -B -m tools.ci_hosted gate", workflow)
         baselines = (
-            {**common, "CHECK_SCOPE": "docs", "MATRIX_RESULT": "skipped",
-             "KICAD_RESULT": "skipped", "RELEASE_RESULT": "skipped", "HAS_PROJECTS": ""},
-            {**common, "CHECK_SCOPE": "focused", "MATRIX_RESULT": "success",
-             "KICAD_RESULT": "success", "RELEASE_RESULT": "skipped", "HAS_PROJECTS": "true"},
-            {**common, "CHECK_SCOPE": "full", "MATRIX_RESULT": "success",
-             "KICAD_RESULT": "success", "RELEASE_RESULT": "success", "HAS_PROJECTS": "true"},
-            {**common, "CHECK_SCOPE": "full", "MATRIX_RESULT": "success",
-             "KICAD_RESULT": "skipped", "RELEASE_RESULT": "skipped", "HAS_PROJECTS": "false"},
+            ("success", "docs", "success", "skipped", "skipped", "", "skipped"),
+            ("success", "focused", "success", "success", "success", "true", "skipped"),
+            ("success", "full", "success", "success", "success", "true", "success"),
+            ("success", "full", "success", "success", "skipped", "false", "skipped"),
         )
         for baseline in baselines:
-            cases = [(baseline, True)]
-            required = ("SCOPE_RESULT", "UNIT_RESULT", "CHECK_SCOPE", "MATRIX_RESULT",
-                        "KICAD_RESULT", "RELEASE_RESULT")
-            if baseline["CHECK_SCOPE"] != "docs":
-                required += ("HAS_PROJECTS",)
-            for field in required:
-                values = (("", "unknown", "true", "false") if field == "HAS_PROJECTS" else
-                          ("success", "failure", "skipped", "cancelled", "") if field != "CHECK_SCOPE" else
-                          ("docs", "focused", "full", "unknown", ""))
-                cases.extend(({**baseline, field: value}, False)
-                             for value in values if value != baseline[field])
-            for results, expected in cases:
-                with self.subTest(results=results):
-                    result = subprocess.run(
-                        ["bash", "--noprofile", "--norc", "-eo", "pipefail", "-c", script],
-                        env={**os.environ, **results}, capture_output=True, text=True,
-                        check=False,
-                    )
-                    self.assertEqual(result.returncode == 0, expected, result.stderr)
+            with self.subTest(baseline=baseline):
+                gate_result(*baseline)
+                for position in (0, 1, 2, 3, 4, 6):
+                    broken = list(baseline)
+                    broken[position] = "cancelled"
+                    with self.assertRaises(ValueError):
+                        gate_result(*broken)
+                if baseline[1] != "docs":
+                    broken = list(baseline)
+                    broken[5] = "" if baseline[5] == "true" else "true"
+                    with self.assertRaises(ValueError):
+                        gate_result(*broken)
 
 
 if __name__ == "__main__":

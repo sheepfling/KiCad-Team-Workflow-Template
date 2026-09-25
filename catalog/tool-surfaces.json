@@ -44,7 +44,46 @@
         "--project",
         "--release",
         "--root",
+        "--shard",
         "--tag"
+      ]
+    },
+    {
+      "module": "tools.ci_hosted",
+      "commands": [
+        "gate",
+        "matrix",
+        "native",
+        "plan",
+        "portable",
+        "release",
+        "source-clean",
+        "windows-smoke",
+        "windows-types"
+      ],
+      "options": [
+        "--base",
+        "--docs-changed",
+        "--event",
+        "--exclude-tag",
+        "--fault-probes",
+        "--focus",
+        "--has-projects",
+        "--head",
+        "--image",
+        "--jobs",
+        "--kicad-result",
+        "--matrix-result",
+        "--pr-head",
+        "--project",
+        "--projects",
+        "--release-result",
+        "--root",
+        "--scope",
+        "--scope-result",
+        "--shard",
+        "--unit-result",
+        "--value"
       ]
     },
     {
@@ -159,7 +198,8 @@
         "--root",
         "--select-product",
         "--select-project",
-        "--select-tag"
+        "--select-tag",
+        "--shard"
       ]
     },
     {
@@ -479,8 +519,10 @@
       "name": "check_scope",
       "parameters": [
         "exclude_tags",
+        "jobs",
         "product_ids",
         "project_ids",
+        "shard",
         "tags"
       ]
     },
@@ -661,7 +703,8 @@
         "paths",
         "select_product",
         "select_project",
-        "select_tag"
+        "select_tag",
+        "shard"
       ]
     },
     {
@@ -1042,11 +1085,12 @@
         "check_scope"
       ],
       "alignment": "aligned",
-      "reason": "Both run portable project/product/tag selection with union and exclusion through static_pipeline. Other CI modes are catalogued separately.",
+      "reason": "CLI and MCP run the same portable project/product/tag selection, optional project shards and bounded project-test concurrency through static_pipeline.",
       "scope": "core",
       "gaps": [],
       "constraints": [
-        "MCP selects its fixed output locations and runs one project-test worker; CLI can choose output, jobs and text formatting."
+        "MCP uses a fresh fixed receipt directory; CLI can choose output and text formatting.",
+        "A shard is a partial focused lane, never full acceptance or release evidence."
       ],
       "parity_tests": [
         "tests.test_mcp_parity.McpParityTests.test_scope_check_parity"
@@ -1481,7 +1525,7 @@
         "plan_impact"
       ],
       "alignment": "aligned",
-      "reason": "Both plan the same changed paths, Git revisions, explicit full scope or manual project/product/tag selection.",
+      "reason": "CLI and MCP plan the same changed paths, Git revisions, explicit full scope, manual project/product/tag selection and partial shards.",
       "scope": "core",
       "gaps": [],
       "constraints": [
@@ -1775,6 +1819,28 @@
       "gaps": [],
       "constraints": [],
       "exception": "CLI --assist starts a long-running browser session. MCP exposes its bounded underlying operations and never starts a second server that could bypass MCP startup capabilities.",
+      "parity_tests": []
+    },
+    {
+      "id": "hosted-ci-orchestration",
+      "cli": [
+        "tools.ci_hosted gate",
+        "tools.ci_hosted matrix",
+        "tools.ci_hosted native",
+        "tools.ci_hosted plan",
+        "tools.ci_hosted portable",
+        "tools.ci_hosted release",
+        "tools.ci_hosted source-clean",
+        "tools.ci_hosted windows-smoke",
+        "tools.ci_hosted windows-types"
+      ],
+      "mcp": [],
+      "alignment": "cli_only",
+      "reason": "Hosted runner orchestration belongs to Actions and the operator CLI; project selection and portable checks remain available through plan_impact and check_scope in MCP.",
+      "scope": "administration",
+      "gaps": [],
+      "constraints": [],
+      "exception": "MCP does not schedule GitHub jobs, pull Docker images or run the release rehearsal. Its shared planning and check services expose the project, tag and shard decisions.",
       "parity_tests": []
     }
   ]

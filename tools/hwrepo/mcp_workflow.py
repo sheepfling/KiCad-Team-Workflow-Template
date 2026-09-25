@@ -56,6 +56,7 @@ from .models import (
 )
 from .release import check as release_check
 from .selection import ProjectSelector, resolve_project_ids
+from .sharding import shard_projects
 
 _IDENTIFIER: TypeAdapter[str] = TypeAdapter(Identifier)
 
@@ -143,15 +144,23 @@ def rescue_project(root: Path, project_id: str) -> LocalRescueReport:
 def check_scope(
     root: Path, project_ids: tuple[str, ...] = (), product_ids: tuple[str, ...] = (),
     tags: tuple[str, ...] = (), exclude_tags: tuple[str, ...] = (),
+    shard: str | None = None, jobs: int = 1,
 ) -> McpScopeReport:
     """Reuse union/exclusion selection; no selectors deliberately invokes the full gate."""
+    if type(jobs) is not int or not 1 <= jobs <= 32:
+        raise ValueError("jobs must be between 1 and 32")
     selector = ProjectSelector(
         project_ids=project_ids, product_ids=product_ids, tags=tags, excluded_tags=exclude_tags,
     )
     selected = list(resolve_project_ids(root, selector)) if selector.active else None
+    if shard is not None:
+        selected = list(shard_projects(
+            tuple(selected) if selected is not None else resolve_project_ids(root, ProjectSelector()),
+            shard,
+        ))
     with journal(root, "scope") as receipt:
         with receipt.stage("portable"):
-            result = static_pipeline(root, selected)
+            result = static_pipeline(root, selected, workers=jobs)
         report = McpScopeReport(
             status=result.status, run_directory=str(receipt.directory), report=result,
         )

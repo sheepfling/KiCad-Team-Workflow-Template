@@ -26,6 +26,7 @@ from .hwrepo.product import check as product_check
 from .hwrepo.project_tests import run_tests
 from .hwrepo.repository import check_repository
 from .hwrepo.selection import ProjectSelector, resolve_project_ids
+from .hwrepo.sharding import shard_projects
 from .lint_registry import lint
 from .metrics import format_metrics
 
@@ -224,6 +225,7 @@ def main() -> int:
     mode.add_argument("--metrics", action="store_true", help="Report current policy and deviation metrics.")
     parser.add_argument("--cli", default="kicad-cli")
     parser.add_argument("--ngspice", default="ngspice")
+    parser.add_argument("--shard", help="One-based project shard INDEX/COUNT; partial focused lane")
     parser.add_argument("--jobs", type=positive_worker_count, default=1,
                         help="Maximum concurrent project/product Python suites (default: 1)")
     parser.add_argument("--format", choices=("json", "text"), default="json",
@@ -243,8 +245,16 @@ def main() -> int:
     )
     try:
         selected = resolve_project_ids(root, selector) if selector.active else None
+        if args.shard is not None:
+            selected = shard_projects(
+                selected if selected is not None else resolve_project_ids(root, ProjectSelector()),
+                args.shard,
+            )
     except (OSError, ValueError) as exc:
         parser.error(str(exc))
+    if args.shard is not None and (args.electrical or args.fault_probes
+                                   or args.release or args.metrics):
+        parser.error("--shard is for portable or native project lanes")
     if args.electrical:
         from .hwrepo.electrical_runner import analyze_scope
 

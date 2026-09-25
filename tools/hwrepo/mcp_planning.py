@@ -31,11 +31,13 @@ def plan_impact(
     paths: tuple[str, ...] | None = None, full: bool = False,
     select_project: str | None = None, select_tag: str | None = None,
     select_product: str | None = None, exclude_tag: str | None = None,
+    shard: str | None = None,
 ) -> ImpactPlan:
     """Plan Git, explicit-path, full or manual-selection scope without running checks."""
     return build_plan(
         root, base=base, head=head, paths=paths, full=full, select_project=select_project,
         select_tag=select_tag, select_product=select_product, exclude_tag=exclude_tag,
+        shard=shard,
     )
 
 

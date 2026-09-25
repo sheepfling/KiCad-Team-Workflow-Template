@@ -75,6 +75,8 @@ class McpPlanningTests(unittest.IsolatedAsyncioTestCase):
             (("--select-product", "status-indicator-system"), {"select_product": "status-indicator-system"}),
             (("--select-tag", "training", "--exclude-tag", "legacy"),
              {"select_tag": "training", "exclude_tag": "legacy"}),
+            (("--select-tag", "training", "--shard", "1/2"),
+             {"select_tag": "training", "shard": "1/2"}),
         )
         before = self.source_snapshot()
         async with Client(create_server(self.root), mode="legacy") as client:
@@ -126,6 +128,8 @@ class McpPlanningTests(unittest.IsolatedAsyncioTestCase):
             (("--select-tag", "missing-tag"), {"select_tag": "missing-tag"}),
             (("--full", "--exclude-tag", "training"), {"full": True, "exclude_tag": "training"}),
             (("--select-project", ""), {"select_project": ""}),
+            (("--select-project", "controller", "--shard", "2/2"),
+             {"select_project": "controller", "shard": "2/2"}),
         )
         async with Client(create_server(self.root), mode="legacy") as client:
             for arguments, request in cases:

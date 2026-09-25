@@ -123,9 +123,12 @@ and commit reviewed source through normal Git before export preparation.
    `python -B -m tools.impact --base <ref> --head <ref> --format json`
    to inspect planned PR scope in a script or agent.
    For a manual hosted lane, run **KiCad template acceptance** in Actions with
-   `focus=project` and `value=<id>` (or select `product` or `tag`). The default
-   `focus=full` rehearses every lane; an optional `exclude_tag` narrows only a
-   focused run. Preview the manual scope with `tools.impact --select-project <id>`.
+   `focus=project` and `value=<id>` (or select `product`, `tag`, or `branch` with
+   a base ref such as `origin/main`). The default `focus=full` rehearses every
+   lane. Optional `shard=INDEX/COUNT` selects a partial project shard, never
+   complete release evidence. Preview it with `tools.impact --select-tag <tag>`
+   `--shard INDEX/COUNT`; run its portable tests with the same selectors on
+   `tools.ci` or MCP `check_scope`. Stage logs live under ignored `build/ci-hosted/`.
 4. Report the project ID, branch and commit, changed source, commands and
    results, receipt path, and any unresolved engineering decision. Keep run
    evidence in ignored `build/`, CI artifacts, or the issue/PR. Keep durable

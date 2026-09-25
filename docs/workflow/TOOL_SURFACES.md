@@ -34,7 +34,11 @@ setup/input capture and analysis, saved electrical chart exports, reviewed part
 selection, paired and exact sourced CAD imports, pinned STEP alignment review, and
 explicit supplier handoff. Downloads and submissions have separate MCP startup
 capabilities; these authority constraints are recorded without hiding functional gaps.
-The required core IDs are pinned in the policy code. Deleting a row or calling it
+The CI and MCP scope surfaces share project/tag selection, partial shard semantics
+and bounded project-test workers. `tools.ci_hosted` handles Actions orchestration
+as an operator-only administrative surface; it does not create an MCP bypass for
+Docker, release rehearsal or GitHub job scheduling. The required core IDs are
+pinned in the policy code. Deleting a row or calling it
 administrative cannot waive that requirement.
 
 An administrative exception records the actual operation left to an operator.

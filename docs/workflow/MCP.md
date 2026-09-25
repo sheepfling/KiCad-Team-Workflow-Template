@@ -262,6 +262,8 @@ tools. Supply exactly one mode:
 - `full: true` for full scope.
 - One of `select_project`, `select_tag` or `select_product` for a manual selection.
   Optional `exclude_tag` removes matches from that manual selection.
+- Optional `shard` in `INDEX/COUNT` form selects one partial project shard.
+  A shard changes even a full plan to focused scope; it is not release evidence.
 
 Git references resolve to commits before comparison. Unknown ownership and unsafe
 changed paths conservatively select full scope, matching `python -B -m tools.impact`.
@@ -271,15 +273,15 @@ validation or release evidence.
 
 ## Diagnose and check
 
-| Tool                 | Arguments and use                                                                                                                                                                                       |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `rescue_project`     | `project_id`. Inspect one island when malformed peer metadata blocks normal discovery; keep an ignored receipt. Always `UNVERIFIED_GLOBAL`, with no CI or release eligibility.                          |
-| `diagnose_project`   | `project_id`; optional `native_report` and `bom`. Run selected portable checks and combine current source/native/BOM findings. Requires `--allow-checks`.                                               |
-| `check_project`      | `project_id`; `depth` defaults to `portable`, `runner` to `auto`. Run selected portable, native or electrical verification and retain the receipt. Requires `--allow-checks`.                           |
-| `check_scope`        | Optional `project_ids`, `product_ids`, `tags`, `exclude_tags` lists. Run the selected portable gate, or the full gate without selectors. Requires `--allow-checks`.                                     |
-| `check_native_scope` | `view_id`; optional `project_ids`, `product_ids`, `tags`, `exclude_tags` lists. Run the grouped native CLI lane with the fixed local `kicad-cli` and retain a fresh receipt. Requires `--allow-checks`. |
-| `inspect_contract`   | `project_id`, `native_summary`. Inspect saved source-bound native evidence without capturing again. Observations remain `UNREVIEWED`.                                                                   |
-| `capture_contract`   | `project_id`; optional `runner`. Capture native evidence to help independently author the contract. Requires `--allow-checks`.                                                                          |
+| Tool                 | Arguments and use                                                                                                                                                                                                 |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `rescue_project`     | `project_id`. Inspect one island when malformed peer metadata blocks normal discovery; keep an ignored receipt. Always `UNVERIFIED_GLOBAL`, with no CI or release eligibility.                                    |
+| `diagnose_project`   | `project_id`; optional `native_report` and `bom`. Run selected portable checks and combine current source/native/BOM findings. Requires `--allow-checks`.                                                         |
+| `check_project`      | `project_id`; `depth` defaults to `portable`, `runner` to `auto`. Run selected portable, native or electrical verification and retain the receipt. Requires `--allow-checks`.                                     |
+| `check_scope`        | Optional `project_ids`, `product_ids`, `tags`, `exclude_tags`, `shard` (`INDEX/COUNT`) and `jobs` (1–32). Run a selected portable gate, or the full gate without selectors or a shard. Requires `--allow-checks`. |
+| `check_native_scope` | `view_id`; optional `project_ids`, `product_ids`, `tags`, `exclude_tags` lists. Run the grouped native CLI lane with the fixed local `kicad-cli` and retain a fresh receipt. Requires `--allow-checks`.           |
+| `inspect_contract`   | `project_id`, `native_summary`. Inspect saved source-bound native evidence without capturing again. Observations remain `UNREVIEWED`.                                                                             |
+| `capture_contract`   | `project_id`; optional `runner`. Capture native evidence to help independently author the contract. Requires `--allow-checks`.                                                                                    |
 
 Native `runner` choices are `auto`, `local` and `container`. `auto` selects an exact local KiCad CLI
 when available, otherwise the project's pinned image. A local or container runner requires native or
@@ -288,7 +290,10 @@ can inspect a toolchain before a project exists; a supplied project and toolchai
 include selectors form a union, then `exclude_tags` removes matches; with only exclusions, selection
 starts from all projects. The grouped `check_native_scope` operation matches `tools.ci --kicad`; use
 `check_project` for per-project automatic or container runner selection. Native failures retain
-runner and command evidence. Portable checks do not establish native acceptance.
+runner and command evidence. A `shard` selects a partial focused lane, never full
+acceptance; `jobs` controls bounded project-test workers as on the CLI. For example,
+`check_scope(tags=["training"], shard="1/3", jobs=4)` tests one training shard.
+Portable checks do not establish native acceptance.
 
 Read `events.log`, the full diagnostic report and captured portable/native outputs from the returned
 `run_directory`. When that directory is absolute, remove the configured `--root` prefix for an

@@ -286,6 +286,19 @@ class McpParityTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.structured_content["status"], cli.status)
         self.assertFalse(result.structured_content["build_authorized"])
 
+    async def test_tag_shard_scope_check_parity(self) -> None:
+        cli = await self.cli("tools.ci", ProjectStaticPipelineReport,
+                             "--tag", "training", "--shard", "1/2", "--jobs", "2")
+        async with Client(create_server(self.root, allow_checks=True), mode="legacy") as client:
+            result = await client.call_tool("check_scope", {"tags": ["training"], "shard": "1/2", "jobs": 2})
+        self.assertFalse(result.is_error, result.content)
+        self.assertIsNotNone(result.structured_content)
+        mcp = ProjectStaticPipelineReport.model_validate_json(
+            json.dumps(result.structured_content["report"]),
+        )
+        self.assertEqual(self.semantic(cli), self.semantic(mcp))
+        self.assertEqual(len(mcp.projects), 3)
+
     async def test_native_scope_failure_parity(self) -> None:
         # Invalid native version fails the real CLI runner before any CAD command.
         # This exercises check_all on both surfaces, not a mocked service report.
