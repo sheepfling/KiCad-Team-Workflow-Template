@@ -294,10 +294,18 @@ def portable_findings(
     config = load_config(root, project.config)
     contract_path = repo_path(manifest_path.parent, manifest.checks).relative_to(root).as_posix()
     findings = [
-        finding("BLOCKING", "REGISTRY", "project/catalog", issue,
-                "Correct the named project manifest, inventory, or catalog record; rerun the "
-                "selected check. Do not relax the contract to hide a source problem.", CHECKS_GUIDE)
-        for issue in result.registry.issues
+        finding(
+            "BLOCKING", "ELECTRICAL_SETUP" if ": electrical:" in issue else "REGISTRY",
+            config.electrical or contract_path if ": electrical:" in issue else "project/catalog",
+            issue,
+            ("Complete the pending requirements or review stale model bindings; "
+             f"run tools.template doctor --electrical --project-id {project_id} --format text. "
+             f"Use tools.electrical --project {project_id} --capture-inputs for unreviewed hash candidates; never refresh approvals automatically.")
+            if ": electrical:" in issue else
+            "Correct the named project manifest, inventory, or catalog record; rerun the selected check. "
+            "Do not relax the contract to hide a source problem.",
+            "docs/workflow/ELECTRICAL_ANALYSIS.md" if ": electrical:" in issue else CHECKS_GUIDE,
+        ) for issue in result.registry.issues
     ]
     findings.extend(
         repository_guidance(issue, config.kicad_version.split(".")[0])

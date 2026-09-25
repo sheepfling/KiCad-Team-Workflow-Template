@@ -343,6 +343,11 @@ def lint(
             issues.append(f"project {identifier}: invalid project/configuration: {exc}")
             continue
 
+        from .hwrepo.electrical import policy_issues as electrical_policy_issues
+
+        issues.extend(f"project {identifier}: electrical: {issue}"
+                      for issue in electrical_policy_issues(root, config))
+
         if config.project_id != project.id:
             issues.append(f"project {identifier}: config project_id must match registry id")
         if config.kind is not project.kind:

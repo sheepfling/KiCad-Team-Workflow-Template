@@ -1,0 +1,6 @@
+* Synthetic startup and steady-state demonstration; not a board model
+Vrail supply 0 PWL(0 0 1u 5)
+Rpath supply out 1
+Cbulk out 0 100u
+Rload out 0 100
+.end

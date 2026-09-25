@@ -81,6 +81,11 @@ and commit reviewed source through normal Git before export preparation.
   electrical, physical or release approval. Keep receipts under ignored `build/`
   and follow [parts to order](docs/workflow/PARTS_TO_ORDER.md).
 
+- For grounding, power and high-frequency requirements, follow the
+  [electrical analysis workflow](docs/workflow/ELECTRICAL_ANALYSIS.md). Author independent
+  limits and model bindings, then use `tools.verify --project <id> --depth electrical`.
+  Do not refresh model/source hashes without reviewing the circuit-to-model mapping.
+
 ## Diagnose, repair, verify
 
 1. Read the first blocking group and its source location. If the cause is

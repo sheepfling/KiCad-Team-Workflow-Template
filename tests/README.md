@@ -66,3 +66,10 @@ the architecture test. See the [scripting standard](../docs/workflow/SCRIPTING_S
 Existing projects can use the [import workflow](../docs/workflow/IMPORT_WORKFLOW.md).
 Temporary imported projects should exercise source and connectivity mutations in
 their own local suites without adding run reports or imported source to the template.
+
+Electrical workflow coverage lives in `test_electrical.py` and
+`test_electrical_setup.py`: declared ground coverage, power limits, source/model
+bindings, simulator failures, pending setup, review-only hash capture, readiness,
+CLI output and hosted gate wiring. Synthetic decks are shared with the
+[standalone examples](../templates/electrical/README.md); tests never establish
+physical grounding, thermal behavior or RF acceptance.

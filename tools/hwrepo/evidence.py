@@ -175,7 +175,9 @@ def verify_native(root: Path, reference: EvidenceFile, source: SourceState,
         required.update({"erc", "schematic_svg", "harness_contract"})
     else:
         required.update({"erc", "schematic_svg"})
-    if config.component_identity.required or (
+    if config.electrical is not None:
+        required.add("grounding")
+    if config.electrical is not None or config.component_identity.required or (
         isinstance(config.validation, SchematicValidationContract) and config.validation.components
     ):
         required.add("netlist")
@@ -198,6 +200,18 @@ def verify_native(root: Path, reference: EvidenceFile, source: SourceState,
     # Re-evaluate the retained native outputs, rather than trusting summary labels.
     from ..validate import check_netlist, check_report, svg_files
     from .models import PcbValidationContract
+
+    if config.electrical is not None:
+        from ..validate import read_netlist
+        from .electrical import grounding_checks, load_analysis
+
+        electrical = load_analysis(root, config)
+        if electrical is not None and any(
+            row.status not in {"PASS", "NOT_APPLICABLE"} for row in grounding_checks(
+                electrical.grounding, read_netlist(path.parent / "netlist.xml")
+            )
+        ):
+            raise ValueError("Retained netlist fails current grounding requirements")
 
     commands = {"version"}
     if isinstance(config.validation, PcbOnlyValidationContract):

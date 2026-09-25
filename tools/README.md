@@ -47,6 +47,9 @@ Choose text for a concise terminal view and JSON for the complete typed result:
 
 | User-facing command | Human view | Agent/script view |
 | --- | --- | --- |
+| `tools.electrical --project <id>` | Brief status, failed checks and receipt; `--detail full` expands it | `--format json` |
+| `tools.electrical --project <id> --init` / `--capture-inputs` | Create pending requirements / capture UNREVIEWED hashes for review | `--format json`; success is setup only |
+| `tools.template doctor --electrical --project-id <id>` | `--format text` checks contract, native runner and exact simulator | JSON by default |
 | `tools.verify --project <id>` | Brief text by default; `--detail full` expands repair findings | `--format json` |
 | `tools.template diagnose` | Brief text by default; `--detail full` expands it | `--format json` |
 | `tools.template list` | `--format text` shows selections and next commands | JSON by default; typed inventory |
@@ -71,10 +74,12 @@ package; reviewed source commits still use normal Git.
 
 | Module | Responsibility |
 | --- | --- |
-| `verify` | One-board portable/native run, exact runner choice, and a fresh logged repair receipt |
 | `surface`, `hwrepo/surface.py` | Compare CLI/MCP workflow coverage and fail on undocumented interface drift; see [tool surfaces](../docs/workflow/TOOL_SURFACES.md) |
 | `mcp` | Optional local stdio workflow adapter: fixed checkout, diagnosis, reviewed edits, checks, exports and engineering review packaging with separate startup capabilities |
 | `parts`, `hwrepo/parts_workflow.py`, `hwrepo/purchasing.py` | Source-bound parts checklist, saved purchasing preferences, board/spare quantities and conditional DigiKey upload files |
+| `electrical`, `hwrepo/electrical.py`, `hwrepo/electrical_runner.py`, `hwrepo/spice.py` | Check reviewed ground-pin coverage, power budgets and source-bound ngspice power/frequency cases; see [electrical analysis](../docs/workflow/ELECTRICAL_ANALYSIS.md) |
+| `hwrepo/electrical_setup.py`, `hwrepo/electrical_doctor.py` | Initialize pending requirements without overwriting them, capture review hashes and preflight exact simulator readiness |
+| `verify` | One-board portable/native/electrical run, exact runner choice, and a fresh logged repair receipt |
 | `ci`, `ci_matrix`, `check_all` | Coordinate the portable gate, registry-driven matrix and native lanes |
 | `impact`, `hwrepo/impact.py` | Plan affected PR project lanes from changed paths; broaden ambiguous/shared-tool changes to full scope |
 | `native_deps` | Prepare Linux wheels for the pinned container's Python, without requiring pip inside the image |

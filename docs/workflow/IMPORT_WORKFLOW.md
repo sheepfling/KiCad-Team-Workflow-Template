@@ -129,8 +129,9 @@ models, make their paths portable and generate review views from the registered 
 Development/production contracts cannot whitelist disabled ERC/DRC checks. Existing
 KiCad projects may have disabled defaults: enable the applicable checks, rerun and
 resolve the findings. Do not change the assurance profile merely to make an import
-green. Simulation-only examples can require a different engineering policy or a
-future simulation lane; importing model files does not execute a SPICE simulation.
+green. Simulation-only examples can require a different engineering policy. Add the
+[electrical analysis lane](ELECTRICAL_ANALYSIS.md) for reviewed simulation cases;
+importing model files does not execute a SPICE simulation.
 
 Use [checks and CI](CHECKS_AND_CI.md) for pinned-container execution. Keep rehearsal
 receipts and reports in the temporary workspace or CI artifacts; promote only stable

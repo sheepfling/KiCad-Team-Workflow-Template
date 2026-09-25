@@ -32,6 +32,9 @@ to understand what belongs with each board and what is shared.
    island's README is discovered automatically by docs policy. For board images
    and mechanical exchange files, follow the [3D workflow](THREE_D_WORKFLOW.md).
 
+For grounding requirements, startup and steady-state power, and modeled high-frequency
+response, add [electrical analysis](ELECTRICAL_ANALYSIS.md) to the board workflow.
+
 When an import or check fails, follow [diagnose and repair](DIAGNOSTICS.md) for a
 project-local finding, concrete next action and the relevant source of authority.
 
