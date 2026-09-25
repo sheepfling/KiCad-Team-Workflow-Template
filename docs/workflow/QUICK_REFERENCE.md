@@ -58,6 +58,8 @@ captured hashes stay UNREVIEWED until the engineer reviews and records the mappi
 Use `--ngspice /path/to/ngspice` for a simulator outside `PATH`. For focused checks,
 use `tools.electrical --project <id>` or `tools.ci --electrical --project <id> --format text`.
 Text includes project identity and receipt; `--format json` contains every finding.
-The manual **Electrical analysis** Action provides the hosted focused gate; normal
+Create CSV, PNG and SVG from a saved receipt without rerunning the circuit:
+`python -B -m tools.electrical_charts --receipt build/electrical/<id>-<run>`.
+Install `.[charts]` once for Matplotlib. The manual **Electrical analysis** Action provides the hosted focused gate; normal
 native acceptance still checks ERC/DRC. Follow the
 [electrical quickstart and examples](ELECTRICAL_ANALYSIS.md#quickstart).

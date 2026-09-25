@@ -55,6 +55,7 @@ Choose text for a concise terminal view and JSON for the complete typed result:
 | --- | --- | --- |
 | `tools.electrical --project <id>` | Brief status, failed checks and receipt; `--detail full` expands it | `--format json` |
 | `tools.electrical --project <id> --init` / `--capture-inputs` | Create pending requirements / capture UNREVIEWED hashes for review | `--format json`; success is setup only |
+| `tools.electrical_charts --receipt build/electrical/<run>` | Export saved waveforms as CSV, PNG and SVG; `--suite` handles a saved CI suite | `--format json` |
 | `tools.template doctor --electrical --project-id <id>` | `--format text` checks contract, native runner and exact simulator | JSON by default |
 | `tools.verify --project <id>` | Brief text by default; `--detail full` expands repair findings | `--format json` |
 | `tools.template diagnose` | Brief text by default; `--detail full` expands it | `--format json` |
@@ -83,6 +84,7 @@ package; reviewed source commits still use normal Git.
 | `surface`, `hwrepo/surface.py` | Compare CLI/MCP workflow coverage and fail on undocumented interface drift; see [tool surfaces](../docs/workflow/TOOL_SURFACES.md) |
 | `mcp` | Optional local stdio workflow adapter: fixed checkout, diagnosis, reviewed edits, checks, exports and engineering review packaging with separate startup capabilities |
 | `electrical`, `hwrepo/electrical.py`, `hwrepo/electrical_runner.py`, `hwrepo/spice.py` | Check reviewed ground-pin coverage, power budgets and source-bound ngspice power/frequency cases; see [electrical analysis](../docs/workflow/ELECTRICAL_ANALYSIS.md) |
+| `electrical_charts`, `hwrepo/electrical_charts.py`, `hwrepo/waveform_data.py`, `hwrepo/electrical_plot.py` | Verify retained waveforms and produce source-bound chart/CSV review receipts |
 | `hwrepo/electrical_setup.py`, `hwrepo/electrical_doctor.py` | Initialize pending requirements without overwriting them, capture review hashes and preflight exact simulator readiness |
 | `verify` | One-board portable/native/electrical run, exact runner choice, and a fresh logged repair receipt |
 | `parts`, `hwrepo/part_picker.py`, `hwrepo/parts_workflow.py`, `hwrepo/purchasing.py` | Source-bound part selection and reviewed source updates, purchasing preferences, board/spare quantities and conditional DigiKey upload files |

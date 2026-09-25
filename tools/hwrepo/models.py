@@ -2322,3 +2322,43 @@ class ForeignPcbReport(StrictModel):
         ):
             raise ValueError("Successful conversion needs valid project, toolchain and format IDs")
         return self
+
+
+class ElectricalChartCase(StrictModel):
+    """One chart and numeric export derived from a retained simulation case."""
+
+    id: Identifier
+    status: Literal["PASS", "SKIPPED", "FAIL"]
+    samples: Annotated[int, Field(ge=0)] = 0
+    waveform_sha256: Digest | None = None
+    csv: RepositoryPath | None = None
+    png: RepositoryPath | None = None
+    svg: RepositoryPath | None = None
+    detail: NonEmptyText
+
+
+class ElectricalChartsReport(StrictModel):
+    """Chart output remains secondary evidence bound to an analysis receipt."""
+
+    schema_version: Literal["1"] = "1"
+    lane: Literal["ELECTRICAL_CHARTS"] = "ELECTRICAL_CHARTS"
+    build_authorized: Literal[False] = False
+    project_id: Identifier
+    status: Literal["PASS", "PARTIAL", "FAIL"]
+    source_analysis_status: Literal["PASS", "FAIL", "NOT_CONFIGURED"]
+    source_receipt: NonEmptyText
+    source_report_sha256: Digest
+    run_directory: NonEmptyText
+    cases: tuple[ElectricalChartCase, ...]
+    grounding_csv: RepositoryPath | None = None
+    power_csv: RepositoryPath | None = None
+    artifacts_sha256: Mapping[RepositoryPath, Digest] = Field(default_factory=dict)
+    next_actions: tuple[NonEmptyText, ...] = ()
+
+
+class ElectricalChartsSuiteReport(StrictModel):
+    schema_version: Literal["1"] = "1"
+    lane: Literal["ELECTRICAL_CHARTS_SUITE"] = "ELECTRICAL_CHARTS_SUITE"
+    status: Literal["PASS", "PARTIAL", "FAIL"]
+    run_directory: NonEmptyText
+    reports: tuple[ElectricalChartsReport, ...]

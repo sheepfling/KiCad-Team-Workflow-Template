@@ -215,6 +215,38 @@ mapping, excluded components, tolerances and assumptions in `basis` and local do
 When a design/model changes, review that mapping and update the hashes intentionally.
 The tool refuses stale hashes and does not rewrite them to make a run pass.
 
+## Charts and structured data from a saved run
+
+Install the optional chart support once with
+`python -m pip install -e '.[charts]'`. Matplotlib uses a noninteractive [Agg/SVG backend](https://matplotlib.org/stable/users/explain/figure/backends.html),
+so the same command works on a desktop or in hosted CI. After an analysis run,
+pass its printed receipt directory (or its `electrical.json`) to:
+
+```sh
+python -B -m tools.electrical_charts --receipt build/electrical/<id>-<run> --format text
+```
+
+This reads the saved requirements and ASCII ngspice waveforms. It verifies their
+recorded SHA-256 hashes and writes a **new** ignored `build/electrical-charts/`
+receipt with one PNG, SVG and full precision CSV per simulation case. CSV columns
+include time or frequency, every retained signal, and both real and imaginary AC
+components. Charts show the declared measurement windows and limits; the AC case
+also shows phase when a trace represents a clear voltage/current ratio. The
+receipt includes `grounding.csv` for declared pin coverage, `power.csv` for the
+rail budgets, and `charts.json` tying the generated files to the input report.
+Run `--format json` for a typed script interface. The export invokes neither
+KiCad nor ngspice, and it does not modify the analysis receipt. A failed
+simulation may leave some cases without waveforms; the chart report calls them
+`SKIPPED` and returns a partial status. A changed or unrecorded waveform is a
+failure, not chart input.
+
+For a saved focused suite from `tools.ci --electrical`, use
+`tools.electrical_charts --suite build/electrical-suite.json`; it exports every
+project to a single new chart suite receipt. The manual **Electrical analysis**
+GitHub Action runs this step automatically and retains the charts with the
+analysis evidence. Charts visualize the declared circuit model and limits; they
+do not establish physical grounding, thermal or RF acceptance.
+
 ## Hosted electrical check
 
 The manual GitHub Actions workflow **Electrical analysis** accepts a registered
@@ -224,7 +256,7 @@ The simulator version must match the board contract; when changing versions,
 review and update the checksum as a pair. The workflow checks portable requirements,
 builds ngspice from the checksum-verified official source archive, runs electrical
 and native readiness checks, then calls `tools.ci --electrical --project <id>`.
-It retains reports, waveforms and simulator build logs even after failure.
+It retains reports, waveforms, charts, CSV data and simulator build logs even after failure.
 
 This focused workflow checks declared grounding and circuit models. Run the normal
 **KiCad template acceptance** native lane for ERC/DRC as well, or use

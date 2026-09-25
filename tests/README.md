@@ -73,3 +73,9 @@ bindings, simulator failures, pending setup, review-only hash capture, readiness
 CLI output and hosted gate wiring. Synthetic decks are shared with the
 [standalone examples](../templates/electrical/README.md); tests never establish
 physical grounding, thermal behavior or RF acceptance.
+
+`test_waveform_data.py`, `test_electrical_plot.py` and `test_electrical_charts.py`
+exercise the receipt-to-chart path: strict real/complex waveform parsing,
+measurement overlays, full precision CSV and tamper rejection. Matplotlib is
+an optional runtime extra (`.[charts]`) and part of the development extra so
+the full quality gate can cover the chart renderer.

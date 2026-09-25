@@ -6,13 +6,13 @@ import math
 import re
 import shlex
 import shutil
-from itertools import pairwise
 from pathlib import Path
 
 from .contract_coach import run_command
 from .contracts import repo_path, write_model
 from .electrical import SimulationCase, regular_input_bytes
 from .models import CommandEvidence, ElectricalCheck, TransientAnalysis
+from .waveform_data import read_waveform
 
 # Analysis/control directives are generated here, never inherited from a model file.
 MODEL_DIRECTIVES = {
@@ -122,34 +122,9 @@ def measured_checks(case: SimulationCase, command: CommandEvidence) -> tuple[Ele
 
 
 def waveform_checks(path: Path, case: SimulationCase) -> tuple[ElectricalCheck, ...]:
-    """Reject truncated/non-finite raw data and measurement windows outside actual samples."""
-    text = path.read_text(encoding="utf-8")
-    variables = re.search(r"(?m)^No\. Variables:\s*(\d+)", text)
-    points = re.search(r"(?m)^No\. Points:\s*(\d+)", text)
-    scale = re.search(r"(?m)^\s*0\s+(time|frequency)\s+", text)
-    if variables is None or points is None or scale is None or "Values:\n" not in text:
-        raise ValueError("Missing ASCII waveform header or values")
+    """Reject truncated/non-finite raw data and windows outside actual samples."""
     expected_scale = "time" if isinstance(case, TransientAnalysis) else "frequency"
-    if scale[1] != expected_scale:
-        raise ValueError("Waveform analysis does not match the requested case")
-    count, width = int(points[1]), int(variables[1])
-    if count < 2 or width < 1:
-        raise ValueError("Insufficient waveform samples")
-    tokens = re.sub(r",\s+", ",", text.split("Values:\n", 1)[1]).split()
-    if len(tokens) != count * (width + 1):
-        raise ValueError("Truncated or extra waveform values")
-    axis: list[float] = []
-    for point in range(count):
-        offset = point * (width + 1)
-        if tokens[offset] != str(point):
-            raise ValueError("Invalid waveform point index")
-        for token in tokens[offset + 1:offset + width + 1]:
-            values = token.split(",")
-            if len(values) not in {1, 2} or any(not math.isfinite(float(v)) for v in values):
-                raise ValueError("Non-finite waveform data")
-        axis.append(float(tokens[offset + 1].split(",")[0]))
-    if any(right <= left for left, right in pairwise(axis)):
-        raise ValueError("Waveform scale is not strictly increasing")
+    axis = read_waveform(path, expected_axis=expected_scale).axis
     results: list[ElectricalCheck] = []
     for measure in case.measures:
         tolerance = max(abs(measure.stop), 1e-15) * 1e-8
