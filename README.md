@@ -27,6 +27,8 @@ same layout and provide regression fixtures for the shared tools.
 For grounding, startup/steady power and high-frequency circuit checks, follow the
 [electrical quickstart](docs/workflow/ELECTRICAL_ANALYSIS.md#quickstart): initialize
 pending requirements, capture review inputs, check tools, then verify.
+Use `python -B -m tools.electrical_charts --receipt <analysis-receipt>` to export
+CSV, PNG and SVG from saved simulations after installing `.[charts]`.
 
 See also the [quick reference](docs/workflow/QUICK_REFERENCE.md),
 [mechanical handoff](docs/workflow/MECHANICAL_HANDOFF.md), [metrics](docs/workflow/METRICS.md)

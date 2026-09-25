@@ -32,6 +32,7 @@ Choose text for a concise terminal view and JSON for the complete typed result:
 | --- | --- | --- |
 | `tools.electrical --project <id>` | Brief status, failed checks and receipt; `--detail full` expands it | `--format json` |
 | `tools.electrical --project <id> --init` / `--capture-inputs` | Create pending requirements / capture UNREVIEWED hashes for review | `--format json`; success is setup only |
+| `tools.electrical_charts --receipt build/electrical/<run>` | Export saved waveforms as CSV, PNG and SVG; `--suite` handles a saved CI suite | `--format json` |
 | `tools.template doctor --electrical --project-id <id>` | `--format text` checks contract, native runner and exact simulator | JSON by default |
 | `tools.verify --project <id>` | Brief text by default; `--detail full` expands repair findings | `--format json` |
 | `tools.template diagnose` | Brief text by default; `--detail full` expands it | `--format json` |
@@ -52,6 +53,7 @@ integration work, not a prerequisite for repository policy.
 | Module | Responsibility |
 | --- | --- |
 | `electrical`, `hwrepo/electrical.py`, `hwrepo/electrical_runner.py`, `hwrepo/spice.py` | Check reviewed ground-pin coverage, power budgets and source-bound ngspice power/frequency cases; see [electrical analysis](../docs/workflow/ELECTRICAL_ANALYSIS.md) |
+| `electrical_charts`, `hwrepo/electrical_charts.py`, `hwrepo/waveform_data.py`, `hwrepo/electrical_plot.py` | Verify retained waveforms and produce source-bound chart/CSV review receipts |
 | `hwrepo/electrical_setup.py`, `hwrepo/electrical_doctor.py` | Initialize pending requirements without overwriting them, capture review hashes and preflight exact simulator readiness |
 | `verify` | One-board portable/native/electrical run, exact runner choice, and a fresh logged repair receipt |
 | `ci`, `ci_matrix`, `check_all` | Coordinate the portable gate, registry-driven matrix and native lanes |

@@ -42,7 +42,7 @@ jobs:
       - name: Install policy tooling
         run: |
           python -m venv .venv
-          .venv/bin/python -m pip install --disable-pip-version-check .
+          .venv/bin/python -m pip install --disable-pip-version-check '.[charts]'
       - name: Check selected project requirements
         shell: bash
         run: |
@@ -83,6 +83,15 @@ jobs:
           .venv/bin/python -B -m tools.ci --electrical --project "$PROJECT_ID" \
             --ngspice "$PWD/build/ngspice/bin/ngspice" --format json \
             | tee build/electrical-suite.json
+      - name: Render charts and CSV from saved receipts
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -f build/electrical-suite.json ]]; then
+            .venv/bin/python -B -m tools.electrical_charts --suite build/electrical-suite.json --format json \
+              | tee build/electrical-charts.json
+          fi
       - name: Retain results and failure evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
@@ -93,6 +102,8 @@ jobs:
             build/electrical/
             build/electrical-preflight.json
             build/electrical-suite.json
+            build/electrical-charts/
+            build/electrical-charts.json
             build/ngspice-build/*.log
           if-no-files-found: warn
           retention-days: 30
