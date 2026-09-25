@@ -142,12 +142,13 @@ jobs:
         env:
           CHECK_SCOPE: ${{ needs.scope.outputs.scope }}
         run: |
-          if [ "$CHECK_SCOPE" = full ]; then
+          if [ "$CHECK_SCOPE" = full ] && [ "${{ matrix.os }}" != windows-2022 ]; then
             python -m pip install --disable-pip-version-check '.[dev]'
           else
             python -m pip install --disable-pip-version-check .
           fi
       - name: Run the planned portable policy pipeline
+        if: matrix.os != 'windows-2022'
         shell: bash
         timeout-minutes: 13
         env:
@@ -168,8 +169,29 @@ jobs:
             test "$CHECK_SCOPE" = full
             python -B -m tools.ci --jobs 4 --output build/portable
           fi
+      - name: Check Windows-targeted Python types
+        if: matrix.os == 'ubuntu-24.04' && needs.scope.outputs.scope == 'full'
+        shell: bash
+        run: |
+          set -o pipefail
+          python -B -m pyright --pythonpath "$(command -v python)" --pythonplatform Windows --pythonversion 3.11 tools | tee build/portable/windows-types.txt
+      - name: Smoke test real Windows paths and CLI entry points
+        if: matrix.os == 'windows-2022'
+        shell: bash
+        timeout-minutes: 4
+        run: |
+          set -o pipefail
+          mkdir -p build/portable
+          python -B -m tools.template list --format json | tee build/portable/windows-inventory.json
+          python -B -m unittest -v \
+            tests.test_ci_driver.CiDriverTests.test_module_entrypoint_resolves_the_package_without_path_injection \
+            tests.test_product.ProductTests.test_windows_posix_traversal_and_case_paths \
+            tests.test_contract_coach.ContractCoachTests.test_windows_container_resolves_docker_command_extension \
+            tests.test_verify.VerifyTests.test_windows_container_command_does_not_request_posix_user \
+            tests.test_diagnostics.DiagnosticTests.test_next_command_quotes_powershell_apostrophes \
+            2>&1 | tee build/portable/windows-tests.log
       - name: Export reproducible review views and schemas
-        if: needs.scope.outputs.scope == 'full'
+        if: needs.scope.outputs.scope == 'full' && matrix.os != 'windows-2022'
         run: python -B -m tools.hardware generate
       - name: Confirm generation leaves tracked source unchanged
         run: git diff --exit-code

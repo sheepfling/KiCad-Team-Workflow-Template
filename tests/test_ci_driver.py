@@ -317,7 +317,13 @@ class CiDriverTests(unittest.TestCase):
         self.assertIn('timeout-minutes: 13', portable)
         self.assertIn('cache-dependency-path: pyproject.toml', portable)
         self.assertIn('if [ "$DOCS_CHANGED" = true ]; then python -B -m tools.docs_policy; fi', portable)
-        self.assertIn("if: needs.scope.outputs.scope == 'full'", portable)
+        self.assertIn("if: matrix.os != 'windows-2022'", portable)
+        self.assertIn("if: matrix.os == 'ubuntu-24.04' && needs.scope.outputs.scope == 'full'", portable)
+        self.assertIn('--pythonplatform Windows --pythonversion 3.11 tools', portable)
+        self.assertIn("if: matrix.os == 'windows-2022'", portable)
+        self.assertIn('python -B -m tools.template list --format json', portable)
+        self.assertIn('tests.test_product.ProductTests.test_windows_posix_traversal_and_case_paths', portable)
+        self.assertIn("if: needs.scope.outputs.scope == 'full' && matrix.os != 'windows-2022'", portable)
         self.assertIn("if: needs.scope.outputs.scope == 'full' && needs.kicad.result == 'success'", release)
 
     def test_manual_dispatch_wires_typed_focus_inputs_into_the_planner(self) -> None:
