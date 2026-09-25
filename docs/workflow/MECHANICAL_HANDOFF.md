@@ -13,6 +13,8 @@ Every real board project needs a reviewed mechanical-interface record. Keep it w
 | Ownership | Mechanical reviewer, electrical reviewer, approval status, and exact commit |
 
 The PCB's `Edge.Cuts`, mechanical layers, footprints, and 3D models must agree with this record. Do not create a separate “mechanical copy” of a board as a handoff; publish the reviewed source revision and derived artifacts together.
+Use the [3D workflow](THREE_D_WORKFLOW.md) to populate portable footprint models
+and generate review images and a STEP exchange from that source revision.
 
 The synthetic controller fixture has no approved dimensions, stackup, or enclosure interface. It is for training only.
 
