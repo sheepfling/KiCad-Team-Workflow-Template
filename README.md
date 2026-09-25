@@ -50,7 +50,7 @@ python -m venv .venv
 # macOS/Linux
 source .venv/bin/activate
 # Windows PowerShell: .venv\Scripts\Activate.ps1
-python -m pip install -e '.[dev]'
+python -m pip install -e '.[dev,cad]'
 # Once in your fork, before adding designs:
 python -B -m tools.template doctor --format text
 python -B -m tools.template adopt --project-id my-hardware --format text
@@ -158,7 +158,7 @@ independent fixture catalogs. Close KiCad before native checks.
 ## BOMs and releases
 
 For a new user's parts workflow, run
-`python -B -m tools.parts --project battery-board --assist`. Resolve paired CAD
+`python -B -m tools.parts --project battery-board --assist`. [Fetch exact-part CAD](docs/workflow/CAD_SOURCING.md), resolve paired CAD
 automatically, choose reviewed catalog parts, preview and apply changes, and
 prepare the order files in one local page. Update the PCB in KiCad when a selected
 footprint needs replacing. The plain command without `--assist` creates an offline

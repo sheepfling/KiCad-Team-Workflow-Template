@@ -69,6 +69,13 @@ and commit reviewed source through normal Git before export preparation.
   For a named KiCad component population, pass `--assembly-variant <name>`;
   the name must already be declared in the project's `.kicad_pro`.
 
+- For an exact sourced part's STEP model, run
+  `python -B -m tools.parts --project <id> --check-step <LCSC_ID>` or use **Check
+  STEP alignment** after **Find CAD** in the parts assistant. Review the paired
+  native WRL/STEP views and disposable STEP assembly in the ignored receipt.
+  `REVIEW` means visual inspection is required; the command does not install
+  STEP or prove manufacturer dimensions or physical fit. Follow the
+  [CAD sourcing workflow](docs/workflow/CAD_SOURCING.md).
 - For component selection, run `python -B -m tools.parts --project <id> --picker`.
   Choose only reviewed catalog CAD bindings; `--selection <download>` previews
   diffs and writes a locked selection for `--selection <locked> --apply`.

@@ -15,6 +15,7 @@ dependencies = [
 [project.optional-dependencies]
 mcp = ["mcp==2.2.0"]
 charts = ["matplotlib==3.11.2"]
+cad = ["easyeda2kicad==1.0.1"]
 dev = [
   "mcp==2.2.0",
   "matplotlib==3.11.2",

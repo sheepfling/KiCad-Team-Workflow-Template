@@ -26,8 +26,9 @@ For a legacy directory with several projects, `tools.template scan-imports`
 previews each candidate without copying it. JSON retains per-file hashes and
 exclusion reasons; import one accepted project at a time.
 Start with `tools.parts --project <id> --assist` for one local page that resolves
-paired CAD automatically, reviews source changes, chooses parts and produces order
-files. `--auto-models` exposes automatic CAD previews to scripts.
+exact LCSC CAD, resolves paired board models, reviews source changes, chooses parts
+and produces order files. See [CAD sourcing](../docs/workflow/CAD_SOURCING.md) for
+setup and `--source-cad` / `--check-step` / `--import-cad` scripting. `--auto-models` exposes automatic CAD previews to scripts.
 For file-based component selection, use `tools.parts --project <id> --picker` to choose
 reviewed catalog parts in a local page. `--selection <download>` previews changes;
 `--selection <locked-file> --apply` applies them. Use `--sync-models` after KiCad's
@@ -101,6 +102,7 @@ package; reviewed source commits still use normal Git.
 | `hwrepo/mcp_server.py`, `hwrepo/mcp_files.py`, `hwrepo/mcp_workflow.py` | Register fixed MCP capabilities, bound source/artifact access and explicit edits, and adapt the diagnosis/export/review services |
 | `hwrepo/models.py`, `hwrepo/contracts.py` | Own typed serialized contracts and file/path adapters |
 | `hwrepo/discovery.py`, `hwrepo/project_tests.py`, `hwrepo/scaffold.py`, `hwrepo/importing.py`, `hwrepo/foreign_pcb.py` | Resolve local manifests, run isolated island test suites, create/import islands and stage foreign boards for review |
+| `hwrepo/cad_source.py`, `hwrepo/cad_library.py`, `hwrepo/cad_step.py` | Frozen exact-part provider retrieval, offline conversion, checked project-local CAD library imports and pinned KiCad STEP/WRL review views |
 | `hwrepo/digikey_handoff.py` | Explicit, account-free myLists BOM handoff with a validated review link and no automatic POST retries |
 | `hwrepo/doctor.py`, `hwrepo/adoption.py` | Check local prerequisites and run one-command fresh-fork adoption |
 | Other `hwrepo/` modules | Implement named policy and generation services behind the CLIs |

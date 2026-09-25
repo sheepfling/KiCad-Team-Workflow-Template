@@ -6,7 +6,9 @@ import json
 import shutil
 import tempfile
 import threading
+import time
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from unittest.mock import patch
 from urllib.parse import urlencode
@@ -17,6 +19,12 @@ from tools.hwrepo.evidence import digest
 from tools.hwrepo.models import (
     AutoCadItem,
     AutoCadReport,
+    CadBundleCheck,
+    CadImportReport,
+    CadSourceBundle,
+    CadSourceFile,
+    CadSourceReport,
+    CadStepReport,
     DigiKeyHandoffPayload,
     DigiKeyHandoffReply,
     PartCadComponent,
@@ -57,6 +65,21 @@ class FormTests(unittest.TestCase):
         self.assertEqual(Form.decode(b"boards=4&spare_percent=10&spare_minimum=2").quantities(),
                          PurchasingPreferences(boards=4, spare_percent=10, spare_minimum=2))
 
+    def test_cad_source_form_accepts_only_exact_ids_and_bounded_expected_mpn(self) -> None:
+        self.assertEqual(Form.decode(b"id=C2040&expected_mpn=").cad_source(), ("C2040", None))
+        self.assertEqual(Form.decode(b"id=C2040&expected_mpn=NE555P").cad_source(), ("C2040", "NE555P"))
+        for body in (
+            "id=C2040", "id=C2040&expected_mpn=&path=/tmp/model", "id=C2040&expected_mpn=&refresh=true",
+            "id=&expected_mpn=", "id=c2040&expected_mpn=", "id=C0&expected_mpn=",
+            "id=C02040&expected_mpn=", "id=C../2040&expected_mpn=", "id=../C2040&expected_mpn=",
+            "id=https://example.test/C2040&expected_mpn=", "id=C2040%0A&expected_mpn=",
+            "id=" + "C" + "1" * 32 + "&expected_mpn=", "id=C2040&expected_mpn=%20NE555P",
+            "id=C2040&expected_mpn=NE555P%0A", "id=C2040&expected_mpn=%7F",
+            "id=C2040&expected_mpn=" + "a" * 201,
+        ):
+            with self.subTest(body=body), self.assertRaises(ValueError):
+                Form.decode(body.encode()).cad_source()
+
     def test_page_has_no_source_html_injection_or_download_json_workflow(self) -> None:
         html = render_html('board<script>alert(1)</script>', PurchasingPreferences(), "nonce-safe")
         self.assertNotIn('<script>alert(1)</script>', html)
@@ -76,6 +99,19 @@ class FormTests(unittest.TestCase):
         self.assertIn("['boards','spare_percent','spare_minimum'].forEach", html)
         self.assertIn('clearOrderView();', html)
         self.assertIn('new URLSearchParams({review:report.receipt_dir})', html)
+        self.assertIn('Find CAD for a part', html)
+        self.assertIn('Add CAD to this project', html)
+        self.assertIn('Check STEP alignment', html)
+        self.assertIn('Expected manufacturer part number (optional)', html)
+        self.assertIn("action('source-cad','source-status'", html)
+        self.assertIn("action('import-cad','source-status'", html)
+        self.assertIn('Checks compare files and pin numbers.', html)
+        self.assertIn('WRL model included', html)
+        self.assertIn('STEP export is not verified; review actual fit, dimensions and polarity.', html)
+        self.assertIn('Source and review limits', html)
+        self.assertIn('Update PCB from Schematic (F8)', html)
+        self.assertIn("element('p','KiCad symbol: '+report.symbol_id)", html)
+        self.assertLess(html.index('id="source-heading"'), html.index('id="cad-heading"'))
 
 
 class AssistantHttpTests(unittest.TestCase):
@@ -140,6 +176,211 @@ class AssistantHttpTests(unittest.TestCase):
                 execute.assert_not_called()
         finally:
             self.state.lock.release()
+
+    def cad_source_report(self) -> CadSourceReport:
+        directory = self.root / "build/provider-bundle"
+        bundle = CadSourceBundle(supplier_id="C2040", manufacturer="Test manufacturer", mpn="TEST-1",
+            package="Test package", symbol_file="parts.kicad_sym", symbol_name="TEST_1",
+            footprint_file="parts.pretty/TEST_1.kicad_mod", footprint_name="TEST_1",
+            model_file="parts.3dshapes/test.wrl",
+            files=(CadSourceFile(path="parts.kicad_sym", sha256="1" * 64),),
+            source_url="https://easyeda.com/api/products/C2040/components", source_sha256="2" * 64,
+            retrieved_at="2026-09-25T12:00:00Z", issues=("Only a WRL model is available for this test part",))
+        return CadSourceReport(status="READY", supplier_id="C2040", bundle_directory=str(directory),
+                               bundle=bundle, receipt_directory=str(self.root / "build/provider-review"))
+
+    def cad_import_report(self, *, status: str = "PLAN") -> CadImportReport:
+        return CadImportReport(status=status, project_id="controller", symbol_id="Imported:TEST_1",
+            footprint_id="Imported:TEST_1", files=("examples/projects/controller/kicad/sym-lib-table",),
+            check=CadBundleCheck(status="READY", symbol_pins=("1", "2"), footprint_pads=("1", "2"),
+                                 model_references=("${KIPRJMOD}/parts.3dshapes/test.wrl",)),
+            plan_path=str(self.root / "build/library-plan.json"), receipt_directory=str(self.root / "build/library-review"),
+            diff="+ reviewed library registration\n")
+
+    def source_cad(self, *, source: CadSourceReport | None = None,
+                   report: CadImportReport | None = None) -> tuple[int, dict[str, str], bytes]:
+        with patch("tools.hwrepo.cad_source.fetch", return_value=source or self.cad_source_report()), patch(
+                "tools.hwrepo.cad_library.plan", return_value=report or self.cad_import_report()):
+            return self.request("POST", "source-cad", "id=C2040&expected_mpn=TEST-1")
+
+    def test_cad_source_validates_form_before_any_provider_request(self) -> None:
+        with patch("tools.hwrepo.cad_source.fetch") as fetch, patch("tools.hwrepo.cad_library.plan") as plan:
+            self.request("GET")
+            for body in ("", "id=C2040", "id=../C2040&expected_mpn=", "id=c2040&expected_mpn=",
+                         "id=C2040&expected_mpn=&path=/private/secret", "id=C2040&expected_mpn=%0A"):
+                with self.subTest(body=body):
+                    self.assertEqual(self.request("POST", "source-cad", body)[0], 400)
+            fetch.assert_not_called()
+            plan.assert_not_called()
+
+    def test_cad_source_creates_fresh_typed_review_without_importing(self) -> None:
+        source, planned = self.cad_source_report(), self.cad_import_report()
+        with patch("tools.hwrepo.cad_source.fetch", return_value=source) as fetch, patch(
+                "tools.hwrepo.cad_library.plan", return_value=planned) as plan, patch(
+                "tools.hwrepo.cad_library.apply") as apply:
+            status, _, body = self.request("POST", "source-cad", "id=C2040&expected_mpn=TEST-1")
+        self.assertEqual(status, 200)
+        review = json.loads(body)
+        self.assertEqual(review["source"]["bundle"]["mpn"], "TEST-1")
+        self.assertEqual(review["import_plan"]["check"]["symbol_pins"], ["1", "2"])
+        self.assertFalse(review["import_plan"]["check"]["physical_fit_verified"])
+        self.assertEqual(review["import_plan"]["diff"], planned.diff)
+        self.assertEqual(fetch.call_args.args[:2], (self.root, "C2040"))
+        self.assertEqual(fetch.call_args.kwargs, {"expected_mpn": "TEST-1"})
+        self.assertEqual(plan.call_args.args[:3], (self.root, "controller", Path(source.bundle_directory)))
+        self.assertNotEqual(fetch.call_args.args[2], plan.call_args.args[3])
+        self.assertTrue(fetch.call_args.args[2].is_relative_to(self.root / "build/parts"))
+        self.assertTrue(plan.call_args.args[3].is_relative_to(self.root / "build/parts"))
+        self.assertEqual(self.state.sourced_plan, Path(planned.plan_path))
+        self.assertEqual(self.state.sourcing_review_id, review["review_id"])
+        self.assertNotEqual(review["review_id"], planned.plan_path)
+        apply.assert_not_called()
+
+    def test_step_review_serves_only_current_hash_checked_views(self) -> None:
+        self.assertEqual(self.request("POST", "check-step", "review=guessed")[0], 400)
+        current = json.loads(self.source_cad()[2])["review_id"]
+        output = self.root / "build/step-review"
+        output.mkdir()
+        files = {"index.html": b"<h1>Paired views</h1>", "index.css": b"body{color:black}",
+                 "wrl-top.png": b"WRL image", "step-top.png": b"STEP image",
+                 "assembly.step": b"ISO-10303-21;"}
+        hashes: dict[str, str] = {}
+        for name, content in files.items():
+            (output / name).write_bytes(content)
+            hashes[name] = digest(output / name)
+        result = CadStepReport(status="REVIEW", project_id="controller", supplier_id="C2040",
+                               receipt_directory=str(output), artifacts_sha256=hashes)
+        with patch("tools.hwrepo.cad_step.review", return_value=result) as compare:
+            self.assertEqual(self.request("POST", "check-step", "review=wrong")[0], 400)
+            status, _, body = self.request("POST", "check-step", urlencode({"review": current}))
+            self.assertEqual(status, 200)
+            self.assertEqual(json.loads(body)["status"], "REVIEW")
+            compare.assert_called_once()
+            self.assertEqual(compare.call_args.args[:3], (self.root, "controller", self.state.sourced_source))
+        status, headers, content = self.request("GET", "step/index.html")
+        self.assertEqual((status, content), (200, files["index.html"]))
+        self.assertIn("img-src 'self'", headers["Content-Security-Policy"])
+        self.assertIn("style-src 'self'", headers["Content-Security-Policy"])
+        self.assertEqual(self.request("GET", "step/index.css")[2], files["index.css"])
+        self.assertEqual(self.request("GET", "step/step-top.png")[2], files["step-top.png"])
+        self.assertEqual(self.request("GET", "step/unknown.png")[0], 409)
+        (output / "step-top.png").write_bytes(b"changed")
+        self.assertEqual(self.request("GET", "step/step-top.png")[0], 409)
+        self.assertEqual(self.request("GET", "step/index.html")[0], 409)
+
+    def test_gallery_reads_wait_for_each_other_instead_of_dropping_images(self) -> None:
+        output = self.root / "build/parallel-step"
+        output.mkdir(parents=True)
+        for name in ("wrl-top.png", "step-top.png"):
+            path = output / name
+            path.write_bytes(name.encode())
+            self.state.step_assets[name] = (path, digest(path))
+        entered, release = threading.Event(), threading.Event()
+        original = self.state.step_asset
+
+        def slow_read(name: str) -> bytes:
+            entered.set()
+            if not release.wait(2):
+                raise TimeoutError("Timed out waiting for the second image request")
+            return original(name)
+
+        with patch.object(Assistant, "step_asset", side_effect=slow_read), ThreadPoolExecutor(max_workers=2) as pool:
+            first = pool.submit(self.request, "GET", "step/wrl-top.png")
+            self.assertTrue(entered.wait(2))
+            second = pool.submit(self.request, "GET", "step/step-top.png")
+            time.sleep(0.05)
+            release.set()
+            self.assertEqual(first.result()[0], 200)
+            self.assertEqual(second.result()[0], 200)
+
+    def test_cad_source_can_omit_expected_mpn(self) -> None:
+        with patch("tools.hwrepo.cad_source.fetch", return_value=self.cad_source_report()) as fetch, patch(
+                "tools.hwrepo.cad_library.plan", return_value=self.cad_import_report()):
+            self.assertEqual(self.request("POST", "source-cad", "id=C2040&expected_mpn=")[0], 200)
+        self.assertIsNone(fetch.call_args.kwargs["expected_mpn"])
+
+    def test_failed_cad_lookup_exposes_setup_guidance_and_clears_older_import(self) -> None:
+        self.source_cad()
+        old_review = self.state.sourcing_review_id
+        blocked = CadSourceReport(status="BLOCKED", supplier_id="C2040", receipt_directory="build/provider-review",
+                                  issues=("Install the pinned converter: python -m pip install easyeda2kicad==1.0.1",))
+        with patch("tools.hwrepo.cad_source.fetch", return_value=blocked), patch(
+                "tools.hwrepo.cad_library.plan") as plan, patch("tools.hwrepo.cad_library.apply") as apply:
+            status, _, body = self.request("POST", "source-cad", "id=C2040&expected_mpn=")
+            self.assertEqual(status, 200)
+            review = json.loads(body)
+            self.assertEqual(review["source"]["status"], "BLOCKED")
+            self.assertIn("pinned converter", review["source"]["issues"][0])
+            self.assertIsNone(review["import_plan"])
+            self.assertEqual(self.request("POST", "import-cad", urlencode({"review": old_review}))[0], 400)
+            plan.assert_not_called()
+            apply.assert_not_called()
+        self.assertIsNone(self.state.sourced_plan)
+        self.assertIsNone(self.state.sourcing_review_id)
+
+    def test_blocked_cad_plan_cannot_be_imported(self) -> None:
+        planned = self.cad_import_report(status="BLOCKED").model_copy(update={"issues": ("Pin numbers differ",)})
+        status, _, body = self.source_cad(report=planned)
+        self.assertEqual(status, 200)
+        review = json.loads(body)
+        self.assertEqual(review["import_plan"]["issues"], ["Pin numbers differ"])
+        with patch("tools.hwrepo.cad_library.apply") as apply:
+            self.assertEqual(self.request("POST", "import-cad", urlencode({"review": review["review_id"]}))[0], 400)
+            apply.assert_not_called()
+
+    def test_cad_import_requires_this_tabs_review_and_server_held_path(self) -> None:
+        first = json.loads(self.source_cad()[2])
+        second = json.loads(self.source_cad()[2])
+        self.assertNotEqual(first["review_id"], second["review_id"])
+        planned_path = self.state.sourced_plan
+        with patch("tools.hwrepo.cad_library.apply", return_value=self.cad_import_report(status="APPLIED")) as apply:
+            for form in ({}, {"review": first["review_id"]}, {"review": "/private/secret"},
+                         {"path": str(planned_path)}, {"review": second["review_id"], "path": "/private/secret"}):
+                with self.subTest(form=form):
+                    self.assertEqual(self.request("POST", "import-cad", urlencode(form))[0], 400)
+            apply.assert_not_called()
+            status, _, body = self.request("POST", "import-cad", urlencode({"review": second["review_id"]}))
+            self.assertEqual(status, 200)
+            self.assertEqual(json.loads(body)["status"], "APPLIED")
+            self.assertEqual(apply.call_args.args[:3], (self.root, "controller", planned_path))
+            self.assertEqual(self.request("POST", "import-cad", urlencode({"review": second["review_id"]}))[0], 400)
+            apply.assert_called_once()
+
+    def test_cad_import_invalidates_cad_selection_and_order_state(self) -> None:
+        self.ready_order()
+        self.state.cad_plan = self.root / "build/old-cad.json"
+        self.state.selection_plan = self.root / "build/old-selection.json"
+        self.state.selection_diff = self.root / "build/old-selection.diff"
+        self.state.handoff_result = None
+        review = json.loads(self.source_cad()[2])
+        with patch("tools.hwrepo.cad_library.apply", return_value=self.cad_import_report(status="APPLIED")):
+            self.assertEqual(self.request("POST", "import-cad", urlencode({"review": review["review_id"]}))[0], 200)
+        self.assertIsNone(self.state.sourced_plan)
+        self.assertIsNone(self.state.sourcing_review_id)
+        self.assertIsNone(self.state.cad_plan)
+        self.assertIsNone(self.state.selection_plan)
+        self.assertIsNone(self.state.selection_diff)
+        self.assertIsNone(self.state.order)
+        self.assertEqual(self.state.downloads, {})
+
+    def test_failed_import_consumes_plan_and_does_not_retry_on_repeat(self) -> None:
+        review = json.loads(self.source_cad()[2])
+        with patch("tools.hwrepo.cad_library.apply", side_effect=ValueError("Source changed since review")) as apply:
+            first = self.request("POST", "import-cad", urlencode({"review": review["review_id"]}))
+            self.assertEqual(first[0], 400)
+            self.assertIn(b"Source changed", first[2])
+            self.assertEqual(self.request("POST", "import-cad", urlencode({"review": review["review_id"]}))[0], 400)
+            apply.assert_called_once()
+        self.assertIsNone(self.state.sourced_plan)
+
+    def test_other_source_apply_invalidates_pending_cad_import(self) -> None:
+        review = json.loads(self.source_cad()[2])
+        self.state.cad_plan = self.root / "build/old-cad.json"
+        applied = AutoCadReport(project_id="controller", status="APPLIED", receipt_directory="build/applied")
+        with patch("tools.hwrepo.auto_cad.apply", return_value=applied), patch("tools.hwrepo.cad_library.apply") as apply:
+            self.assertEqual(self.request("POST", "apply")[0], 200)
+            self.assertEqual(self.request("POST", "import-cad", urlencode({"review": review["review_id"]}))[0], 400)
+            apply.assert_not_called()
 
     def test_cad_scan_and_apply_use_only_the_server_held_plan(self) -> None:
         plan_path = self.root / "build/cad-plan.json"
