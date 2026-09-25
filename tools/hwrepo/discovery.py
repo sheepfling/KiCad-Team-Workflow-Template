@@ -85,4 +85,6 @@ def load_config(root: Path, value: str | Path) -> ProjectConfig:
         required_inputs=tuple(local_name(root, path.parent, name) for name in manifest.required_inputs)
                         + manifest.shared_inputs,
         validation=contract.validation,
+        electrical=(None if contract.electrical is None else
+                    local_name(root, path.parent, contract.electrical)),
     )

@@ -48,6 +48,7 @@ integration work, not a prerequisite for repository policy.
 
 | Module | Responsibility |
 | --- | --- |
+| `electrical`, `hwrepo/electrical.py`, `hwrepo/electrical_runner.py`, `hwrepo/spice.py` | Check reviewed ground-pin coverage, power budgets and source-bound ngspice power/frequency cases; see [electrical analysis](../docs/workflow/ELECTRICAL_ANALYSIS.md) |
 | `verify` | One-board portable/native run, exact runner choice, and a fresh logged repair receipt |
 | `ci`, `ci_matrix`, `check_all` | Coordinate the portable gate, registry-driven matrix and native lanes |
 | `impact`, `hwrepo/impact.py` | Plan affected PR project lanes from changed paths; broaden ambiguous/shared-tool changes to full scope |

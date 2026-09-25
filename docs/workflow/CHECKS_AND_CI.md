@@ -26,6 +26,11 @@ unit tests, Ruff, Pyright and repository-wide Markdown policy; use the full comm
 when changing shared tooling or policy. Native checks do not replace Python suites
 or physical engineering tests.
 
+For required ground-pin connectivity, startup/steady-state budgets and ngspice
+waveform checks, follow [electrical analysis](ELECTRICAL_ANALYSIS.md).
+`tools.verify --project <id> --depth electrical` runs native checks followed by the
+configured simulations. `tools.ci --electrical` exposes the separate electrical gate.
+
 ## Daily commands
 
 ```sh

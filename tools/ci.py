@@ -206,12 +206,14 @@ def main() -> int:
         help="Repository root; defaults to the current working directory",
     )
     mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--electrical", action="store_true", help="Run configured electrical analyses.")
     mode.add_argument("--matrix", action="store_true", help="Print the declared KiCad matrix.")
     mode.add_argument("--kicad", action="store_true", help="Execute one or more pinned KiCad checks.")
     mode.add_argument("--fault-probes", action="store_true", help="Run disposable KiCad negative probes.")
     mode.add_argument("--release", action="store_true", help="Validate one typed release candidate.")
     mode.add_argument("--metrics", action="store_true", help="Report current policy and deviation metrics.")
     parser.add_argument("--cli", default="kicad-cli")
+    parser.add_argument("--ngspice", default="ngspice")
     parser.add_argument("--jobs", type=positive_worker_count, default=1,
                         help="Maximum concurrent project/product Python suites (default: 1)")
     parser.add_argument("--format", choices=("json", "text"), default="json",
@@ -233,6 +235,24 @@ def main() -> int:
         selected = resolve_project_ids(root, selector) if selector.active else None
     except (OSError, ValueError) as exc:
         parser.error(str(exc))
+    if args.electrical:
+        from .hwrepo.discovery import load_registry
+        from .hwrepo.electrical_runner import analyze
+        from .hwrepo.models import ElectricalSuiteReport
+
+        identifiers = selected if selected is not None else tuple(
+            project.id for project in load_registry(root).projects
+        )
+        if args.output is not None:
+            parser.error("--electrical manages fresh per-project receipts; omit --output")
+        reports = tuple(analyze(root, identifier, cli=args.cli, ngspice=args.ngspice)
+                        for identifier in identifiers)
+        suite = ElectricalSuiteReport(
+            status="PASS" if reports and all(r.status == "PASS" for r in reports) else "FAIL",
+            projects=reports,
+        )
+        print(summary("Electrical suite", suite) if args.format == "text" else suite.model_dump_json(indent=2))
+        return 0 if suite.status == "PASS" else 1
     if args.matrix:
         matrix = build_matrix(root, selected)
         # GitHub Actions consumes this mode through a one-line GITHUB_OUTPUT value.

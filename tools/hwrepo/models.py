@@ -315,6 +315,7 @@ class ProjectConfig(StrictModel):
     source_roots: tuple[RepositoryPath, ...]
     required_inputs: tuple[RepositoryPath, ...]
     validation: ProjectValidationContract
+    electrical: RepositoryPath | None = None
 
     @model_validator(mode="after")
     def matching_project_kind(self) -> ProjectConfig:
@@ -372,6 +373,7 @@ class ProjectManifest(StrictModel):
 class ProjectTestContract(StrictModel):
     schema_version: Literal["1"] = "1"
     validation: ProjectValidationContract
+    electrical: RepositoryPath | None = None
 
 
 class ProjectScaffoldReport(StrictModel):
@@ -1352,7 +1354,7 @@ class ProjectVerificationReport(StrictModel):
     lane: Literal["PROJECT_VERIFY"] = "PROJECT_VERIFY"
     build_authorized: Literal[False] = False
     project_id: Identifier
-    depth: Literal["portable", "native"]
+    depth: Literal["portable", "native", "electrical"]
     runner: Literal["none", "local", "container"] = "none"
     run_directory: NonEmptyText
     portable: ProjectStaticPipelineReport | None = None
@@ -1360,6 +1362,7 @@ class ProjectVerificationReport(StrictModel):
     dependency_command: CommandEvidence | None = None
     native_command: CommandEvidence | None = None
     native: CheckAllSummary | None = None
+    electrical: ElectricalAnalysisReport | None = None
     diagnosis: DiagnosticReport | None = None
     status: Literal["PASS", "FAIL", "ERROR"]
     next_actions: tuple[NonEmptyText, ...] = ()
@@ -1410,3 +1413,227 @@ class ContractCoachReport(StrictModel):
     next_actions: tuple[NonEmptyText, ...] = ()
     commands: Mapping[Identifier, CommandEvidence] = Field(default_factory=dict)
     receipt_dir: str | None = None
+
+
+# Electrical analysis uses explicit engineering limits and model-review bindings.
+FiniteMeasure = Annotated[float, Field(allow_inf_nan=False)]
+NonNegativeMeasure = Annotated[float, Field(ge=0, allow_inf_nan=False)]
+ElectricalPositive = Annotated[float, Field(gt=0, allow_inf_nan=False)]
+SpiceExpression = Annotated[
+    str, StringConstraints(pattern=r"^[A-Za-z0-9_().,+*/ ^-]+$", min_length=1),
+]
+
+
+class AnalysisNotApplicable(StrictModel):
+    mode: Literal["not_applicable"]
+    reason: NonEmptyText
+
+
+class GroundDomain(StrictModel):
+    net: NetName
+    pins: Annotated[tuple[Reference, ...], Field(min_length=1)]
+
+
+class GroundingAnalysis(StrictModel):
+    mode: Literal["required"] = "required"
+    basis: NonEmptyText
+    domains: Annotated[tuple[GroundDomain, ...], Field(min_length=1)]
+    exempt_components: Mapping[Identifier, NonEmptyText] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def distinct_domains(self) -> GroundingAnalysis:
+        names = [domain.net for domain in self.domains]
+        pins = [pin for domain in self.domains for pin in domain.pins]
+        if len(set(names)) != len(names) or len(set(pins)) != len(pins):
+            raise ValueError("Ground domains and their pins must be unique")
+        if any(name.startswith("/") for name in names):
+            raise ValueError("Use net names without the leading slash, as in the native contract")
+        return self
+
+
+class PowerLoad(StrictModel):
+    id: Identifier
+    basis: NonEmptyText
+    steady_a: NonNegativeMeasure
+    startup_a: NonNegativeMeasure
+    startup_s: NonNegativeMeasure
+
+
+class PowerRail(StrictModel):
+    id: Identifier
+    basis: NonEmptyText
+    voltage_v: ElectricalPositive
+    continuous_limit_a: ElectricalPositive
+    peak_limit_a: ElectricalPositive
+    peak_duration_limit_s: ElectricalPositive
+    loads: Annotated[tuple[PowerLoad, ...], Field(min_length=1)]
+
+    @model_validator(mode="after")
+    def unique_loads(self) -> PowerRail:
+        if len({load.id for load in self.loads}) != len(self.loads):
+            raise ValueError("Load IDs must be unique within a rail")
+        if self.peak_limit_a < self.continuous_limit_a:
+            raise ValueError("Peak rating cannot be below continuous rating")
+        return self
+
+
+class SimulationMeasure(StrictModel):
+    id: Identifier
+    expression: SpiceExpression
+    statistic: Literal["min", "max", "avg", "rms", "pp"]
+    unit: Literal["V", "A", "W", "dB", "rad", "ratio"]
+    start: NonNegativeMeasure
+    stop: ElectricalPositive
+    minimum: FiniteMeasure | None = None
+    maximum: FiniteMeasure | None = None
+
+    @model_validator(mode="after")
+    def bounded_window(self) -> SimulationMeasure:
+        if self.stop <= self.start:
+            raise ValueError("Measurement stop must exceed start")
+        if self.minimum is None and self.maximum is None:
+            raise ValueError("A measurement needs at least one acceptance limit")
+        if self.minimum is not None and self.maximum is not None and self.minimum > self.maximum:
+            raise ValueError("Measurement minimum exceeds maximum")
+        return self
+
+
+class SimulationModel(StrictModel):
+    id: Identifier
+    basis: NonEmptyText
+    deck: RepositoryPath
+    # All paths are repository-relative. Includes must be explicitly inventoried.
+    model_sha256: Mapping[RepositoryPath, Digest]
+    source_sha256: Mapping[RepositoryPath, Digest]
+    measures: Annotated[tuple[SimulationMeasure, ...], Field(min_length=1)]
+
+    @model_validator(mode="after")
+    def complete_model_binding(self) -> SimulationModel:
+        if self.deck not in self.model_sha256 or not self.source_sha256:
+            raise ValueError("Bind the deck, all model dependencies, and reviewed design sources")
+        if len({item.id for item in self.measures}) != len(self.measures):
+            raise ValueError("Measurement IDs must be unique")
+        return self
+
+
+class TransientAnalysis(SimulationModel):
+    analysis: Literal["tran"] = "tran"
+    step_s: ElectricalPositive
+    stop_s: ElectricalPositive
+
+    @model_validator(mode="after")
+    def transient_windows(self) -> TransientAnalysis:
+        if self.step_s >= self.stop_s:
+            raise ValueError("Transient step must be smaller than stop")
+        for measure in self.measures:
+            if measure.stop > self.stop_s or measure.stop - measure.start < self.step_s:
+                raise ValueError("Transient measurement window is outside the run or below its step")
+        return self
+
+
+class FrequencyAnalysis(SimulationModel):
+    analysis: Literal["ac"] = "ac"
+    start_hz: ElectricalPositive
+    stop_hz: ElectricalPositive
+    points_per_decade: Annotated[int, Field(ge=10, le=10000)] = 100
+
+    @model_validator(mode="after")
+    def frequency_windows(self) -> FrequencyAnalysis:
+        if self.stop_hz <= self.start_hz:
+            raise ValueError("Frequency stop must exceed start")
+        for measure in self.measures:
+            if measure.start < self.start_hz or measure.stop > self.stop_hz:
+                raise ValueError("Frequency measurement window is outside the sweep")
+        return self
+
+
+class PowerAnalysis(StrictModel):
+    mode: Literal["required"] = "required"
+    rails: Annotated[tuple[PowerRail, ...], Field(min_length=1)]
+    startup: Annotated[tuple[TransientAnalysis, ...], Field(min_length=1)]
+    steady_state: Annotated[tuple[TransientAnalysis, ...], Field(min_length=1)]
+
+    @model_validator(mode="after")
+    def unique_rails(self) -> PowerAnalysis:
+        if len({rail.id for rail in self.rails}) != len(self.rails):
+            raise ValueError("Power rail IDs must be unique")
+        for case in self.startup:
+            if not any(m.unit == "A" and m.statistic == "max" for m in case.measures):
+                raise ValueError("Every startup case needs a peak current limit")
+        for case in self.steady_state:
+            if not all(any(m.unit == unit and m.statistic == "avg" for m in case.measures)
+                       for unit in ("A", "W")):
+                raise ValueError("Every steady-state case needs average current and power limits")
+        return self
+
+
+class HighFrequencyAnalysis(StrictModel):
+    mode: Literal["required"] = "required"
+    basis: NonEmptyText
+    frequency_hz: ElectricalPositive
+    rise_time_s: ElectricalPositive
+    sweeps: Annotated[tuple[FrequencyAnalysis, ...], Field(min_length=1)]
+    waveforms: Annotated[tuple[TransientAnalysis, ...], Field(min_length=1)]
+
+
+    @model_validator(mode="after")
+    def waveform_resolution(self) -> HighFrequencyAnalysis:
+        for case in self.waveforms:
+            if case.step_s > min(self.rise_time_s / 10, 1 / (20 * self.frequency_hz)):
+                raise ValueError("Waveform step needs at least 10 samples per rise and 20 per cycle")
+            if case.stop_s < 2 / self.frequency_hz:
+                raise ValueError("Waveform run must cover at least two nominal cycles")
+        return self
+
+
+class ElectricalAnalysisContract(StrictModel):
+    schema_version: Literal["1"] = "1"
+    project_id: Identifier
+    ngspice_version: NonEmptyText
+    grounding: Annotated[GroundingAnalysis | AnalysisNotApplicable, Field(discriminator="mode")]
+    power: Annotated[PowerAnalysis | AnalysisNotApplicable, Field(discriminator="mode")]
+    high_frequency: Annotated[HighFrequencyAnalysis | AnalysisNotApplicable, Field(discriminator="mode")]
+
+    @model_validator(mode="after")
+    def unique_cases(self) -> ElectricalAnalysisContract:
+        cases: list[SimulationModel] = []
+        if isinstance(self.power, PowerAnalysis):
+            cases.extend((*self.power.startup, *self.power.steady_state))
+        if isinstance(self.high_frequency, HighFrequencyAnalysis):
+            cases.extend((*self.high_frequency.sweeps, *self.high_frequency.waveforms))
+        if len({case.id.casefold() for case in cases}) != len(cases):
+            raise ValueError("Simulation IDs must be unique across all lanes")
+        return self
+
+
+class ElectricalCheck(StrictModel):
+    id: NonEmptyText
+    status: Literal["PASS", "FAIL", "NOT_RUN", "NOT_APPLICABLE", "NOT_CONFIGURED"]
+    detail: NonEmptyText
+    observed: FiniteMeasure | None = None
+    unit: str | None = None
+
+
+class ElectricalAnalysisReport(StrictModel):
+    schema_version: Literal["1"] = "1"
+    lane: Literal["ELECTRICAL_ANALYSIS"] = "ELECTRICAL_ANALYSIS"
+    build_authorized: Literal[False] = False
+    project_id: Identifier
+    status: Literal["PASS", "FAIL", "NOT_CONFIGURED"]
+    run_directory: str = ""
+    input_sha256: Mapping[RepositoryPath, Digest] = Field(default_factory=dict)
+    artifacts_sha256: Mapping[RepositoryPath, Digest] = Field(default_factory=dict)
+    commands: Mapping[str, CommandEvidence] = Field(default_factory=dict)
+    checks: tuple[ElectricalCheck, ...]
+    limits: tuple[str, ...] = (
+        "Grounding covers declared schematic pins; copper return paths and physical bonds need review.",
+        "Simulation results apply only to the reviewed models, cases, timestep and frequency grid.",
+        "Power budgets use simultaneous worst-case loads and engineer-supplied derated path ratings.",
+        "Physical startup, thermal behavior, RF/EMC and manufacturing acceptance remain unverified.",
+    )
+
+
+class ElectricalSuiteReport(StrictModel):
+    schema_version: Literal["1"] = "1"
+    status: Literal["PASS", "FAIL"]
+    projects: tuple[ElectricalAnalysisReport, ...]

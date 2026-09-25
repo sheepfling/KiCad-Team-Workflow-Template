@@ -56,6 +56,11 @@ This file is for coding agents and engineers using an agent. Start with the
   [3D workflow](docs/workflow/THREE_D_WORKFLOW.md). The manual **KiCad 3D preview**
   Action provides a focused hosted run without slowing routine PR lanes.
 
+- For grounding, power and high-frequency requirements, follow the
+  [electrical analysis workflow](docs/workflow/ELECTRICAL_ANALYSIS.md). Author independent
+  limits and model bindings, then use `tools.verify --project <id> --depth electrical`.
+  Do not refresh model/source hashes without reviewing the circuit-to-model mapping.
+
 ## Diagnose, repair, verify
 
 1. Read the first blocking group and its source location. If the cause is

@@ -26,7 +26,7 @@ from .hwrepo.models import (
 )
 from .hwrepo.selection import ProjectSelector, resolve_project_ids
 
-Depth = Literal["portable", "native"]
+Depth = Literal["portable", "native", "electrical"]
 
 
 class SelectionFailure(Exception):
@@ -84,9 +84,11 @@ def format_report(result: ProjectVerificationReport, detail: Literal["brief", "f
         f"Depth: {result.depth}",
         f"Portable: {result.portable.status if result.portable is not None else 'NOT_RUN'}",
     ]
-    if result.depth == "native":
+    if result.depth in {"native", "electrical"}:
         lines.append(f"Runner: {result.runner}")
         lines.append(f"Native: {result.native.status if result.native is not None else 'NOT_RUN'}")
+    if result.depth == "electrical":
+        lines.append(f"Electrical: {result.electrical.status if result.electrical else 'NOT_RUN'}")
     lines.append(f"Receipt: {result.run_directory}")
     if result.error:
         lines.append(f"Tool error: {result.error}")
@@ -102,7 +104,7 @@ def format_report(result: ProjectVerificationReport, detail: Literal["brief", "f
 def verify(
     root: Path, project_id: str, depth: Depth = "portable", runner: NativeRunner = "auto",
     cli: str = "kicad-cli", output: Path | None = None,
-    detail: Literal["brief", "full"] = "brief",
+    detail: Literal["brief", "full"] = "brief", ngspice: str = "ngspice",
 ) -> ProjectVerificationReport:
     """Run selected validation into a new ignored receipt and coach any failure."""
     root = root.resolve()
@@ -118,6 +120,7 @@ def verify(
     dependency_command = None
     native_command = None
     native = None
+    electrical_report = None
     diagnosis: DiagnosticReport | None = None
     selected_runner: Literal["none", "local", "container"] = "none"
     next_actions: tuple[str, ...] = ()
@@ -231,6 +234,19 @@ def verify(
                         )
                     else:
                         status = "PASS"
+        if depth == "electrical" and status == "PASS":
+            from .hwrepo.electrical_runner import analyze
+
+            with journal.stage("electrical"):
+                electrical_report = analyze(
+                    root, project_id, journal.directory / "electrical",
+                    journal.directory / "native" / project_id / "summary.json", cli, ngspice,
+                )
+                journal.save_model("electrical", electrical_report)
+            if electrical_report.status != "PASS":
+                status = "FAIL"
+                next_actions = (f"Resolve the electrical findings in {electrical_report.run_directory}.",)
+
     except SelectionFailure:
         diagnosis = diagnose()
         next_actions = (f"Repair the selection finding in {journal.directory / 'diagnosis.txt'}.",)
@@ -250,7 +266,7 @@ def verify(
         project_id=project_id, depth=depth, runner=selected_runner,
         run_directory=str(journal.directory), portable=portable, doctor=native_doctor,
         dependency_command=dependency_command, native_command=native_command,
-        native=native, diagnosis=diagnosis, status=status, next_actions=next_actions,
+        native=native, electrical=electrical_report, diagnosis=diagnosis, status=status, next_actions=next_actions,
         error=error,
     )
     human_text = format_report(result, detail)
@@ -266,13 +282,14 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path.cwd())
     parser.add_argument("--project", required=True, help="One registered project ID")
-    parser.add_argument("--depth", choices=("portable", "native"), default="portable")
+    parser.add_argument("--depth", choices=("portable", "native", "electrical"), default="portable")
     parser.add_argument("--runner", choices=("auto", "local", "container"), default="auto",
                         help="Native runner; auto prefers an exact local CLI, then pinned Docker")
     parser.add_argument(
         "--cli", default="kicad-cli",
         help="Exact local KiCad CLI command or path (relative paths use the caller's cwd)",
     )
+    parser.add_argument("--ngspice", default="ngspice", help="Exact ngspice executable for electrical depth")
     parser.add_argument("--output", type=Path, help="Fresh receipt path under ignored build/")
     parser.add_argument("--format", choices=("text", "json"), default="text")
     parser.add_argument("--detail", choices=("brief", "full"), default="brief")
@@ -284,7 +301,7 @@ def main() -> int:
     try:
         result = verify(
             args.root, args.project, args.depth, args.runner, args.cli, args.output,
-            args.detail,
+            args.detail, args.ngspice,
         )
     except (OSError, ValueError) as exc:
         print(f"Cannot create verification receipt: {exc}", file=sys.stderr)

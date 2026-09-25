@@ -404,7 +404,7 @@ def validate(
         elif config.kind is ProjectKind.HARNESS_INTERFACE:
             check_harness_interface_contract(root, config)
             checks["harness_contract"] = CheckEvidence(status="PASS")
-        if config.component_identity.required or (
+        if config.electrical is not None or config.component_identity.required or (
             isinstance(config.validation, SchematicValidationContract) and config.validation.components
         ):
             commands["netlist"] = ("sch", "export", "netlist", "--format", "kicadxml", "--output",
@@ -443,6 +443,17 @@ def validate(
                     if not isinstance(validation, (PcbValidationContract, SchematicValidationContract)):
                         raise ValueError("Netlist check requires an electrical component contract")
                     check_netlist(output / "netlist.xml", validation)
+                    if config.electrical is not None:
+                        from .hwrepo.electrical import grounding_checks, load_analysis
+
+                        electrical = load_analysis(root, config)
+                        if electrical is not None:
+                            ground = grounding_checks(electrical.grounding, read_netlist(output / "netlist.xml"))
+                            failures = [row.detail for row in ground if row.status == "FAIL"]
+                            checks["grounding"] = CheckEvidence(
+                                status="FAIL" if failures else "PASS",
+                                error="; ".join(failures) if failures else None,
+                            )
                     identity = check_project_netlist(
                         root, config.project_id, output / "netlist.xml"
                     )
@@ -490,7 +501,9 @@ def validate(
             required.add("system_contract")
         elif config is not None and config.kind is ProjectKind.HARNESS_INTERFACE:
             required.add("harness_contract")
-    if config is not None and (config.component_identity.required or (
+    if config is not None and config.electrical is not None:
+        required.add("grounding")
+    if config is not None and (config.electrical is not None or config.component_identity.required or (
         isinstance(config.validation, SchematicValidationContract) and config.validation.components
     )):
         required.add("netlist")
