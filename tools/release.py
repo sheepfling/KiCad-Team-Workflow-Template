@@ -48,6 +48,8 @@ def format_text(
             lines.append(f"Failed commands: {', '.join(failed)}. Inspect their command.json files.")
         elif report.status == "FAIL":
             lines.append("Inspect exports.json and output files for missing or changed artifacts.")
+        for issue in report.issues:
+            lines.append(f"Finding: {issue}")
         return "\n".join(lines)
     lines = [
         f"{report.status}: release {command}",
@@ -68,6 +70,8 @@ def main() -> int:
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
     parser.add_argument("--project", action="append", default=[])
     parser.add_argument("--variant", action="append", default=[], metavar="PRODUCT:VARIANT")
+    parser.add_argument("--assembly-variant", metavar="KICAD_VARIANT",
+                        help="KiCad component population for a direct board export")
     parser.add_argument("--release-id")
     parser.add_argument("--release-class", choices=[value.value for value in ReleaseClass], default="engineering_review")
     parser.add_argument("--cli", help="Use an installed pinned KiCad CLI; default uses Docker")
@@ -82,6 +86,8 @@ def main() -> int:
     args = parser.parse_args()
     if args.json and (args.command != "prepare" or args.format is not None):
         parser.error("--json is only for prepare and cannot be combined with --format")
+    if args.assembly_variant is not None and args.command != "export":
+        parser.error("--assembly-variant is only for export; prepare uses product board_variants")
     root = args.root.resolve()
     try:
         if args.command == "prepare":
@@ -128,7 +134,8 @@ def main() -> int:
             if len(args.project) != 1 or args.output is None:
                 parser.error("export requires one --project and --output")
             project = next(project for project in load_registry(root).projects if project.id == args.project[0])
-            report = export(root, project.config, args.output.resolve(), args.cli or "kicad-cli")
+            report = export(root, project.config, args.output.resolve(), args.cli or "kicad-cli",
+                            args.assembly_variant)
         elif args.command in {"verify", "restore"}:
             from .hwrepo.packaging import restore, verify
 

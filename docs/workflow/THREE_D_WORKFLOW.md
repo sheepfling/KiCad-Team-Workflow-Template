@@ -5,6 +5,12 @@ coverage of a PCB. Generate review images and mechanical exchange files from the
 same committed KiCad source as the electrical checks. They are outputs, not a
 second editable copy of the design.
 
+For a named KiCad assembly population, add `--assembly-variant 'Pilot A'` to
+`tools.visualize --project <id>`. The name must be declared in the project's
+`.kicad_pro`; the top/angled images and STEP/GLB commands then use the same
+population selection and record it in the JSON receipt. Review the fitted model
+set against the native BOM and placement file before a mechanical handoff.
+
 ## Populate a board's 3D models
 
 1. Choose a model that matches the reviewed component package. A missing model

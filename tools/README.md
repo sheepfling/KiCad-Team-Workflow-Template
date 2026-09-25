@@ -25,6 +25,10 @@ default full run.
 For a legacy directory with several projects, `tools.template scan-imports`
 previews each candidate without copying it. JSON retains per-file hashes and
 exclusion reasons; import one accepted project at a time.
+For a non-KiCad board, `tools.template convert-pcb` uses an exact KiCad runner
+to make an ignored conversion receipt and native import preview. Review the
+converted geometry and KiCad report before running its separate `import-project`
+command; see the [import workflow](../docs/workflow/IMPORT_WORKFLOW.md).
 The CLIs use `argparse`; a Typer dependency is not required for human output.
 Choose text for a concise terminal view and JSON for the complete typed result:
 
@@ -34,6 +38,7 @@ Choose text for a concise terminal view and JSON for the complete typed result:
 | `tools.template diagnose` | Brief text by default; `--detail full` expands it | `--format json` |
 | `tools.template list` | `--format text` shows selections and next commands | JSON by default; typed inventory |
 | `tools.template rescue --project-id <id>` | Brief local repair view, always unverified; `--detail full` expands it | `--format json` with `UNVERIFIED_GLOBAL` and no CI/release eligibility |
+| `tools.template convert-pcb --source <file> --project-id <id> --toolchain <id>` | Conversion status, receipt and review steps | `--format json` with source/output hashes, commands and import preview |
 | `tools.governance_audit` | `--format text` shows observed GitHub controls and next actions | JSON by default; `UNKNOWN` stays explicit |
 | `tools.contract_coach` | Short UNREVIEWED contract comparison; `--detail full` expands it | `--format json` |
 | `tools.visualize --project <id>` | 3D model audit and export paths; `--init-model-map` drafts explicit assignments, `--map-models` previews source edits and `--apply` writes reviewed edits | `--format json` |
@@ -60,7 +65,7 @@ integration work, not a prerequisite for repository policy.
 | `template`, `release`, `sourcing`, `metrics` | Expose environment and project diagnostics, adoption, release readiness, supplier snapshots and current policy metrics |
 | `governance_audit`, `hwrepo/hosted_governance.py` | Read GitHub branch controls and CODEOWNERS without changing hosted settings |
 | `hwrepo/models.py`, `hwrepo/contracts.py` | Own typed serialized contracts and file/path adapters |
-| `hwrepo/discovery.py`, `hwrepo/project_tests.py`, `hwrepo/scaffold.py`, `hwrepo/importing.py` | Resolve local manifests, run isolated island test suites and create or import project islands |
+| `hwrepo/discovery.py`, `hwrepo/project_tests.py`, `hwrepo/scaffold.py`, `hwrepo/importing.py`, `hwrepo/foreign_pcb.py` | Resolve local manifests, run isolated island test suites, create/import islands and stage foreign boards for review |
 | `hwrepo/doctor.py`, `hwrepo/adoption.py` | Check local prerequisites and run one-command fresh-fork adoption |
 | Other `hwrepo/` modules | Implement named policy and generation services behind the CLIs |
 

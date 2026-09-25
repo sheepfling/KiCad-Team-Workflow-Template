@@ -343,6 +343,14 @@ class ReleaseExportSettings(StrictModel):
     gerber_layers: Annotated[tuple[NonEmptyText, ...], Field(min_length=1)]
     coordinate_origin: Literal["absolute", "plot"] = "absolute"
     position_units: Literal["mm", "in"] = "mm"
+    assembly_variant: NonEmptyText | None = None
+    supplier_formats: tuple[Literal["odb", "ipc2581", "ipcd356"], ...] = ()
+
+    @model_validator(mode="after")
+    def unique_supplier_formats(self) -> ReleaseExportSettings:
+        if len(set(self.supplier_formats)) != len(self.supplier_formats):
+            raise ValueError("supplier_formats must not contain duplicates")
+        return self
 
 
 class ProjectManifest(StrictModel):
@@ -393,6 +401,15 @@ class ProjectImportReport(StrictModel):
     issues: tuple[str, ...] = ()
     review_required: Literal[True] = True
     next_step: str = "Review dependencies, populate independent test expectations, then run tools.verify. Import does not approve the design."
+
+
+class KiCadForeignImportSummary(StrictModel):
+    """Narrow projection of KiCad's retained, version-specific JSON import report."""
+
+    source_format: NonEmptyText
+    mapped_layers: int
+    errors: tuple[str, ...]
+    warnings: tuple[str, ...]
 
 
 class ImportInventoryCandidate(StrictModel):
@@ -499,6 +516,7 @@ class Variant(StrictModel):
     id: Identifier
     revision: Identifier
     exclude: tuple[Reference, ...]
+    board_variants: Mapping[Identifier, NonEmptyText] = Field(default_factory=dict)
 
 
 class EvidenceKind(str, Enum):
@@ -924,9 +942,11 @@ class ReleaseExportReport(StrictModel):
     source: SourceState
     toolchain_id: Identifier
     settings: ReleaseExportSettings
+    assembly_variant: NonEmptyText | None = None
     commands: Mapping[Identifier, CommandEvidence]
     artifacts_sha256: Mapping[RepositoryPath, Digest]
     status: Literal["PASS", "FAIL"]
+    issues: tuple[NonEmptyText, ...] = ()
 
 
 class ReleasePackageIndex(StrictModel):
