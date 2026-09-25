@@ -1,3 +1,3 @@
 # Shared tooling is installed independently of project source.
 # Update this exact pin in a reviewed change and run project acceptance.
-kicad-team-tooling[project,mcp,charts,cad] @ git+https://github.com/sheepfling/KiCad-Tooling.git@4989b965678b02c0ad4199f61736585afb21bfeb
+kicad-team-tooling[project,mcp,charts,cad] @ git+https://github.com/sheepfling/KiCad-Tooling.git@0fda4ec00134a2bf1ad0927bf4846d26e73286f1
