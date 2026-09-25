@@ -146,9 +146,11 @@ independent fixture catalogs. Close KiCad before native checks.
 ## BOMs and releases
 
 For a new user's parts workflow, run
-`python -B -m tools.parts --project battery-board --assist`. Resolve paired CAD automatically and choose reviewed catalog
-parts in the local page, preview and apply the selection, then update the PCB in
-KiCad. The same command without `--picker` creates the BOM and purchasing checklist.
+`python -B -m tools.parts --project battery-board --assist`. Resolve paired CAD
+automatically, choose reviewed catalog parts, preview and apply changes, and
+prepare the order files in one local page. Update the PCB in KiCad when a selected
+footprint needs replacing. The plain command without `--assist` creates an offline
+BOM and purchasing checklist.
 Follow [choose parts and prepare an order](docs/workflow/PARTS_TO_ORDER.md) for
 saved preferences, model synchronization and DigiKey upload. The training catalog
 has no production choices; add reviewed part/CAD records before using the picker
