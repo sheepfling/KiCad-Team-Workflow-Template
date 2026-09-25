@@ -72,7 +72,8 @@ integration work, not a prerequisite for repository policy.
 | `hardware` | Check products, generate ignored review views/schemas, create and verify snapshots |
 | `template`, `release`, `sourcing`, `metrics` | Expose environment and project diagnostics, adoption, release readiness, supplier snapshots and current policy metrics |
 | `governance_audit`, `hwrepo/hosted_governance.py` | Read GitHub branch controls and CODEOWNERS without changing hosted settings |
-| `hwrepo/models.py`, `hwrepo/contracts.py` | Own typed serialized contracts and file/path adapters |
+| `hwrepo/digikey_handoff.py` | Explicit, account-free myLists BOM handoff with a validated review link and no automatic POST retries |
+| `hwrepo/models.py`, `hwrepo/contracts.py` | Own typed serialized contracts and JSON/path adapters |
 | `hwrepo/discovery.py`, `hwrepo/project_tests.py`, `hwrepo/scaffold.py`, `hwrepo/importing.py` | Resolve local manifests, run isolated island test suites and create or import project islands |
 | `hwrepo/doctor.py`, `hwrepo/adoption.py` | Check local prerequisites and run one-command fresh-fork adoption |
 | Other `hwrepo/` modules | Implement named policy and generation services behind the CLIs |

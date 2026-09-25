@@ -17,6 +17,7 @@ from .contract_coach import AutoNetlistRunner, NetlistRunner, project_context
 from .contracts import repo_path
 from .evidence import digest
 from .models import (
+    DigiKeyHandoffResult,
     PartPickerReport,
     PartSelectionAssignment,
     PartSelectionMap,
@@ -60,6 +61,11 @@ class Form:
         if self.fields:
             raise ValueError("This action does not accept request fields")
 
+    def review(self) -> str:
+        if len(self.fields) != 1 or self.fields[0][0] != "review" or not self.fields[0][1].strip():
+            raise ValueError("Provide the order review shown on this page")
+        return self.fields[0][1]
+
     def assignments(self) -> tuple[PartSelectionAssignment, ...]:
         if not self.fields or any(not name.startswith("part.") for name, _ in self.fields):
             raise ValueError("Select at least one listed part")
@@ -91,14 +97,19 @@ class Assistant:
     selection_diff: Path | None = None
     order: PurchasingReport | None = None
     downloads: dict[str, str] = field(default_factory=dict[str, str])
+    handoff_result: DigiKeyHandoffResult | None = None
 
     def invalidate(self) -> None:
         self.cad_plan = None
         self.picker = None
         self.selection_plan = None
         self.selection_diff = None
+        self.reset_order()
+
+    def reset_order(self) -> None:
         self.order = None
         self.downloads.clear()
+        self.handoff_result = None
 
     def scan(self) -> StrictModel:
         from .auto_cad import plan
@@ -161,8 +172,7 @@ class Assistant:
         return report
 
     def prepare_order(self, preferences: PurchasingPreferences) -> PurchasingReport:
-        self.order = None
-        self.downloads.clear()
+        self.reset_order()
         output = new_receipt(self.root, self.project_id, None)
         report = prepare(self.root, self.project_id, output, self.runner,
             boards=preferences.boards, spare_percent=preferences.spare_percent,
@@ -176,16 +186,53 @@ class Assistant:
                 self.downloads[name] = digest(path)
         return report
 
-    def download(self, name: str) -> bytes:
-        if self.order is None or name not in self.downloads:
-            raise ValueError("Prepare a current order review before downloading this file")
+    def current_order(self) -> PurchasingReport:
+        if self.order is None:
+            raise ValueError("Prepare a current order review first")
         _, _, current = project_context(self.root, self.project_id)
         if (current != self.order.source_hashes
                 or input_hashes(self.root, self.project_id, None) != self.order.input_hashes):
-            self.order = None
-            self.downloads.clear()
+            self.reset_order()
             raise ValueError("The board or part information changed; prepare a fresh order review")
-        output = Path(self.order.receipt_dir)
+        return self.order
+
+    def send_digikey(self, review: str) -> DigiKeyHandoffResult:
+        from .digikey_handoff import build_payload, send
+
+        try:
+            order = self.current_order()
+            # Compare only; browser-provided review identity is never a filesystem path.
+            if review != order.receipt_dir:
+                raise ValueError("A newer order review replaced this page; prepare a fresh review before sending")
+            if order.status != "READY_FOR_ORDER_REVIEW" or order.plan is None:
+                raise ValueError("Complete the parts review before sending a DigiKey list")
+            if self.handoff_result is not None:
+                return self.handoff_result
+            payload = build_payload(order.plan)
+        except (OSError, ValueError) as error:
+            return DigiKeyHandoffResult(status="BLOCKED", issues=(str(error),))
+        # Mark the attempt before the external write; retries require a fresh review.
+        self.handoff_result = DigiKeyHandoffResult(status="ERROR", issues=(
+            "The DigiKey request was not confirmed. Check DigiKey before preparing another order review.",))
+        try:
+            reply = send(payload, list_name=self.project_id)
+            result = DigiKeyHandoffResult(status="READY", single_use_url=reply.single_use_url)
+        except (OSError, ValueError) as error:
+            result = DigiKeyHandoffResult(status="ERROR", issues=(str(error),
+                "Your CSV files remain available. Check DigiKey before preparing a fresh order review to try again."))
+        try:
+            self.current_order()
+        except (OSError, ValueError) as error:
+            result = DigiKeyHandoffResult(status="BLOCKED", issues=(str(error),
+                "DigiKey may already have received the earlier list; it no longer represents the current board."))
+        self.handoff_result = result
+        return result
+
+    def download(self, name: str) -> bytes:
+        if name not in self.downloads:
+            raise ValueError("Prepare a current order review before downloading this file")
+        order = self.current_order()
+        output = Path(order.receipt_dir)
         path = repo_path(self.root, (output / name).relative_to(self.root).as_posix())
         content = path.read_bytes()
         if hashlib.sha256(content).hexdigest() != self.downloads[name]:
@@ -197,6 +244,8 @@ class Assistant:
             return self.choose(form.assignments())
         if action == "order":
             return self.prepare_order(form.quantities())
+        if action == "digikey":
+            return self.send_digikey(form.review())
         form.empty()
         if action == "scan":
             return self.scan()
@@ -260,7 +309,7 @@ function notes(parent, values) {
 }
 function setBusy(value) {
   busy=value;
-  document.querySelectorAll('button').forEach(button => {
+  document.querySelectorAll('button,input,select').forEach(button => {
     if (value) { button.dataset.disabled=button.disabled ? 'yes' : 'no'; button.disabled=true; }
     else button.disabled=button.dataset.disabled === 'yes';
   });
@@ -301,13 +350,18 @@ function renderCad(report) {
   $('apply-cad').disabled=!report.plan_path || applied || report.status==='BLOCKED';
 }
 $('scan').addEventListener('click',async()=> { const report=await action('scan','cad-status','Finding paired footprints and 3D models…'); if(report) renderCad(report); });
+function clearOrderView() {
+  ['order-results','order-downloads','handoff-results'].forEach(id=>$(id).replaceChildren());
+  $('handoff-status').hidden=true;
+}
 function invalidateOtherViews() {
-  $('order-downloads').replaceChildren(); $('apply-selection').disabled=true; $('preview-selection').disabled=true;
+  clearOrderView(); $('apply-selection').disabled=true; $('preview-selection').disabled=true;
   $('parts-results').replaceChildren(); $('selection-results').replaceChildren();
   message('parts-status','Reload choices after changing the board.');
   message('order-status','Prepare a fresh order list after changing the board.');
 }
 $('apply-cad').addEventListener('click',async()=> {
+  clearOrderView();
   const report=await action('apply','cad-status','Adding the reviewed model pairs…');
   if(report) { renderCad(report); invalidateOtherViews(); }
 });
@@ -322,6 +376,7 @@ $('load-parts').addEventListener('click',async()=> {
     body.append(element('strong',component.value),element('p',component.footprint || 'No footprint assigned'));
     if(item.choice_ids.length) {
       const label=element('label','Choose a reviewed part'), select=element('select');
+      select.addEventListener('change',()=> {clearOrderView(); message('order-status','Save selected parts, then prepare a fresh order list.');});
       select.name='part.'+component.reference; select.append(new Option('Keep current part',''));
       item.choice_ids.forEach(id=> {const part=choices.get(id); select.append(new Option(part.manufacturer+' · '+part.mpn+' — '+part.description,id));});
       label.append(select); body.append(label); count++;
@@ -352,10 +407,15 @@ $('preview-selection').addEventListener('click',async()=> {
   if(report) await renderSelection(report);
 });
 $('apply-selection').addEventListener('click',async()=> {
+  clearOrderView();
   const report=await action('apply-selection','parts-status','Saving the reviewed selections…');
   if(report) { await renderSelection(report); $('apply-cad').disabled=true; $('order-downloads').replaceChildren(); message('order-status','Prepare a fresh order list from the saved parts.'); }
 });
+['boards','spare_percent','spare_minimum'].forEach(id=>$(id).addEventListener('input',()=> {
+  clearOrderView(); message('order-status','Prepare a fresh order list with the updated quantities.');
+}));
 $('prepare-order').addEventListener('click',async()=> {
+  clearOrderView();
   const form=new URLSearchParams(); ['boards','spare_percent','spare_minimum'].forEach(id=>form.append(id,$(id).value));
   const report=await action('order','order-status','Reading the saved parts and calculating the order quantities…',form);
   if(!report) return;
@@ -372,7 +432,24 @@ $('prepare-order').addEventListener('click',async()=> {
   [['bom.csv','Download review BOM'],['digikey.csv','Download DigiKey list']].forEach(([file,label])=> {
     if(files.includes(file) && (file!=='digikey.csv' || ready)) { const link=element('a',label,'button'+(file==='bom.csv' ? ' secondary' : '')); link.href='download/'+file; link.download=file; $('order-downloads').append(link); }
   });
-  if(ready) {const link=element('a','Open DigiKey myLists','button secondary'); link.href='https://www.digikey.com/en/mylists/';link.target='_blank';link.rel='noopener noreferrer';$('order-downloads').append(link);}
+  if(ready) {
+    const button=element('button','Send BOM to DigiKey'); button.id='send-digikey';
+    $('order-downloads').prepend(button);
+    $('handoff-results').append(element('p','Sends the listed part numbers, quantities, references and manufacturer notes to DigiKey. No API key is needed. Review matched products, packaging and prices there before ordering.','subtle small'));
+    button.addEventListener('click',async()=> {
+      button.disabled=true;
+      const result=await action('digikey','handoff-status','Sending the prepared BOM to DigiKey…',
+        new URLSearchParams({review:report.receipt_dir}));
+      if(!result) { $('handoff-results').append(element('p','The request was not confirmed. CSV downloads remain available. Check DigiKey before preparing another order review.','subtle small')); return; }
+      $('handoff-results').replaceChildren(); notes($('handoff-results'),result.issues);
+      message('handoff-status',result.status==='READY' ? 'Your DigiKey review link is ready. No purchase has been made.' :
+        'The DigiKey handoff needs attention. No automatic retry was made.',result.status==='READY' ? 'good' : 'error');
+      if(result.status==='READY' && result.single_use_url) {
+        const link=element('a','Review BOM in DigiKey','button'); link.href=result.single_use_url;
+        link.target='_blank'; link.rel='noopener noreferrer'; $('handoff-results').append(link);
+      }
+    });
+  }
   receipt($('order-results'),report);
 });
 $('scan').click();
@@ -403,7 +480,8 @@ Their original alignment settings stay with them.</p></div></div>
 <label>Extra parts (%)<input id="spare_percent" type="number" min="0" max="100" step="1" value="{preferences.spare_percent}"></label>
 <label>Minimum extras per part<input id="spare_minimum" type="number" min="0" step="1" value="{preferences.spare_minimum}"></label></div>
 <button id="prepare-order">Prepare order files</button><div id="order-status" class="status" role="status" hidden></div>
-<div id="order-results"></div><div id="order-downloads" class="actions"></div></section>
+<div id="order-results"></div><div id="order-downloads" class="actions"></div>
+<div id="handoff-status" class="status" role="status" hidden></div><div id="handoff-results"></div></section>
 <footer>Uses your saved KiCad files. CAD matching checks pads and preserves library model settings; review actual geometry
 and pin numbering before manufacturing. Supplier stock, price and packaging are confirmed in DigiKey.</footer>
 </main><script nonce="{escape(nonce, quote=True)}">{SCRIPT}</script></body></html>'''

@@ -26,18 +26,23 @@ alignment evidence, not manufacturer package or physical-fit approval. Native
 3D inspection is still required before a manufacturing handoff.
 
 The same page offers reviewed part choices and quantity controls, previews source
-edits, applies them, and creates BOM/DigiKey CSV downloads. It does not make a
-purchase. Source changes after a preview invalidate that plan; rescanning is enough.
+edits, applies them, and creates BOM/DigiKey CSV downloads. After **Prepare order**,
+click **Send BOM to DigiKey** to get a myLists review link without API keys. This
+sends the prepared BOM only on that click and does not make a purchase. Source
+changes after a preview invalidate that plan; rescanning is enough.
 The server listens only on localhost and stops with Ctrl-C. Use `--no-browser`
 when you prefer to open the printed address yourself.
 
 Part identity and CAD availability are different. The catalog picker still needs
 reviewed manufacturer/MPN records; an electrical value such as `1k` cannot identify
 a unique purchasable component. The bundled training catalog deliberately has no
-production approvals. Exact-MPN retrieval from DigiKey, Ultra Librarian or SnapMagic
-is not connected in this implementation: their APIs require account credentials.
-The automatic CAD path uses the already assigned footprint, not a guessed supplier
-package. The [catalog guide](../../catalog/README.md#reviewed-cad-bindings-for-the-parts-picker)
+production approvals. Exact-MPN CAD retrieval from an external provider is not
+connected in this implementation. DigiKey product lookup and CAD-provider APIs
+require their own access setup; DigiKey's separate myLists BOM handoff does not
+require an API key. See the [provider and endpoint map](PARTS_PROVIDERS.md) for the
+implemented path, account-free options and proposed connections. The automatic
+CAD path uses the already assigned footprint, not a guessed supplier package.
+The [catalog guide](../../catalog/README.md#reviewed-cad-bindings-for-the-parts-picker)
 explains reusable part bindings.
 
 For scripts, `--auto-models --format json` creates the same source-bound preview;
@@ -300,7 +305,21 @@ packaging suitability, footprint fit, electrical approval or manufacturing relea
 means there is still a blocker; use the checklist to resolve it. DNP and excluded
 symbols have no purchasing quantities.
 
-Upload `digikey.csv` to DigiKey myLists and map these columns:
+In the local assistant (`--assist`), use **Prepare order**, then **Send BOM to
+DigiKey**. The button sends the prepared part numbers, quantities, manufacturer/MPN,
+references and notes to DigiKey and returns a review link. No API key or developer
+account is required; sign in at DigiKey to save the list. Review the matches there
+before adding anything to a cart. This handoff does not retrieve CAD or confirm
+stock, price, packaging or a purchase.
+
+A failed or uncertain submission is not retried automatically. Prepare a fresh
+order before making an explicit new attempt. A saved single-use URL cannot cause
+the assistant to resubmit the BOM automatically. If the service is unavailable,
+use the CSV fallback. The [provider map](PARTS_PROVIDERS.md) links the official
+request contract and explains the separate authenticated product-data APIs.
+
+For the CSV fallback or a static command-line receipt, upload `digikey.csv` to
+DigiKey myLists and map these columns:
 
 | CSV column | myLists meaning |
 | --- | --- |
@@ -313,9 +332,10 @@ the exported quantities already include both board count and spares. Review ever
 matched item, especially MPN-only matches, along with manufacturer, package,
 packaging, minimum order quantity, stock and current price before ordering.
 [DigiKey's BOM guide](https://www.digikey.com/en/help-support/place-an-order/build-a-bom)
-describes its assembly multiplier and attrition features. This workflow generates
-an upload file locally; it has no live account connection and does not confirm that
-DigiKey accepted an upload. No add-on installation is required.
+describes its assembly multiplier and attrition features. CSV generation remains
+local and does not confirm that DigiKey accepted an upload. The browser handoff
+reports its own response separately; it does not establish purchase or manufacturing
+approval. No add-on installation is required.
 
 For a retained build or release, follow the [BOM policy](BOM_POLICY.md) and
 [release workflow](RELEASE_READINESS.md). A working order checklist is not the

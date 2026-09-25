@@ -2,7 +2,7 @@
 
 This adapter preserves footprint bytes, including authored model transforms. It
 never identifies a manufacturer part or substitutes a similarly named package.
-An authenticated provider is needed for supplier CAD outside the official library.
+Supplier CAD outside the official library needs a separate provider adapter.
 """
 from __future__ import annotations
 

@@ -10,7 +10,7 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from tests.support import reference_root
-from tools.hwrepo.contracts import read_model
+from tools.hwrepo.contracts import parse_model, read_model
 from tools.hwrepo.discovery import load_registry
 from tools.hwrepo.generation import (
     bom_rows,
@@ -23,6 +23,8 @@ from tools.hwrepo.generation import (
 )
 from tools.hwrepo.models import (
     Assembly,
+    DigiKeyHandoffPayload,
+    DigiKeyHandoffUrl,
     GovernanceRecord,
     LibrariesCatalog,
     ProductRecord,
@@ -97,6 +99,29 @@ class TypedContractsTests(unittest.TestCase):
         path.write_text('{"id":"one","id":"two"}', encoding="utf-8")
         with self.assertRaises(ValueError):
             read_model(path, ProductRecord)
+
+    def test_network_json_boundary_preserves_root_arrays_and_strict_fields(self) -> None:
+        document = '[{"requestedPartNumber":"NE555P","quantities":[{"quantity":2}],"customerReference":"U1","notes":"Demo"}]'
+        payload = parse_model(document, DigiKeyHandoffPayload)
+        self.assertEqual(payload.root[0].quantities[0].quantity, 2)
+        self.assertEqual(parse_model(payload.model_dump_json(by_alias=True), DigiKeyHandoffPayload), payload)
+        with self.assertRaises(ValidationError):
+            payload.root = ()
+        for invalid in (
+            document.replace('"quantity":2', '"quantity":"2"'),
+            document.replace('"quantity":2', '"quantity":true'),
+            document.replace('"quantity":2', '"quantity":0'),
+            document.replace('"quantity":2', '"quantity":NaN'),
+            document.replace('"quantity":2', '"quantity":2,"quantity":3'),
+            document.replace('"notes":"Demo"', '"notes":"Demo","unknown":1'),
+        ):
+            with self.subTest(document=invalid), self.assertRaises(ValueError):
+                parse_model(invalid, DigiKeyHandoffPayload)
+        self.assertEqual(parse_model('"https://www.digikey.com/short/abc1234"', DigiKeyHandoffUrl).root,
+                         "https://www.digikey.com/short/abc1234")
+        for invalid in ('1', 'true', 'null', '{}', '[]'):
+            with self.subTest(document=invalid), self.assertRaises(ValueError):
+                parse_model(invalid, DigiKeyHandoffUrl)
 
     def test_semantic_validation_consumes_typed_objects(self) -> None:
         second = self.product.assemblies[1]

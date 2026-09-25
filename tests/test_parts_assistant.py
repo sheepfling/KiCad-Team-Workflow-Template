@@ -12,17 +12,21 @@ from unittest.mock import patch
 from urllib.parse import urlencode
 
 from tests.support import reference_root
-from tools.hwrepo.contract_coach import project_context
+from tools.hwrepo.contract_coach import NetlistRunner, project_context
 from tools.hwrepo.evidence import digest
 from tools.hwrepo.models import (
     AutoCadItem,
     AutoCadReport,
+    DigiKeyHandoffPayload,
+    DigiKeyHandoffReply,
     PartCadComponent,
     PartPickerItem,
     PartPickerReport,
     PartSelectionAssignment,
     PartSelectionMap,
     PartSelectionReport,
+    PurchasingLine,
+    PurchasingPlan,
     PurchasingPreferences,
     PurchasingReport,
 )
@@ -65,6 +69,13 @@ class FormTests(unittest.TestCase):
         self.assertIn('filter(issue=>!shownIssues.has(issue))', html)
         self.assertIn('CAD matching checks pads and preserves library model settings', html)
         self.assertNotIn('confirms its library alignment', html)
+        self.assertIn("element('button','Send BOM to DigiKey')", html)
+        self.assertIn("action('digikey','handoff-status'", html)
+        self.assertIn('No API key is needed', html)
+        self.assertIn("link.rel='noopener noreferrer'", html)
+        self.assertIn("['boards','spare_percent','spare_minimum'].forEach", html)
+        self.assertIn('clearOrderView();', html)
+        self.assertIn('new URLSearchParams({review:report.receipt_dir})', html)
 
 
 class AssistantHttpTests(unittest.TestCase):
@@ -217,6 +228,152 @@ class AssistantHttpTests(unittest.TestCase):
         self.state.downloads["bom.csv"] = digest(csv)
         csv.write_text("changed", encoding="utf-8")
         self.assertEqual(self.request("GET", "download/bom.csv")[0], 409)
+
+    def ready_order(self) -> PurchasingReport:
+        receipt = self.root / "build/order"
+        receipt.mkdir(parents=True, exist_ok=True)
+        csv = receipt / "digikey.csv"
+        csv.write_text("PartNumber,Quantity,CustomerReference\nRC0603FR-071KL,8,RES-1\n", encoding="utf-8")
+        _, _, source_hashes = project_context(self.root, "controller")
+        plan = PurchasingPlan(status="READY_FOR_ORDER_REVIEW",
+            preferences=PurchasingPreferences(boards=3), components=(), findings=(),
+            lines=(PurchasingLine(part_id="RES-1", revision="A", manufacturer="Yageo",
+                mpn="RC0603FR-071KL", footprint="Resistor_SMD:R_0603_1608Metric", references=("R1", "R2"),
+                per_board=2, required=6, spares=2, quantity=8, order_number="RC0603FR-071KL",
+                order_number_kind="MPN", search_url="https://www.digikey.com/en/products"),))
+        report = PurchasingReport(project_id="controller", status="READY_FOR_ORDER_REVIEW",
+            receipt_dir=str(receipt), source_hashes=source_hashes,
+            input_hashes=input_hashes(self.root, "controller", None), plan=plan, artifacts=("digikey.csv",))
+        self.state.order = report
+        self.state.downloads["digikey.csv"] = digest(csv)
+        return report
+
+    def handoff(self, review: str | None = None):
+        return self.request("POST", "digikey", urlencode({"review": review or str(self.root / "build/order")}))
+
+    def test_handoff_requires_ready_server_plan_and_exact_review_field(self) -> None:
+        with patch("tools.hwrepo.digikey_handoff.send") as send:
+            status, _, body = self.handoff()
+            self.assertEqual(status, 200)
+            self.assertEqual(json.loads(body)["status"], "BLOCKED")
+            report = self.ready_order()
+            for body in ("", "review=", "review=%20", "quantity=999&part=arbitrary", "review=old&quantity=999"):
+                self.assertEqual(self.request("POST", "digikey", body)[0], 400)
+            self.state.order = report.model_copy(update={"status": "NEEDS_PARTS"})
+            self.assertEqual(json.loads(self.handoff()[2])["status"], "BLOCKED")
+            self.state.order = report.model_copy(update={"plan": None})
+            self.assertEqual(json.loads(self.handoff()[2])["status"], "BLOCKED")
+            send.assert_not_called()
+
+    def test_handoff_submits_server_order_once_and_caches_review_link(self) -> None:
+        self.ready_order()
+        reply = DigiKeyHandoffReply(single_use_url="https://www.digikey.com/short/abc1234")
+        with patch("tools.hwrepo.digikey_handoff.send", return_value=reply) as send:
+            self.request("GET")
+            send.assert_not_called()
+            status, _, body = self.handoff()
+            self.assertEqual(status, 200)
+            self.assertEqual(json.loads(body)["single_use_url"], reply.single_use_url)
+            self.assertFalse(json.loads(body)["purchase_authorized"])
+            self.assertEqual(self.handoff()[2], body)
+            send.assert_called_once()
+            payload = send.call_args.args[0]
+            self.assertEqual(payload.root[0].requested_part_number, "RC0603FR-071KL")
+            self.assertEqual(payload.root[0].quantities[0].quantity, 8)
+            self.assertEqual(send.call_args.kwargs["list_name"], "controller")
+
+    def test_new_preparation_rejects_other_tabs_old_review_before_send_or_cache(self) -> None:
+        template = self.ready_order()
+        assert template.plan is not None
+        plan = template.plan
+        def projected(root: Path, project_id: str, output: Path, runner: NetlistRunner, *,
+                      boards: int, spare_percent: int, spare_minimum: int) -> PurchasingReport:
+            updated = plan.model_copy(update={
+                "preferences": PurchasingPreferences(boards=boards, spare_percent=spare_percent,
+                                                     spare_minimum=spare_minimum),
+                "lines": (plan.lines[0].model_copy(update={"required": boards * 2, "spares": 0,
+                                                         "quantity": boards * 2}),),
+            })
+            return template.model_copy(update={"receipt_dir": str(output), "plan": updated})
+        with patch("tools.hwrepo.parts_assistant.prepare", side_effect=projected):
+            first = json.loads(self.request("POST", "order", "boards=1&spare_percent=0&spare_minimum=0")[2])
+            second = json.loads(self.request("POST", "order", "boards=10&spare_percent=0&spare_minimum=0")[2])
+        self.assertNotEqual(first["receipt_dir"], second["receipt_dir"])
+        self.assertEqual(first["plan"]["lines"][0]["quantity"], 2)
+        self.assertEqual(second["plan"]["lines"][0]["quantity"], 20)
+        reply = DigiKeyHandoffReply(single_use_url="https://www.digikey.com/short/abc1234")
+        with patch("tools.hwrepo.digikey_handoff.send", return_value=reply) as send:
+            result = json.loads(self.handoff(first["receipt_dir"])[2])
+            self.assertEqual(result["status"], "BLOCKED")
+            self.assertIsNone(result["single_use_url"])
+            send.assert_not_called()
+            result = json.loads(self.handoff(second["receipt_dir"])[2])
+            self.assertEqual(result["status"], "READY")
+            self.assertEqual(send.call_args.args[0].root[0].quantities[0].quantity, 20)
+            stale = json.loads(self.handoff(first["receipt_dir"])[2])
+            self.assertEqual(stale["status"], "BLOCKED")
+            self.assertIsNone(stale["single_use_url"])
+            self.assertEqual(json.loads(self.handoff(second["receipt_dir"])[2]), result)
+            send.assert_called_once()
+
+    def test_handoff_checks_board_and_catalog_freshness_before_sending(self) -> None:
+        for relative in ("examples/projects/controller/project.json", "catalog/parts.json"):
+            with self.subTest(relative=relative):
+                self.ready_order()
+                changed = self.root / relative
+                changed.write_text(changed.read_text() + "\n", encoding="utf-8")
+                with patch("tools.hwrepo.digikey_handoff.send") as send:
+                    status, _, body = self.handoff()
+                    self.assertEqual(status, 200)
+                    self.assertEqual(json.loads(body)["status"], "BLOCKED")
+                    self.assertIsNone(json.loads(body)["single_use_url"])
+                    send.assert_not_called()
+                self.assertIsNone(self.state.order)
+
+    def test_handoff_changed_while_sending_does_not_return_stale_review_link(self) -> None:
+        self.ready_order()
+        def changed_reply(payload: DigiKeyHandoffPayload, *, list_name: str) -> DigiKeyHandoffReply:
+            manifest = self.root / "examples/projects/controller/project.json"
+            manifest.write_text(manifest.read_text() + "\n", encoding="utf-8")
+            return DigiKeyHandoffReply(single_use_url="https://www.digikey.com/short/abc1234")
+        with patch("tools.hwrepo.digikey_handoff.send", side_effect=changed_reply) as send:
+            status, _, body = self.handoff()
+            self.assertEqual(status, 200)
+            self.assertEqual(json.loads(body)["status"], "BLOCKED")
+            self.assertIsNone(json.loads(body)["single_use_url"])
+            self.assertIn("may already have received", " ".join(json.loads(body)["issues"]))
+            self.handoff()
+            send.assert_called_once()
+        self.assertEqual(self.request("GET", "download/digikey.csv")[0], 409)
+
+    def test_handoff_network_failure_preserves_csv_and_never_implicitly_retries(self) -> None:
+        report = self.ready_order()
+        with patch("tools.hwrepo.digikey_handoff.send", side_effect=OSError("Connection lost")) as send:
+            status, _, body = self.handoff()
+            self.assertEqual(status, 200)
+            self.assertEqual(json.loads(body)["status"], "ERROR")
+            self.assertIsNone(json.loads(body)["single_use_url"])
+            self.assertEqual(self.request("GET", "download/digikey.csv")[0], 200)
+            self.assertEqual(self.handoff()[2], body)
+            send.assert_called_once()
+            with patch("tools.hwrepo.parts_assistant.prepare", return_value=report), patch(
+                    "tools.hwrepo.parts_assistant.save_report"):
+                self.assertEqual(self.request("POST", "order", "boards=3&spare_percent=0&spare_minimum=0")[0], 200)
+            self.assertIsNone(self.state.handoff_result)
+            self.handoff()
+            self.assertEqual(send.call_count, 2)
+
+    def test_cached_handoff_cannot_bypass_new_source_check(self) -> None:
+        self.ready_order()
+        reply = DigiKeyHandoffReply(single_use_url="https://www.digikey.com/short/abc1234")
+        with patch("tools.hwrepo.digikey_handoff.send", return_value=reply) as send:
+            self.handoff()
+            catalog = self.root / "catalog/parts.json"
+            catalog.write_text(catalog.read_text() + "\n", encoding="utf-8")
+            result = json.loads(self.handoff()[2])
+            self.assertEqual(result["status"], "BLOCKED")
+            self.assertIsNone(result["single_use_url"])
+            send.assert_called_once()
 
     def test_order_form_passes_only_validated_quantities(self) -> None:
         report = PurchasingReport(project_id="controller", status="BLOCKED", receipt_dir="build/unused",

@@ -27,23 +27,24 @@ def _invalid_number(value: str) -> None:
     raise ValueError(f"Invalid JSON number: {value}")
 
 
+def parse_model(document: str, model: type[Model]) -> Model:
+    """Decode and strictly validate JSON before it reaches application code."""
+    # Reject duplicate keys/non-finite numbers before Pydantic's JSON decoder
+    # preserves valid array/enum semantics and produces immutable tuples.
+    json.loads(
+        document,
+        object_pairs_hook=_unique_object,
+        parse_constant=_invalid_number,
+    )
+    return model.model_validate_json(document, strict=True)
+
+
 def read_model(path: Path, model: type[Model]) -> Model:
     """Decode one JSON file and validate it before it reaches application code."""
     document = path.read_text(encoding="utf-8")
-    # This first decode exists solely to fail duplicate keys/non-finite numbers.
-    # Pydantic's JSON decoder then preserves JSON's valid array/enum semantics
-    # while applying strict scalar validation and producing immutable tuples.
     try:
-        json.loads(
-            document,
-            object_pairs_hook=_unique_object,
-            parse_constant=_invalid_number,
-        )
-    except ValueError as exc:
-        raise ValueError(f"{path}: {exc}") from exc
-    try:
-        return model.model_validate_json(document, strict=True)
-    except ValidationError as exc:
+        return parse_model(document, model)
+    except (ValueError, ValidationError) as exc:
         raise ValueError(f"{path}: {exc}") from exc
 
 
