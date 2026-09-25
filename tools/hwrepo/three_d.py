@@ -24,6 +24,7 @@ from .models import (
     CommandEvidence,
     Digest,
     Identifier,
+    NonEmptyText,
     ProjectConfig,
     ProjectKind,
     RepositoryPath,
@@ -46,6 +47,7 @@ class ThreeDReport(StrictModel):
     toolchain_id: Identifier | None = None
     kicad_version: str | None = None
     runner: SelectedRunner = "none"
+    assembly_variant: NonEmptyText | None = None
     board: RepositoryPath | None = None
     source_sha256: Mapping[RepositoryPath, Digest] = Field(default_factory=dict)
     models: ModelInventoryReport | None = None
@@ -147,18 +149,19 @@ def _source_hashes(root: Path, config: ProjectConfig) -> dict[str, str]:
     return actual
 
 
-def _specifications(board: str) -> tuple[tuple[str, str, tuple[str, ...]], ...]:
+def _specifications(board: str, assembly_variant: str | None = None) -> tuple[tuple[str, str, tuple[str, ...]], ...]:
     source = f"/work/{board}"
+    variant = ("--variant", assembly_variant) if assembly_variant else ()
     return (
         ("top", "top.png", ("pcb", "render", "-o", "/output/top.png", "--side", "top",
-                             "--width", "1600", "--height", "900", source)),
+                             "--width", "1600", "--height", "900", *variant, source)),
         ("angled", "angled.png", ("pcb", "render", "-o", "/output/angled.png",
                                    "--width", "1600", "--height", "900", "--rotate",
-                                   "45,0,45", "--perspective", source)),
+                                   "45,0,45", "--perspective", *variant, source)),
         ("step", "board.step", ("pcb", "export", "step", "--subst-models", "--no-dnp",
-                                 "-o", "/output/board.step", source)),
+                                 *variant, "-o", "/output/board.step", source)),
         ("glb", "board.glb", ("pcb", "export", "glb", "--subst-models", "--no-dnp",
-                               "-o", "/output/board.glb", source)),
+                               *variant, "-o", "/output/board.glb", source)),
     )
 
 
@@ -168,6 +171,8 @@ def render_text(report: ThreeDReport, detail: Literal["brief", "full"] = "brief"
         f"Mode: {report.mode}", f"Model coverage: {report.models.status if report.models else 'NOT_RUN'}",
         f"Runner: {report.runner}", f"Receipt: {report.run_directory}",
     ]
+    if report.assembly_variant:
+        lines.append(f"KiCad assembly variant: {report.assembly_variant}")
     if report.models is not None:
         lines.append(f"Footprints: {len(report.models.footprints)}")
         selected_findings = (report.models.findings if detail == "full"
@@ -201,12 +206,15 @@ def render_text(report: ThreeDReport, detail: Literal["brief", "full"] = "brief"
 def generate(
     root: Path, project_id: str, *, check_models: bool = False,
     runner: NativeRunner = "auto", cli: str = "kicad-cli", output: Path | None = None,
+    assembly_variant: str | None = None,
     detail: Literal["brief", "full"] = "brief",
 ) -> ThreeDReport:
     """Inspect one PCB and optionally export four views from its exact KiCad toolchain."""
     root = root.resolve()
     if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", project_id) is None:
         raise ValueError("Project ID must use letters, digits, periods, underscores or hyphens")
+    if assembly_variant is not None and not assembly_variant.strip():
+        raise ValueError("KiCad assembly variant cannot be blank")
     if output is not None:
         output = (root / output).resolve() if not output.is_absolute() else output.resolve()
         if not output.is_relative_to(root / "build"):
@@ -226,6 +234,10 @@ def generate(
     try:
         with journal.stage("project-selection"):
             config, board = _selected(root, project_id)
+            if assembly_variant:
+                from .exports import require_declared_variant
+
+                require_declared_variant(repo_path(root, config.project), assembly_variant)
         with journal.stage("model-inventory"):
             inventory = inspect_models(root, config)
             journal.save_model("models", inventory)
@@ -265,7 +277,7 @@ def generate(
                         f"Use exact KiCad {config.kicad_version}; inspect version-command.json.",
                     )
                 else:
-                    for name, filename, args in _specifications(board):
+                    for name, filename, args in _specifications(board, assembly_variant):
                         with journal.stage(name):
                             result = _run_kicad(root, journal.directory, config, selected_runner,
                                                 cli, args, timeout=600)
@@ -327,7 +339,8 @@ def generate(
         run_directory=str(journal.directory),
         toolchain_id=None if config is None else config.toolchain_id,
         kicad_version=None if config is None else config.kicad_version,
-        runner=selected_runner, board=board, source_sha256=source,
+        runner=selected_runner, assembly_variant=assembly_variant,
+        board=board, source_sha256=source,
         models=inventory, commands=commands, artifacts_sha256=artifacts,
         next_actions=actions, error=error,
     )

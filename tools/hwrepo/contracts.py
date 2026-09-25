@@ -7,9 +7,11 @@ from __future__ import annotations
 
 import json
 from pathlib import Path, PurePosixPath, PureWindowsPath
-from typing import TypeVar
+from typing import TypeVar, cast
 
 from pydantic import BaseModel, ValidationError
+
+from .models import KiCadForeignImportSummary
 
 Model = TypeVar("Model", bound=BaseModel)
 
@@ -45,6 +47,70 @@ def read_model(path: Path, model: type[Model]) -> Model:
         return model.model_validate_json(document, strict=True)
     except ValidationError as exc:
         raise ValueError(f"{path}: {exc}") from exc
+
+
+def _read_external_json(path: Path) -> object:
+    """Decode unowned KiCad JSON only at this I/O boundary."""
+    try:
+        return json.loads(path.read_text(encoding="utf-8"),
+                          object_pairs_hook=_unique_object, parse_constant=_invalid_number)
+    except (OSError, UnicodeError, ValueError) as exc:
+        raise ValueError(f"{path}: invalid KiCad JSON: {exc}") from exc
+
+
+def kicad_variant_names(path: Path) -> tuple[str, ...]:
+    """Extract only authored variant names from a KiCad project file."""
+    document = _read_external_json(path)
+    if not isinstance(document, dict):
+        raise ValueError(f"{path}: project file is not a JSON object")  # noqa: TRY004 - input boundary
+    schematic = cast(dict[str, object], document).get("schematic")
+    if not isinstance(schematic, dict):
+        raise ValueError(f"{path}: schematic settings are missing")  # noqa: TRY004 - input boundary
+    variants = cast(dict[str, object], schematic).get("variants")
+    if not isinstance(variants, list):
+        raise ValueError(f"{path}: schematic.variants is not a list")  # noqa: TRY004 - input boundary
+    names: list[str] = []
+    for item in cast(list[object], variants):
+        value: object = item if isinstance(item, str) else (
+            cast(dict[str, object], item).get("name") if isinstance(item, dict) else None
+        )
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError(f"{path}: schematic.variants contains a nameless entry")
+        names.append(value)
+    if len({name.casefold() for name in names}) != len(names):
+        raise ValueError(f"{path}: schematic.variants has duplicate names")
+    return tuple(names)
+
+
+def require_kicad_json_object(path: Path) -> None:
+    if not isinstance(_read_external_json(path), dict):
+        raise ValueError(f"{path}: expected a JSON object")  # noqa: TRY004 - input boundary
+
+
+def read_kicad_import_summary(path: Path) -> KiCadForeignImportSummary:
+    """Keep KiCad's full report on disk; pass only actionable fields to services."""
+    document = _read_external_json(path)
+    if not isinstance(document, dict):
+        raise ValueError(f"{path}: expected an import report object")  # noqa: TRY004 - input boundary
+    values = cast(dict[str, object], document)
+    source_format = values.get("source_format")
+    layer_mapping = values.get("layer_mapping")
+    errors = values.get("errors")
+    warnings = values.get("warnings")
+    if (not isinstance(source_format, str) or not source_format.strip()
+            or not isinstance(layer_mapping, dict) or not isinstance(errors, list)
+            or not isinstance(warnings, list)):
+        raise ValueError(f"{path}: import report lacks format, layer map, errors or warnings")
+
+    def messages(items: list[object]) -> tuple[str, ...]:
+        return tuple(item if isinstance(item, str) else json.dumps(item, sort_keys=True)
+                     for item in items)
+
+    return KiCadForeignImportSummary(
+        source_format=source_format, mapped_layers=len(cast(dict[str, object], layer_mapping)),
+        errors=messages(cast(list[object], errors)),
+        warnings=messages(cast(list[object], warnings)),
+    )
 
 
 def write_model(path: Path, model: BaseModel) -> None:

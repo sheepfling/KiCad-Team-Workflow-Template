@@ -296,6 +296,22 @@ jobs:
         run: python -m pip install --disable-pip-version-check '.[dev]'
       - name: Restore independent reference catalogs for this rehearsal
         run: python -B -c "from tests.support import reference_root; import shutil; shutil.copytree(reference_root(), 'build/rehearsal-source', ignore=shutil.ignore_patterns('.git'))"
+      - name: Enable optional supplier formats in the disposable release fixture
+        working-directory: build/rehearsal-source
+        run: |
+          python -B - <<'PY'
+          from pathlib import Path
+          from tools.hwrepo.contracts import read_model, write_model
+          from tools.hwrepo.models import ProjectManifest
+
+          path = Path('examples/projects/arduino-uno-status-led/project.json')
+          manifest = read_model(path, ProjectManifest)
+          assert manifest.release_exports is not None
+          settings = manifest.release_exports.model_copy(update={
+              'supplier_formats': ('odb', 'ipc2581', 'ipcd356'),
+          })
+          write_model(path, manifest.model_copy(update={'release_exports': settings}))
+          PY
       - name: Commit disposable fixture source for release provenance
         working-directory: build/rehearsal-source
         run: |
@@ -309,6 +325,39 @@ jobs:
           python -B -m tools.release package --manifest build/releases/ci-review/manifest.json --output build/ci-review.zip
           python -B -m tools.release verify --archive build/ci-review.zip
           git diff --exit-code
+      - name: Rehearse foreign PCB conversion and guarded native import
+        working-directory: build/rehearsal-source
+        run: |
+          python -B -m tools.template convert-pcb \
+            --source tests/fixtures/foreign-eagle-board.xml \
+            --project-id foreign-smoke --toolchain kicad-10.0.5 \
+            --input-format eagle --runner container --format json \
+            > build/foreign-pcb-conversion.json
+          python -B - <<'PY'
+          import json
+          import subprocess
+          import sys
+          from pathlib import Path
+
+          receipt = json.loads(Path("build/foreign-pcb-conversion.json").read_text())
+          assert receipt["status"] == "PASS" and receipt["review_required"]
+          assert not receipt["build_authorized"]
+          assert receipt["native_summary"]["source_format"].lower() == "eagle"
+          assert not receipt["native_summary"]["errors"]
+          source = Path(receipt["run_directory"]) / "stage/foreign-smoke.kicad_pro"
+          board = source.with_suffix(".kicad_pcb").read_text()
+          assert board.count('(layer "Edge.Cuts")') == 4
+          result = subprocess.run(
+              [sys.executable, "-B", "-m", "tools.template", "import-project",
+               "--source", str(source), "--project-id", "foreign-smoke",
+               "--toolchain", "kicad-10.0.5", "--format", "json"],
+              check=True, capture_output=True, text=True,
+          )
+          imported = json.loads(result.stdout)
+          assert imported["status"] == "PASS" and imported["review_required"]
+          project = json.loads(Path("projects/foreign-smoke/project.json").read_text())
+          assert project["kind"] == "pcb_only" and project["status"] == "engineering"
+          PY
       - name: Retain release rehearsal evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
@@ -317,6 +366,8 @@ jobs:
           path: |
             build/rehearsal-source/build/releases/
             build/rehearsal-source/build/ci-review.zip
+            build/rehearsal-source/build/foreign-pcb-conversion.json
+            build/rehearsal-source/build/diagnostics/
           if-no-files-found: error
           retention-days: 30
   engineering-gate:

@@ -23,6 +23,7 @@ def main() -> int:
     parser.add_argument("--runner", choices=("auto", "local", "container"), default="auto",
                         help="Exact local CLI or project digest-pinned Docker image")
     parser.add_argument("--cli", default="kicad-cli", help="KiCad CLI path for an exact local runner")
+    parser.add_argument("--assembly-variant", help="Declared KiCad component population for 3D outputs")
     parser.add_argument("--output", type=Path, help="Fresh receipt directory under ignored build/")
     parser.add_argument("--format", choices=("text", "json"), default="text")
     parser.add_argument("--detail", choices=("brief", "full"), default="brief",
@@ -37,6 +38,9 @@ def main() -> int:
         parser.error("--runner is used only when generating 3D exports")
     if args.check_models and args.runner != "auto":
         parser.error("--runner is used only when generating 3D exports")
+    if args.assembly_variant and (args.map_models is not None or args.init_model_map is not None
+                                  or args.check_models):
+        parser.error("--assembly-variant requires 3D export generation")
     if args.format == "json" and args.detail != "brief":
         parser.error("--detail is for text; JSON already includes every finding")
     try:
@@ -54,6 +58,7 @@ def main() -> int:
             return 0 if mapped.status in {"DRAFT", "PLAN", "APPLIED"} else (2 if mapped.status == "ERROR" else 1)
         report = generate(args.root, args.project, check_models=args.check_models,
                           runner=args.runner, cli=args.cli, output=args.output,
+                          assembly_variant=args.assembly_variant,
                           detail=args.detail)
     except (OSError, ValueError) as exc:
         print(f"Cannot create 3D receipt: {exc}", file=sys.stderr)

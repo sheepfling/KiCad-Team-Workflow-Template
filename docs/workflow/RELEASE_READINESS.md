@@ -78,9 +78,38 @@ source commit. For a two-layer board, a starting point is:
 This object is the value of `release_exports`, not a separate file. Specify inner
 copper layers for multilayer boards. Preparation generates Gerbers, separate plated
 and unplated Excellon drills, placement CSV, native BOM and a purchasing BOM joined
-to controlled `PART_ID` records. Plot origin is applied consistently to Gerbers,
-drills and placement. Review layers, holes, population, rotation/origin conventions
-and supplier requirements before approving the outputs.
+to controlled `PART_ID` records. It also writes schematic and multipage PCB PDFs
+and a JSON board-statistics report under `review/` in the ignored release receipt.
+`supplier_formats` is optional; add, for example, `"supplier_formats": ["odb"]`
+only when a supplier needs ODB++, IPC-2581 or IPC-D-356. ODB++ and IPC-2581
+are compressed archives. IPC-D-356
+is a board test netlist, not a component-population output. Plot origin is applied
+consistently to Gerbers, drills and placement. Review layers, holes, population,
+rotation/origin conventions, PDF coverage and supplier requirements before
+approving the outputs. The board statistics describe the physical board and do
+not change with an assembly variant.
+
+For a board with a named KiCad design variant, set `"assembly_variant": "Pilot A"`
+in `release_exports` for a standalone release. The name must already exist in
+the committed `.kicad_pro` schematic settings. KiCad can report success for an
+unknown name while exporting the default population, so the exporter refuses
+an undeclared name before running native commands. A product variant can select
+a different population for one board by adding
+`"board_variants": {"battery-board": "Pilot A"}` to that variant in `product.json`.
+This mapping overrides the board's default for that release candidate. Product
+`exclude` removes named occurrences, including whole boards or individual
+components; `board_variants` selects native KiCad population within an included
+board. Conflicting selections of the same board in one candidate fail and need
+separate candidates. The selected KiCad name is recorded in `exports.json` and
+checked in the release evidence. For a product release, the native fitted BOM's
+references and `PART_ID`s must also match the product variant's included board
+members. Represent a component that is not fitted in both the KiCad design
+variant and the product variant's occurrence `exclude` list (for example
+`"UNO.R1"`). A different component identity needs a separately reviewed
+product/part schema choice; the exporter will not silently substitute a part.
+Run `tools.release export --project battery-board
+--output build/battery-export --assembly-variant 'Pilot A'` to exercise a single
+board directly from clean committed source.
 
 Exporter options follow the [KiCad 10 CLI](https://docs.kicad.org/10.0/en/cli/cli.html).
 Extend typed settings and the exporter table in `tools/hwrepo/exports.py`, then add
