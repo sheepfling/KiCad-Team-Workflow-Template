@@ -247,8 +247,9 @@ class ElectricalTests(unittest.TestCase):
         for text in ('title\n.include "hidden.lib"\n.end\n', 'title\n.control\nquit\n.endc\n.end\n',
                      'title\n.lib "hidden.lib" section\n.end\n', 'title\n.end\nR1 a 0 1k\n'):
             target.write_text(text)
+            changed = case.model_copy(update={"model_sha256": {case.deck: digest(target)}})
             with self.assertRaises(ValueError):
-                expanded_deck(root, case)
+                expanded_deck(root, changed)
 
     def test_simulator_failure_missing_duplicate_nonfinite_and_out_of_limit_measurements(self) -> None:
         root = self.stage()
@@ -333,15 +334,17 @@ class ElectricalTests(unittest.TestCase):
         target = root / case.deck
         for include in ('startup.cir', '../other.cir', '/tmp/other.cir'):
             target.write_text(f'title\n.include "{include}"\n.end\n')
+            changed = case.model_copy(update={"model_sha256": {case.deck: digest(target)}})
             with self.assertRaises(ValueError):
-                expanded_deck(root, case)
+                expanded_deck(root, changed)
         included = target.with_name("passive.lib")
         included.write_text("R1 in out 10\n")
         target.write_text('title\n.include "passive.lib"\n.end\n')
-        case = case.model_copy(update={"model_sha256": {**case.model_sha256,
+        case = case.model_copy(update={"model_sha256": {case.deck: digest(target),
                             included.relative_to(root).as_posix(): digest(included)}})
         self.assertIn("R1 in out 10", expanded_deck(root, case))
         target.write_text("title\nR1 in out 1\n.end\n")
+        case = case.model_copy(update={"model_sha256": {**case.model_sha256, case.deck: digest(target)}})
         with self.assertRaisesRegex(ValueError, "Unused model"):
             expanded_deck(root, case)
 

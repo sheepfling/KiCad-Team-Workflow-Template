@@ -236,21 +236,11 @@ def main() -> int:
     except (OSError, ValueError) as exc:
         parser.error(str(exc))
     if args.electrical:
-        from .hwrepo.discovery import load_registry
-        from .hwrepo.electrical_runner import analyze
-        from .hwrepo.models import ElectricalSuiteReport
+        from .hwrepo.electrical_runner import analyze_scope
 
-        identifiers = selected if selected is not None else tuple(
-            project.id for project in load_registry(root).projects
-        )
         if args.output is not None:
             parser.error("--electrical manages fresh per-project receipts; omit --output")
-        reports = tuple(analyze(root, identifier, cli=args.cli, ngspice=args.ngspice)
-                        for identifier in identifiers)
-        suite = ElectricalSuiteReport(
-            status="PASS" if reports and all(r.status == "PASS" for r in reports) else "FAIL",
-            projects=reports,
-        )
+        suite = analyze_scope(root, selector, cli=args.cli, ngspice=args.ngspice)
         print(summary("Electrical suite", suite) if args.format == "text" else suite.model_dump_json(indent=2))
         return 0 if suite.status == "PASS" else 1
     if args.matrix:

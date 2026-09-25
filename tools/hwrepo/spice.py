@@ -1,6 +1,7 @@
 """Bounded ngspice batch adapter with reviewed inputs and explicit measurement limits."""
 from __future__ import annotations
 
+import hashlib
 import math
 import re
 import shlex
@@ -10,7 +11,7 @@ from pathlib import Path
 
 from .contract_coach import run_command
 from .contracts import repo_path, write_model
-from .electrical import SimulationCase
+from .electrical import SimulationCase, regular_input_bytes
 from .models import CommandEvidence, ElectricalCheck, TransientAnalysis
 
 # Analysis/control directives are generated here, never inherited from a model file.
@@ -32,7 +33,10 @@ def expanded_deck(root: Path, case: SimulationCase) -> str:
             raise ValueError(f"Unbound SPICE dependency: {name}")
         used.add(name)
         path = repo_path(root, name)
-        lines = path.read_text(encoding="utf-8").splitlines()
+        data = regular_input_bytes(path)
+        if hashlib.sha256(data).hexdigest() != case.model_sha256[name]:
+            raise ValueError(f"Stale reviewed model hash: {name}")
+        lines = data.decode("utf-8").splitlines()
         if main:
             if not lines:
                 raise ValueError("SPICE deck is empty")

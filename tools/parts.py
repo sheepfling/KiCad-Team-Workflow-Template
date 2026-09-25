@@ -2,6 +2,10 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import tempfile
+from collections.abc import Generator
+from contextlib import contextmanager
 from pathlib import Path
 
 from .hwrepo.contract_coach import (
@@ -9,8 +13,10 @@ from .hwrepo.contract_coach import (
     ContainerNetlistRunner,
     LocalNetlistRunner,
 )
+from .hwrepo.contracts import read_model
+from .hwrepo.mcp_files import read_regular_bytes
+from .hwrepo.models import SupplierHandoffPlan
 from .hwrepo.part_picker import create_picker, resume_selection, selection
-from .hwrepo.purchasing_preferences import save_parts_preferences
 from .hwrepo.part_picker_view import (
     picker_text,
     save_picker,
@@ -20,11 +26,14 @@ from .hwrepo.part_picker_view import (
 from .hwrepo.parts_workflow import (
     init_preferences,
     load_preferences,
+    local_path,
     new_receipt,
     prepare,
     save_report,
     text_report,
 )
+from .hwrepo.purchasing_preferences import save_parts_preferences
+from .hwrepo.supplier_handoff import prepare_supplier_handoff, submit_supplier_handoff
 
 
 def count(value: str) -> int:
@@ -35,6 +44,21 @@ def count(value: str) -> int:
     if number < 0:
         raise argparse.ArgumentTypeError("Use zero or a positive whole number")
     return number
+
+
+@contextmanager
+def reviewed_source_map(root: Path, requested: Path, expected_sha256: str | None) -> Generator[Path, None, None]:
+    """When a digest is supplied, apply only the bytes that actually matched it."""
+    if expected_sha256 is None:
+        yield requested
+        return
+    content, _ = read_regular_bytes(local_path(root, requested), maximum=2 * 1024 * 1024)
+    if hashlib.sha256(content).hexdigest() != expected_sha256:
+        raise ValueError("Reviewed plan changed; inspect it and use its current SHA-256")
+    with tempfile.TemporaryDirectory(prefix=".parts-reviewed-", dir=root / "build") as temporary:
+        path = Path(temporary) / "plan.json"
+        path.write_bytes(content)
+        yield path
 
 
 def main() -> int:
@@ -54,7 +78,13 @@ def main() -> int:
                       help="Create a new preferences JSON under this island's docs/ and exit")
     mode.add_argument("--save-preferences", action="store_true",
                       help="Create/update island docs/purchasing.json; existing files need a digest")
-    parser.add_argument("--expected-sha256", help="Current purchasing.json digest for --save-preferences")
+    parser.add_argument("--expected-sha256", help="Current preferences, locked plan or reviewed supplier handoff SHA-256")
+    mode.add_argument("--prepare-handoff", type=Path,
+                      help="Prepare an offline DigiKey handoff from a saved parts report")
+    mode.add_argument("--submit-handoff", type=Path,
+                      help="Submit the reviewed handoff once to an external DigiKey review list")
+    parser.add_argument("--allow-supplier-submissions", action="store_true",
+                        help="Permit --submit-handoff to disclose the reviewed BOM to DigiKey")
     mode.add_argument("--assist", action="store_true", help="Open one local page for automatic CAD, parts and ordering")
     mode.add_argument("--auto-models", action="store_true", help="Automatically resolve paired footprint models and preview their import")
     mode.add_argument("--cad-plan", type=Path, help="Apply a previously reviewed automatic CAD plan")
@@ -75,6 +105,18 @@ def main() -> int:
     parser.add_argument("--output", type=Path, help="Fresh receipt directory below ignored build/")
     parser.add_argument("--format", choices=("text", "json"), default="text")
     args = parser.parse_args()
+    handoff_mode = args.prepare_handoff is not None or args.submit_handoff is not None
+    if handoff_mode and (any(value is not None for value in (args.native_summary, args.preferences, args.boards,
+            args.spare_percent, args.spare_minimum)) or args.runner != "auto"
+            or args.cli != "kicad-cli" or args.apply):
+        parser.error("Supplier handoff uses the saved review; omit capture, quantity and apply options")
+    if args.allow_supplier_submissions and args.submit_handoff is None:
+        parser.error("--allow-supplier-submissions requires --submit-handoff")
+    if args.submit_handoff is not None:
+        if not args.allow_supplier_submissions or args.expected_sha256 is None:
+            parser.error("--submit-handoff requires --allow-supplier-submissions and --expected-sha256")
+        if args.output is not None:
+            parser.error("Submission retains its own attempt receipt; omit --output")
     if args.port > 65535:
         parser.error("--port must be 0–65535")
     if not args.assist and (args.port or args.no_browser):
@@ -107,10 +149,30 @@ def main() -> int:
         parser.error("Set quantities with the order review; the picker preserves saved build preferences")
     if (args.init_preferences is not None or args.save_preferences) and args.output is not None:
         parser.error("--output applies only to a parts review")
-    if args.expected_sha256 is not None and not args.save_preferences:
-        parser.error("--expected-sha256 applies only to --save-preferences")
+    if args.expected_sha256 is not None and not (args.save_preferences or args.submit_handoff is not None
+                                                or (args.apply and (args.selection is not None or args.cad_plan is not None))):
+        parser.error("--expected-sha256 applies only to preference saves, reviewed source apply or supplier submission")
     root = args.root.resolve()
     try:
+        if handoff_mode:
+            requested = args.prepare_handoff if args.prepare_handoff is not None else args.submit_handoff
+            assert requested is not None
+            artifact = local_path(root, requested).relative_to(root).as_posix()
+            if args.prepare_handoff is not None:
+                handoff = prepare_supplier_handoff(
+                    root, args.project, artifact, new_receipt(root, args.project, args.output),
+                )
+            else:
+                spec = read_model(local_path(root, requested), SupplierHandoffPlan)
+                if spec.project_id != args.project:
+                    raise ValueError("Supplier handoff belongs to a different project")
+                assert args.expected_sha256 is not None
+                handoff = submit_supplier_handoff(root, artifact, args.expected_sha256)
+            print(handoff.model_dump_json(indent=2) if args.format == "json" else
+                  f"{handoff.status}: {handoff.handoff}\nReviewed SHA-256: {handoff.handoff_sha256}\n"
+                  f"Attempt receipt: {handoff.attempt_receipt or 'not submitted'}\n"
+                  "External review only; no purchase or build is authorized.")
+            return 0 if handoff.status in {"PREPARED", "SENT"} else 1
         if args.save_preferences:
             preferences = load_preferences(
                 root, args.project, args.preferences, args.boards,
@@ -131,7 +193,8 @@ def main() -> int:
                 cad = auto_cad.plan(root, args.project, output)
             else:
                 assert args.cad_plan is not None
-                cad = auto_cad.apply(root, args.project, args.cad_plan, output)
+                with reviewed_source_map(root, args.cad_plan, args.expected_sha256) as source_map:
+                    cad = auto_cad.apply(root, args.project, source_map, output)
             if args.format == "json":
                 print(cad.model_dump_json(indent=2))
             else:
@@ -167,9 +230,11 @@ def main() -> int:
             print(picker.model_dump_json(indent=2) if args.format == "json" else picker_text(picker))
             return 0 if picker.status == "READY" else 1
         if mutation:
-            result = (selection(root, args.project, args.selection, output, apply=args.apply)
-                      if args.selection is not None
-                      else resume_selection(root, args.project, output))
+            if args.selection is not None:
+                with reviewed_source_map(root, args.selection, args.expected_sha256) as source_map:
+                    result = selection(root, args.project, source_map, output, apply=args.apply)
+            else:
+                result = resume_selection(root, args.project, output)
             save_selection(output, result)
             print(result.model_dump_json(indent=2) if args.format == "json" else selection_text(result))
             return 1 if result.status == "BLOCKED" else 0

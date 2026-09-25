@@ -251,6 +251,11 @@ class McpWorkflowTests(unittest.TestCase):
                 (output / "assembly/bom.csv").write_text(
                     "Reference,Value,Footprint,PartID,DNP\n"
                     f"R1,1k,Resistor_SMD:R_0805_2012Metric,{part_id},\n")
+            elif name in {"schematic_pdf", "pcb_pdf"}:
+                (output / "review" / ("schematic.pdf" if name == "schematic_pdf" else "pcb.pdf")).write_bytes(
+                    b"%PDF-1.5\nSynthetic review packet\n")
+            elif name == "board_stats":
+                (output / "review/board-stats.json").write_text("{}\n")
             return CommandEvidence(argv=argv, started_utc="2026-01-01T00:00:00Z", returncode=0,
                                    stdout="10.0.5\n" if name == "version" else "")
 

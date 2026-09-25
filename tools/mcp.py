@@ -18,6 +18,10 @@ def main() -> int:
                         help="Expose reviewed, hash-checked replacements of existing project text")
     parser.add_argument("--allow-exports", action="store_true",
                         help="Expose packaging/restore; native export and review also need --allow-checks")
+    parser.add_argument("--allow-downloads", action="store_true",
+                        help="Allow official CAD downloads during enabled parts preview/apply tools")
+    parser.add_argument("--allow-supplier-submissions", action="store_true",
+                        help="Expose explicit reviewed BOM submission to DigiKey; never places an order")
     parser.add_argument("--import-root", type=Path, action="append", default=[],
                         help="Additional absolute directory permitted for import reads; repeatable")
     args = parser.parse_args()
@@ -36,7 +40,8 @@ def main() -> int:
         server = create_server(
             args.root, allow_checks=args.allow_checks, allow_writes=args.allow_writes,
             import_roots=tuple(args.import_root), allow_edits=args.allow_edits,
-            allow_exports=args.allow_exports,
+            allow_exports=args.allow_exports, allow_downloads=args.allow_downloads,
+            allow_supplier_submissions=args.allow_supplier_submissions,
         )
     except (OSError, ValueError) as exc:
         parser.error(str(exc))

@@ -29,7 +29,7 @@ from .discovery import load_config, load_registry
 from .doctor import NativeRunner, doctor
 from .evidence import digest, source_state, verify_release_portable
 from .exports import export as generate_exports
-from .exports import verify_exports
+from .exports import require_declared_variant, verify_exports
 from .mcp_files import artifact_path
 from .models import (
     ContractCoachReport,
@@ -225,6 +225,7 @@ def captured_command(root: Path, argv: tuple[str, ...], log: Path, timeout: int)
 
 def export_project(
     root: Path, project_id: str, export_id: str, runner: NativeRunner = "auto",
+    assembly_variant: str | None = None,
 ) -> ReleaseExportReport:
     """Export explicit PCB settings into a fresh ignored directory for review."""
     root = root.resolve()
@@ -232,6 +233,11 @@ def export_project(
     manifest = read_model(repo_path(root, project.config), ProjectManifest)
     if manifest.release_exports is None or manifest.kind.value != "pcb":
         raise ValueError("PCB release exports require project.json release_exports settings")
+    if assembly_variant is not None and not assembly_variant.strip():
+        raise ValueError("KiCad assembly variant cannot be blank")
+    selected_variant = assembly_variant or manifest.release_exports.assembly_variant
+    config = load_config(root, project.config)
+    require_declared_variant(repo_path(root, config.project), selected_variant)
     directory = fresh_output(root, "exports", export_id)
     output = repo_path(root, (directory / "files").relative_to(root).as_posix())
     clean_source(root)
@@ -249,10 +255,11 @@ def export_project(
         ), directory / "dependencies.command.json", 600)
     source = source_state(root)
     if cli is not None:
-        report = generate_exports(root, project.config, output, cli)
+        report = generate_exports(root, project.config, output, cli, assembly_variant)
     else:
         try:
-            releasing.run_native(root, project, output, cli, dependencies, export_only=True)
+            releasing.run_native(root, project, output, cli, dependencies, export_only=True,
+                                 assembly_variant=assembly_variant)
         except ValueError:
             # The CLI exits 1 for a typed domain FAIL. Preserve that report when
             # present; startup/container failures without a report remain errors.
@@ -266,13 +273,14 @@ def export_project(
             report = read_model(output / "exports.json", ReleaseExportReport)
     if (report.project_id != project_id or report.source != source
             or report.toolchain_id != load_config(root, project.config).toolchain_id
-            or report.settings != manifest.release_exports):
+            or report.settings != manifest.release_exports
+            or report.assembly_variant != selected_variant):
         raise ValueError("Export report differs from the requested project/source/settings")
     if report.status == "FAIL":
         return report
     return verify_exports(
         root, releasing.reference(root, output / "exports.json"), source_state(root),
-        project_id, project.config,
+        project_id, project.config, assembly_variant,
     )
 
 
@@ -395,6 +403,7 @@ def inspect_3d_models(root: Path, project_id: str) -> ModelInventoryReport:
 
 def export_3d(
     root: Path, project_id: str, view_id: str, runner: NativeRunner = "auto",
+    assembly_variant: str | None = None,
 ) -> ThreeDReport:
     """Create source-bound 3D review artifacts under one fresh ignored destination."""
     root = root.resolve()
@@ -402,7 +411,8 @@ def export_3d(
     if runner not in {"auto", "local", "container"}:
         raise ValueError(f"Unknown native runner: {runner}")
     output = fresh_output(root, "3d", view_id)
-    return three_d.generate(root, project_id, runner=runner, cli="kicad-cli", output=output)
+    return three_d.generate(root, project_id, runner=runner, cli="kicad-cli", output=output,
+                            assembly_variant=assembly_variant)
 
 
 def preview_model_population(

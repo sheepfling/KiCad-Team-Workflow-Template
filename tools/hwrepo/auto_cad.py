@@ -49,17 +49,18 @@ def _receipt(root: Path, output: Path) -> Path:
     return output
 
 
-def _resolve(root: Path, project_id: str, footprint_id: str) -> ResolvedFootprint:
+def _resolve(root: Path, project_id: str, footprint_id: str, *, allow_downloads: bool) -> ResolvedFootprint:
     try:
         return resolve_footprint(root, project_id, footprint_id)
     except MissingFootprintError:
         project = selected_project(root, project_id)
         config = load_config(root, project.config)
-        library = fetch_official_footprint(root / "build/cad-cache", footprint_id, config.kicad_version)
+        library = fetch_official_footprint(repo_path(root, "build/cad-cache"), footprint_id,
+                                           config.kicad_version, allow_downloads=allow_downloads)
         return replace(resolve_footprint(root, project_id, footprint_id, library_root=library), official_library=True)
 
 
-def _build(root: Path, project_id: str) -> tuple[tuple[AutoCadItem, ...], tuple[_Edit, ...]]:
+def _build(root: Path, project_id: str, *, allow_downloads: bool) -> tuple[tuple[AutoCadItem, ...], tuple[_Edit, ...]]:
     project = selected_project(root, project_id)
     manifest_path = repo_path(root, project.config)
     manifest = read_model(manifest_path, ProjectManifest)
@@ -77,12 +78,12 @@ def _build(root: Path, project_id: str) -> tuple[tuple[AutoCadItem, ...], tuple[
         try:
             pair = resolved.get(placed.footprint_id)
             if pair is None:
-                pair = _resolve(root, project_id, placed.footprint_id)
+                pair = _resolve(root, project_id, placed.footprint_id, allow_downloads=allow_downloads)
                 resolved[placed.footprint_id] = pair
             if not pair.models:
                 raise ValueError("The assigned footprint has no paired 3D model. Select a footprint with CAD or import its vendor bundle.")
             library, member = pair.footprint_id.split(":")
-            directory = asset_root / library / member
+            directory = repo_path(root, (asset_root / library / member).relative_to(root).as_posix())
             references: dict[str, str] = {}
             assets: list[AutoCadAsset] = []
             copied: dict[str, bytes] = {}
@@ -97,7 +98,7 @@ def _build(root: Path, project_id: str) -> tuple[tuple[AutoCadItem, ...], tuple[
             copied[(directory / "source-footprint.txt").relative_to(root).as_posix()] = pair.source_bytes
             provenance = AutoCadProvenance(footprint=pair.footprint_id, source=pair.provenance,
                 source_sha256=_sha(pair.source_text.encode("utf-8")), models=tuple(assets))
-            provenance_path = directory / "provenance.json"
+            provenance_path = repo_path(root, (directory / "provenance.json").relative_to(root).as_posix())
             provenance_bytes = (provenance.model_dump_json(indent=2) + "\n").encode("utf-8")
             if provenance_path.exists():
                 recorded = read_model(provenance_path, AutoCadProvenance)
@@ -203,7 +204,7 @@ def _write_edits(root: Path, project_id: str, spec: AutoCadPlan, edits: tuple[_E
             raise
 
 
-def _run(root: Path, project_id: str, output: Path, locked: Path | None) -> AutoCadReport:
+def _run(root: Path, project_id: str, output: Path, locked: Path | None, *, allow_downloads: bool) -> AutoCadReport:
     root = root.resolve()
     output = _receipt(root, output)
     try:
@@ -213,7 +214,7 @@ def _run(root: Path, project_id: str, output: Path, locked: Path | None) -> Auto
             if spec.project_id != project_id:
                 raise ValueError("CAD plan belongs to a different project")
             _verify_snapshot(root, project_id, spec.preconditions)
-        items, edits = _build(root, project_id)
+        items, edits = _build(root, project_id, allow_downloads=allow_downloads)
         _verify_snapshot(root, project_id, before)
         hashes = {edit.path: _sha(edit.after) for edit in edits}
         if spec is not None and hashes != spec.after_hashes:
@@ -236,11 +237,11 @@ def _run(root: Path, project_id: str, output: Path, locked: Path | None) -> Auto
     return report
 
 
-def plan(root: Path, project_id: str, output: Path) -> AutoCadReport:
+def plan(root: Path, project_id: str, output: Path, *, allow_downloads: bool = True) -> AutoCadReport:
     """Resolve pairs and show a source-bound preview; no project inputs are changed."""
-    return _run(root, project_id, output, None)
+    return _run(root, project_id, output, None, allow_downloads=allow_downloads)
 
 
-def apply(root: Path, project_id: str, plan_path: Path, output: Path) -> AutoCadReport:
+def apply(root: Path, project_id: str, plan_path: Path, output: Path, *, allow_downloads: bool = True) -> AutoCadReport:
     """Recalculate a reviewed plan and transactionally import its unchanged bytes."""
-    return _run(root, project_id, output, plan_path)
+    return _run(root, project_id, output, plan_path, allow_downloads=allow_downloads)

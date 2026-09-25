@@ -28,8 +28,10 @@ from .models import (
     CommandEvidence,
     ElectricalAnalysisReport,
     ElectricalCheck,
+    ElectricalSuiteReport,
     GroundingAnalysis,
 )
+from .selection import ProjectSelector, resolve_project_ids
 from .spice import executable_path, run_case, simulator_version
 
 
@@ -37,6 +39,8 @@ def analyze(root: Path, project_id: str, output: Path | None = None,
             native_summary: Path | None = None, cli: str = "kicad-cli",
             ngspice: str = "ngspice", runner: NetlistRunner | None = None) -> ElectricalAnalysisReport:
     root = root.resolve()
+    if native_summary is not None and not native_summary.is_absolute():
+        native_summary = root / native_summary
     if output is None:
         output = Path("build/electrical") / f"{project_id}-{uuid4().hex[:12]}"
     output = receipt_directory(root, project_id, output)
@@ -101,6 +105,18 @@ def analyze(root: Path, project_id: str, output: Path | None = None,
     write_model(output / "electrical.json", report)
     (output / "electrical.txt").write_text(format_report(report, "full") + "\n", encoding="utf-8")
     return report
+
+
+def analyze_scope(root: Path, selector: ProjectSelector | None = None,
+                  cli: str = "kicad-cli", ngspice: str = "ngspice") -> ElectricalSuiteReport:
+    """Run the same selected electrical scope for CLI and MCP, retaining every result."""
+    identifiers = resolve_project_ids(root, selector or ProjectSelector())
+    reports = tuple(analyze(root, project_id, cli=cli, ngspice=ngspice)
+                    for project_id in identifiers)
+    return ElectricalSuiteReport(
+        status="PASS" if reports and all(report.status == "PASS" for report in reports) else "FAIL",
+        projects=reports,
+    )
 
 
 def format_report(report: ElectricalAnalysisReport, detail: Literal["brief", "full"] = "brief") -> str:

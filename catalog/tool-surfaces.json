@@ -29,6 +29,7 @@
       "commands": [],
       "options": [
         "--cli",
+        "--electrical",
         "--exclude-tag",
         "--fault-probes",
         "--format",
@@ -37,6 +38,7 @@
         "--manifest",
         "--matrix",
         "--metrics",
+        "--ngspice",
         "--output",
         "--product",
         "--project",
@@ -76,6 +78,25 @@
       "commands": [],
       "options": [
         "--root"
+      ]
+    },
+    {
+      "module": "tools.electrical",
+      "commands": [],
+      "options": [
+        "--capture-inputs",
+        "--cli",
+        "--detail",
+        "--format",
+        "--init",
+        "--model",
+        "--native-summary",
+        "--ngspice",
+        "--ngspice-version",
+        "--output",
+        "--project",
+        "--root",
+        "--runner"
       ]
     },
     {
@@ -148,8 +169,10 @@
       "commands": [],
       "options": [
         "--allow-checks",
+        "--allow-downloads",
         "--allow-edits",
         "--allow-exports",
+        "--allow-supplier-submissions",
         "--allow-writes",
         "--import-root",
         "--root"
@@ -177,20 +200,32 @@
       "module": "tools.parts",
       "commands": [],
       "options": [
+        "--allow-supplier-submissions",
+        "--apply",
+        "--assist",
+        "--auto-models",
         "--boards",
+        "--cad-plan",
         "--cli",
         "--expected-sha256",
         "--format",
         "--init-preferences",
         "--native-summary",
+        "--no-browser",
         "--output",
+        "--picker",
+        "--port",
         "--preferences",
+        "--prepare-handoff",
         "--project",
         "--root",
         "--runner",
         "--save-preferences",
+        "--selection",
         "--spare-minimum",
-        "--spare-percent"
+        "--spare-percent",
+        "--submit-handoff",
+        "--sync-models"
       ]
     },
     {
@@ -205,6 +240,7 @@
       ],
       "options": [
         "--archive",
+        "--assembly-variant",
         "--cli",
         "--destination",
         "--format",
@@ -242,6 +278,7 @@
       "commands": [
         "adopt",
         "bootstrap",
+        "convert-pcb",
         "diagnose",
         "doctor",
         "import-project",
@@ -259,11 +296,14 @@
         "--destination",
         "--detail",
         "--dry-run",
+        "--electrical",
         "--format",
+        "--input-format",
         "--kind",
         "--log-dir",
         "--native",
         "--native-report",
+        "--ngspice",
         "--project-id",
         "--root",
         "--runner",
@@ -291,6 +331,7 @@
         "--depth",
         "--detail",
         "--format",
+        "--ngspice",
         "--output",
         "--project",
         "--root",
@@ -302,6 +343,7 @@
       "commands": [],
       "options": [
         "--apply",
+        "--assembly-variant",
         "--check-models",
         "--cli",
         "--detail",
@@ -317,10 +359,37 @@
   ],
   "mcp": [
     {
+      "name": "analyze_electrical",
+      "parameters": [
+        "native_summary",
+        "project_id",
+        "runner",
+        "view_id"
+      ]
+    },
+    {
+      "name": "apply_auto_cad",
+      "parameters": [
+        "expected_sha256",
+        "plan",
+        "project_id",
+        "view_id"
+      ]
+    },
+    {
       "name": "apply_model_population",
       "parameters": [
         "plan",
         "project_id"
+      ]
+    },
+    {
+      "name": "apply_part_selection",
+      "parameters": [
+        "expected_sha256",
+        "project_id",
+        "selection_map",
+        "view_id"
       ]
     },
     {
@@ -338,6 +407,23 @@
       "parameters": [
         "project_id",
         "runner"
+      ]
+    },
+    {
+      "name": "capture_electrical_inputs",
+      "parameters": [
+        "models",
+        "project_id",
+        "view_id"
+      ]
+    },
+    {
+      "name": "check_electrical_scope",
+      "parameters": [
+        "exclude_tags",
+        "product_ids",
+        "project_ids",
+        "tags"
       ]
     },
     {
@@ -374,6 +460,16 @@
       ]
     },
     {
+      "name": "convert_pcb",
+      "parameters": [
+        "input_format",
+        "project_id",
+        "runner",
+        "source",
+        "toolchain_id"
+      ]
+    },
+    {
       "name": "diagnose_import",
       "parameters": [
         "project_id",
@@ -392,6 +488,7 @@
     {
       "name": "doctor",
       "parameters": [
+        "electrical",
         "native",
         "project_id",
         "runner",
@@ -401,6 +498,7 @@
     {
       "name": "export_3d",
       "parameters": [
+        "assembly_variant",
         "project_id",
         "runner",
         "view_id"
@@ -409,6 +507,7 @@
     {
       "name": "export_project",
       "parameters": [
+        "assembly_variant",
         "export_id",
         "project_id",
         "runner"
@@ -436,6 +535,13 @@
         "project_id",
         "source",
         "toolchain_id"
+      ]
+    },
+    {
+      "name": "init_electrical",
+      "parameters": [
+        "ngspice_version",
+        "project_id"
       ]
     },
     {
@@ -509,6 +615,15 @@
       ]
     },
     {
+      "name": "prepare_part_picker",
+      "parameters": [
+        "native_summary",
+        "project_id",
+        "runner",
+        "view_id"
+      ]
+    },
+    {
       "name": "prepare_parts",
       "parameters": [
         "boards",
@@ -540,6 +655,21 @@
       ]
     },
     {
+      "name": "prepare_supplier_handoff",
+      "parameters": [
+        "parts_report",
+        "project_id",
+        "view_id"
+      ]
+    },
+    {
+      "name": "preview_auto_cad",
+      "parameters": [
+        "project_id",
+        "view_id"
+      ]
+    },
+    {
       "name": "preview_import",
       "parameters": [
         "project_id",
@@ -553,6 +683,22 @@
         "assignments",
         "board_sha256",
         "project_id"
+      ]
+    },
+    {
+      "name": "preview_model_sync",
+      "parameters": [
+        "project_id",
+        "view_id"
+      ]
+    },
+    {
+      "name": "preview_part_selection",
+      "parameters": [
+        "assignments",
+        "picker_report",
+        "project_id",
+        "view_id"
       ]
     },
     {
@@ -617,6 +763,13 @@
       ]
     },
     {
+      "name": "submit_supplier_handoff",
+      "parameters": [
+        "expected_sha256",
+        "handoff"
+      ]
+    },
+    {
       "name": "verify_package",
       "parameters": [
         "archive"
@@ -668,10 +821,11 @@
       "scope": "core",
       "gaps": [],
       "constraints": [
-        "CLI --cli selects an executable; MCP uses the startup environment and fixed command."
+        "CLI --cli/--ngspice selects an executable; MCP uses the startup environment and fixed command."
       ],
       "parity_tests": [
-        "tests.test_mcp_parity.McpParityTests.test_doctor_failure_parity"
+        "tests.test_mcp_parity.McpParityTests.test_doctor_failure_parity",
+        "tests.test_electrical_parity.ElectricalParityTests.test_doctor_and_verification_electrical_preflight_match_cli"
       ]
     },
     {
@@ -800,14 +954,15 @@
         "check_project"
       ],
       "alignment": "aligned",
-      "reason": "Both dispatch the same portable/native project verification and preserve failed results.",
+      "reason": "Both dispatch the same portable/native/electrical project verification and preserve failed results.",
       "scope": "core",
       "gaps": [],
       "constraints": [
         "CLI accepts --cli, --output and detailed text presentation; MCP uses the fixed executable and fresh diagnostic receipts."
       ],
       "parity_tests": [
-        "tests.test_mcp_parity.McpParityTests.test_selected_verification_parity"
+        "tests.test_mcp_parity.McpParityTests.test_selected_verification_parity",
+        "tests.test_electrical_parity.ElectricalParityTests.test_doctor_and_verification_electrical_preflight_match_cli"
       ]
     },
     {
@@ -899,14 +1054,15 @@
         "export_3d"
       ],
       "alignment": "aligned",
-      "reason": "Both export native 3D views and models using the selected exact runner.",
+      "reason": "Both export native 3D views and models using the selected exact runner. Both accept declared KiCad assembly variants; fabrication exports retain configured supplier formats and review artifacts.",
       "scope": "core",
       "gaps": [],
       "constraints": [
         "CLI accepts --cli and --output; MCP selects a fresh directory by view_id and requires allow-checks plus allow-exports."
       ],
       "parity_tests": [
-        "tests.test_artifact_parity.ArtifactParityTests.test_3d_export_parity"
+        "tests.test_artifact_parity.ArtifactParityTests.test_3d_export_parity",
+        "tests.test_artifact_parity.ArtifactParityTests.test_assembly_variant_export_and_3d_parity"
       ]
     },
     {
@@ -978,14 +1134,15 @@
         "export_project"
       ],
       "alignment": "aligned",
-      "reason": "Both export source-bound native fabrication and assembly evidence.",
+      "reason": "Both export source-bound native fabrication and assembly evidence. Both accept declared KiCad assembly variants; fabrication exports retain configured supplier formats and review artifacts.",
       "scope": "core",
       "gaps": [],
       "constraints": [
         "Both export one project. MCP selects a fixed executable or pinned container, a fresh output ID and requires clean source plus checks/exports permissions."
       ],
       "parity_tests": [
-        "tests.test_artifact_parity.ArtifactParityTests.test_native_fabrication_export_parity"
+        "tests.test_artifact_parity.ArtifactParityTests.test_native_fabrication_export_parity",
+        "tests.test_artifact_parity.ArtifactParityTests.test_assembly_variant_export_and_3d_parity"
       ]
     },
     {
@@ -1298,6 +1455,179 @@
       "gaps": [],
       "constraints": [],
       "exception": "Prototype/production classes remain operator actions with production-profile prerequisites; MCP never creates manufacturing approval.",
+      "parity_tests": []
+    },
+    {
+      "id": "foreign-board-conversion",
+      "cli": [
+        "tools.template convert-pcb"
+      ],
+      "mcp": [
+        "convert_pcb"
+      ],
+      "alignment": "aligned",
+      "reason": "Both retain guarded native conversion evidence and a separate import preview.",
+      "scope": "core",
+      "gaps": [],
+      "constraints": [
+        "MCP requires checks plus exports and reads only checkout/startup import roots; fixed native executables and generated receipt locations."
+      ],
+      "parity_tests": [
+        "tests.test_mcp_conversion.McpConversionTests.test_all_formats_cli_and_mcp_match_without_registering_source",
+        "tests.test_mcp_conversion.McpConversionTests.test_conversion_failure_receipts_match_cli"
+      ]
+    },
+    {
+      "id": "electrical-setup",
+      "cli": [
+        "tools.electrical"
+      ],
+      "mcp": [
+        "init_electrical"
+      ],
+      "alignment": "aligned",
+      "reason": "Both create pending electrical requirements without replacing reviewed inputs.",
+      "scope": "core",
+      "gaps": [],
+      "constraints": [
+        "MCP requires edits and an explicit project; ngspice version remains UNREVIEWED unless supplied by the engineer."
+      ],
+      "parity_tests": [
+        "tests.test_electrical_parity.ElectricalParityTests.test_init_and_capture_match_cli_without_approving_requirements"
+      ]
+    },
+    {
+      "id": "electrical-input-capture",
+      "cli": [
+        "tools.electrical"
+      ],
+      "mcp": [
+        "capture_electrical_inputs"
+      ],
+      "alignment": "aligned",
+      "reason": "Both capture source and model hashes as UNREVIEWED evidence.",
+      "scope": "core",
+      "gaps": [],
+      "constraints": [
+        "MCP requires exports, bounded project/model paths and a fresh receipt ID."
+      ],
+      "parity_tests": [
+        "tests.test_electrical_parity.ElectricalParityTests.test_init_and_capture_match_cli_without_approving_requirements"
+      ]
+    },
+    {
+      "id": "electrical-analysis",
+      "cli": [
+        "tools.electrical"
+      ],
+      "mcp": [
+        "analyze_electrical"
+      ],
+      "alignment": "aligned",
+      "reason": "Both run reviewed grounding, power and frequency checks using fresh or saved native evidence.",
+      "scope": "core",
+      "gaps": [],
+      "constraints": [
+        "MCP requires checks, fixed KiCad/ngspice executables and bounded saved artifacts; native runner choice matches the CLI."
+      ],
+      "parity_tests": [
+        "tests.test_electrical_parity.ElectricalParityTests.test_saved_native_analysis_is_root_relative_and_preserves_native_failure",
+        "tests.test_electrical_parity.ElectricalParityTests.test_external_fixed_simulator_success_and_wrong_version_match_cli"
+      ]
+    },
+    {
+      "id": "electrical-scope-checks",
+      "cli": [
+        "tools.ci"
+      ],
+      "mcp": [
+        "check_electrical_scope"
+      ],
+      "alignment": "aligned",
+      "reason": "Both use the same project/product/tag union and exclusion selectors and preserve per-project outcomes.",
+      "scope": "core",
+      "gaps": [],
+      "constraints": [
+        "MCP requires checks and fixed executables; CLI tools.ci --electrical provides explicit executable overrides."
+      ],
+      "parity_tests": [
+        "tests.test_electrical_parity.ElectricalParityTests.test_scope_selection_preserves_mixed_outcomes_like_ci"
+      ]
+    },
+    {
+      "id": "reviewed-part-selection",
+      "cli": [
+        "tools.parts"
+      ],
+      "mcp": [
+        "prepare_part_picker",
+        "preview_part_selection",
+        "apply_part_selection",
+        "preview_model_sync"
+      ],
+      "alignment": "aligned",
+      "reason": "Both expose catalog choices, preview locked source edits, apply reviewed selections and resume model population after KiCad updates.",
+      "scope": "core",
+      "gaps": [],
+      "constraints": [
+        "MCP previews require exports, fresh native capture requires checks, and applying requires edits plus the reviewed artifact digest. The CLI can use downloaded selection JSON."
+      ],
+      "parity_tests": [
+        "tests.test_parts_extensions.PartsExtensionsTests.test_picker_selection_and_sync_cli_protocol_parity"
+      ]
+    },
+    {
+      "id": "paired-cad-import",
+      "cli": [
+        "tools.parts"
+      ],
+      "mcp": [
+        "preview_auto_cad",
+        "apply_auto_cad"
+      ],
+      "alignment": "aligned",
+      "reason": "Both preview and apply paired footprint/model imports using the same provenance and source guards.",
+      "scope": "core",
+      "gaps": [],
+      "constraints": [
+        "MCP previews require exports, applications require edits, and external official CAD downloads additionally require allow-downloads. Repository, installed and verified cached assets remain usable without network."
+      ],
+      "parity_tests": [
+        "tests.test_parts_extensions.PartsExtensionsTests.test_auto_cad_cli_protocol_parity"
+      ]
+    },
+    {
+      "id": "supplier-review-handoff",
+      "cli": [
+        "tools.parts"
+      ],
+      "mcp": [
+        "prepare_supplier_handoff",
+        "submit_supplier_handoff"
+      ],
+      "alignment": "aligned",
+      "reason": "Both prepare the exact source-bound supplier payload and require an explicit reviewed digest before one external submission attempt.",
+      "scope": "core",
+      "gaps": [],
+      "constraints": [
+        "Preparation is local under exports. Submission requires a separate supplier-submissions host flag; CLI also needs its explicit submit flag. Neither surface places an order or retries uncertain delivery."
+      ],
+      "parity_tests": [
+        "tests.test_parts_extensions.PartsExtensionsTests.test_supplier_prepare_and_submit_cli_protocol_parity"
+      ]
+    },
+    {
+      "id": "parts-browser-assistant",
+      "cli": [
+        "tools.parts"
+      ],
+      "mcp": [],
+      "alignment": "cli_only",
+      "reason": "The local browser assistant presents the same reviewed parts services interactively.",
+      "scope": "adapter",
+      "gaps": [],
+      "constraints": [],
+      "exception": "CLI --assist starts a long-running browser session. MCP exposes its bounded underlying operations and never starts a second server that could bypass MCP startup capabilities.",
       "parity_tests": []
     }
   ]

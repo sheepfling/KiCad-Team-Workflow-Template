@@ -22,7 +22,7 @@ class CadDownloadTests(unittest.TestCase):
     def setUp(self) -> None:
         temporary = tempfile.TemporaryDirectory(prefix="cad-download-test-")
         self.addCleanup(temporary.cleanup)
-        self.cache = Path(temporary.name) / "cache"
+        self.cache = Path(temporary.name).resolve() / "cache"
         self.urls: list[str] = []
 
     def download(self, url: str, maximum: int) -> bytes:

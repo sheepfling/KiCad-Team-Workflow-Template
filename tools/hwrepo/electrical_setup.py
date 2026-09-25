@@ -10,8 +10,13 @@ from ..validate import hashes
 from .contract_coach import receipt_directory
 from .contracts import read_model, repo_path, write_model
 from .discovery import load_registry
-from .electrical import load_analysis, selected_config, simulation_cases
-from .evidence import digest
+from .electrical import (
+    load_analysis,
+    model_digest,
+    regular_input_bytes,
+    selected_config,
+    simulation_cases,
+)
 from .models import (
     AnalysisPending,
     ElectricalAnalysisContract,
@@ -37,7 +42,7 @@ def initialize(root: Path, project_id: str, ngspice_version: str = "UNREVIEWED")
     manifest_path = repo_path(root, project.config)
     manifest = read_model(manifest_path, ProjectManifest)
     checks = repo_path(manifest_path.parent, manifest.checks)
-    before = checks.read_bytes()
+    before = regular_input_bytes(checks)
     contract = read_model(checks, ProjectTestContract)
     destination = repo_path(manifest_path.parent, "tests/electrical.json")
     if destination.exists():
@@ -61,7 +66,7 @@ def initialize(root: Path, project_id: str, ngspice_version: str = "UNREVIEWED")
         with tempfile.NamedTemporaryFile(dir=checks.parent, prefix=".electrical-", delete=False) as stream:
             temporary = Path(stream.name)
         write_model(temporary, contract.model_copy(update={"electrical": "tests/electrical.json"}))
-        if checks.read_bytes() != before:
+        if regular_input_bytes(checks) != before:
             raise ValueError("Native test contract changed during setup; preserve the edit and retry")
         os.chmod(temporary, checks.stat().st_mode & 0o777)
         os.replace(temporary, checks)
@@ -110,10 +115,10 @@ def capture_inputs(root: Path, project_id: str, models: tuple[str, ...] = (),
             raise ValueError(f"Generated build output cannot be a model source: {name}")
         if not path.is_relative_to(island) and name not in config.required_inputs:
             raise ValueError(f"Model must be project-local or a declared shared input: {name}")
-        model_hashes[name] = digest(path)
+        model_hashes[name] = model_digest(path)
     # A receipt must not combine hashes from designs changed midway through capture.
     if hashes(root, config.source_roots) != current or any(
-        digest(repo_path(root, name)) != value for name, value in model_hashes.items()
+        model_digest(repo_path(root, name)) != value for name, value in model_hashes.items()
     ):
         raise ValueError("Inputs changed during capture; rerun after saving the design")
     directory = receipt_directory(root, project_id, output or (

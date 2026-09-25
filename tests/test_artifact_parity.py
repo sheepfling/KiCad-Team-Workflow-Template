@@ -130,6 +130,16 @@ elif kind == "drill":
     (output / "board.drl").write_text("Synthetic parity drill\\n")
 elif kind == "pos":
     output.write_text("Ref,PosX,PosY\\nR1,0,0\\n")
+elif kind == "pdf":
+    output.write_bytes(b"%PDF-1.5\\nSynthetic parity review packet\\n")
+elif kind == "stats":
+    output.write_text("{{}}\\n")
+elif kind in {{"odb", "ipc2581"}}:
+    import zipfile
+    with zipfile.ZipFile(output, "w") as archive:
+        archive.writestr(zipfile.ZipInfo("synthetic.txt"), "Synthetic supplier output")
+elif kind == "ipcd356":
+    output.write_text("Synthetic IPC-D-356\\n")
 elif kind == "bom":
     output.write_text("Reference,Value,Footprint,PartID,DNP\\n"
                       "R1,1k,Resistor_SMD:R_0805_2012Metric,{part},\\n")
@@ -251,6 +261,97 @@ else:
                             self.assertEqual(set(mcp.artifacts_sha256),
                                              {"top.png", "angled.png", "board.step", "board.glb"})
                         self.assertEqual(source_state(self.root), before)
+
+    def configure_variants(self) -> None:
+        project = self.root / test_visualize.BOARD.replace(".kicad_pcb", ".kicad_pro")
+        data = json.loads(project.read_text())
+        data.setdefault("schematic", {})["variants"] = [{"name": "Pilot A"}, {"name": "Pilot B"}]
+        project.write_text(json.dumps(data), encoding="utf-8")
+        manifest = project.parent.parent / "project.json"
+        data = json.loads(manifest.read_text())
+        data["release_exports"]["assembly_variant"] = "Pilot A"
+        data["release_exports"]["supplier_formats"] = ["odb", "ipc2581", "ipcd356"]
+        manifest.write_text(json.dumps(data), encoding="utf-8")
+        self.fixture.git("-c", "user.name=Test fixture", "-c", "user.email=fixture@example.invalid",
+                         "commit", "-qam", "Synthetic variant configuration")
+
+    async def test_assembly_variant_export_and_3d_parity(self) -> None:
+        self.configure_variants()
+        executable = self.native_executable()
+        before = source_state(self.root)
+        with patch.dict(os.environ, {"PATH": str(executable.parent) + os.pathsep + os.environ.get("PATH", "")}):
+            async with Client(create_server(self.root, allow_checks=True, allow_exports=True),
+                              mode="legacy") as client:
+                for suffix, variant in (("default", None), ("explicit", "Pilot B")):
+                    with self.subTest(variant=variant):
+                        selected = variant or "Pilot A"
+                        args = () if variant is None else ("--assembly-variant", variant)
+                        cli_directory = self.root / f"build/exports/cli-{suffix}"
+                        cli = await self.cli("tools.release", ReleaseExportReport, "export", "--project",
+                                             test_visualize.PROJECT, "--cli", str(executable), "--output",
+                                             str(cli_directory), *args)
+                        mcp = await self.call(client, "export_project", ReleaseExportReport, {
+                            "project_id": test_visualize.PROJECT, "export_id": f"mcp-{suffix}",
+                            "runner": "local", "assembly_variant": variant,
+                        })
+                        mcp_directory = self.root / f"build/exports/mcp-{suffix}/files"
+                        self.assertEqual(self.export_semantic(cli, cli_directory),
+                                         self.export_semantic(mcp, mcp_directory))
+                        self.assertEqual(mcp.assembly_variant, selected)
+                        self.assertEqual(mcp.status, "PASS")
+                        for name in ("gerbers", "position", "bom", "schematic_pdf", "pcb_pdf", "odb", "ipc2581"):
+                            argv = mcp.commands[name].argv
+                            self.assertEqual(argv[argv.index("--variant") + 1], selected)
+                        for name in ("drill", "board_stats", "ipcd356"):
+                            self.assertNotIn("--variant", mcp.commands[name].argv)
+                        self.assertEqual(source_state(self.root), before)
+                cli_directory = self.root / "build/3d/cli-variant"
+                cli_3d = await self.cli("tools.visualize", ThreeDReport, "--project", test_visualize.PROJECT,
+                                         "--runner", "local", "--output", str(cli_directory),
+                                         "--assembly-variant", "Pilot B")
+                mcp_3d = await self.call(client, "export_3d", ThreeDReport, {
+                    "project_id": test_visualize.PROJECT, "view_id": "mcp-variant",
+                    "runner": "local", "assembly_variant": "Pilot B",
+                })
+                self.assertEqual(self.semantic(cli_3d, cli_directory),
+                                 self.semantic(mcp_3d, Path(mcp_3d.run_directory)))
+                self.assertEqual(mcp_3d.assembly_variant, "Pilot B")
+                self.assertEqual(mcp_3d.models.status, "REVIEW")
+                for name in ("top", "angled", "step", "glb"):
+                    argv = mcp_3d.commands[name].argv
+                    self.assertEqual(argv[argv.index("--variant") + 1], "Pilot B")
+                self.assertEqual(source_state(self.root), before)
+
+    async def test_unknown_assembly_variant_is_rejected_before_native_export(self) -> None:
+        self.configure_variants()
+        async with Client(create_server(self.root, allow_checks=True, allow_exports=True),
+                          mode="legacy") as client:
+            for index, variant in enumerate(("Missing population", " ")):
+                with self.subTest(variant=variant), patch("tools.hwrepo.mcp_workflow.selected_cli") as select:
+                    result = await client.call_tool("export_project", {
+                        "project_id": test_visualize.PROJECT, "export_id": f"invalid-{index}",
+                        "runner": "local", "assembly_variant": variant,
+                    })
+                    self.assertTrue(result.is_error)
+                    select.assert_not_called()
+                    self.assertFalse((self.root / f"build/exports/invalid-{index}").exists())
+                    command = await self.cli_process("tools.release", "export", "--project",
+                                                     test_visualize.PROJECT, "--cli", "kicad-cli", "--output",
+                                                     str(self.root / f"build/exports/cli-invalid-{index}"),
+                                                     "--assembly-variant", variant)
+                    self.assertEqual(command.returncode, 2, command.stdout + command.stderr)
+            cli_3d = await self.cli("tools.visualize", ThreeDReport, "--project", test_visualize.PROJECT,
+                                     "--assembly-variant", "Missing population", expected_exit=1)
+            with patch("tools.hwrepo.three_d._run_kicad") as execute:
+                mcp_3d = await self.call(client, "export_3d", ThreeDReport, {
+                    "project_id": test_visualize.PROJECT, "view_id": "unknown-3d",
+                    "assembly_variant": "Missing population",
+                })
+                execute.assert_not_called()
+            self.assertEqual(self.semantic(cli_3d, Path(cli_3d.run_directory)),
+                             self.semantic(mcp_3d, Path(mcp_3d.run_directory)))
+            self.assertEqual(mcp_3d.status, "FAIL")
+            self.assertFalse(mcp_3d.artifacts_sha256)
 
     def export_semantic(self, report: ReleaseExportReport, directory: Path):
         artifact_hashes = {}

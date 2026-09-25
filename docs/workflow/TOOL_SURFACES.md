@@ -29,6 +29,10 @@ Core scope covers discovery, setup diagnosis, scaffolding/import, repair diagnos
 portable and grouped native checks, contract inspection, model draft/population and
 3D export, parts/preferences, supplier snapshots, impact planning, scoped review
 views, native fabrication export, engineering-review preparation and package recovery.
+Newly integrated core scope also includes foreign-board conversion, electrical
+setup/input capture and analysis, reviewed part selection, paired CAD imports and
+explicit supplier handoff. Downloads and submissions have separate MCP startup
+capabilities; these authority constraints are recorded without hiding functional gaps.
 The required core IDs are pinned in the policy code. Deleting a row or calling it
 administrative cannot waive that requirement.
 

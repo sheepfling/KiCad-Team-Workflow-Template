@@ -1,12 +1,14 @@
 """Reviewed grounding requirements, conservative power budgets and model bindings."""
 from __future__ import annotations
 
+import hashlib
+import os
+import stat
 from pathlib import Path
 
 from ..validate import hashes
-from .contracts import read_model, repo_path
+from .contracts import parse_model_text, read_model, repo_path
 from .discovery import load_config, load_registry
-from .evidence import digest
 from .models import (
     AnalysisNotApplicable,
     AnalysisPending,
@@ -24,6 +26,30 @@ from .models import (
 )
 
 SimulationCase = TransientAnalysis | FrequencyAnalysis
+
+
+def regular_input_bytes(path: Path) -> bytes:
+    """Read stable regular analysis input without following links or blocking on a FIFO."""
+    if not stat.S_ISREG(path.lstat().st_mode):
+        raise ValueError(f"Electrical input must be a regular file: {path}")
+    descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+                         | getattr(os, "O_NONBLOCK", 0))
+    with os.fdopen(descriptor, "rb") as stream:
+        before = os.fstat(stream.fileno())
+        if not stat.S_ISREG(before.st_mode):
+            raise ValueError(f"Electrical input must be a regular file: {path}")
+        data = stream.read()
+        after = os.fstat(stream.fileno())
+    if (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns, before.st_ctime_ns) != (
+        after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns, after.st_ctime_ns
+    ):
+        raise ValueError(f"Electrical input changed while reading: {path}")
+    return data
+
+
+def model_digest(path: Path) -> str:
+    """Hash exactly the regular model bytes that are safe to read."""
+    return hashlib.sha256(regular_input_bytes(path)).hexdigest()
 
 
 def selected_config(root: Path, project_id: str) -> ProjectConfig:
@@ -47,7 +73,10 @@ def load_analysis(root: Path, config: ProjectConfig) -> ElectricalAnalysisContra
         return None
     if config.kind not in {ProjectKind.PCB, ProjectKind.SCHEMATIC}:
         raise ValueError("Electrical analysis requires an authoritative pcb or schematic project")
-    contract = read_model(repo_path(root, config.electrical), ElectricalAnalysisContract)
+    contract = parse_model_text(
+        regular_input_bytes(repo_path(root, config.electrical)).decode("utf-8"),
+        ElectricalAnalysisContract,
+    )
     if contract.project_id != config.project_id:
         raise ValueError("Electrical contract belongs to another project")
     return contract
@@ -66,7 +95,7 @@ def bound_inputs(root: Path, config: ProjectConfig,
     checks_path = repo_path(manifest_path.parent, manifest.checks)
     inputs = dict(source)
     for path in (manifest_path, checks_path, repo_path(root, config.electrical or "")):
-        inputs[path.relative_to(root).as_posix()] = digest(path)
+        inputs[path.relative_to(root).as_posix()] = model_digest(path)
     for case in simulation_cases(contract):
         if dict(case.source_sha256) != source:
             raise ValueError(f"{case.id}: stale or incomplete reviewed design source hashes")
@@ -76,7 +105,7 @@ def bound_inputs(root: Path, config: ProjectConfig,
                 raise ValueError(f"{case.id}: model outside project is not a declared shared input: {name}")
             if "build" in path.relative_to(root).parts:
                 raise ValueError(f"{case.id}: generated build output cannot be a model source")
-            actual = digest(path)
+            actual = model_digest(path)
             if actual != expected:
                 raise ValueError(f"{case.id}: stale reviewed model hash: {name}")
             inputs[name] = actual

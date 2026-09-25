@@ -16,7 +16,7 @@ Keep `examples/` for regression tests. `examples/catalog/`
 contains independent reference catalog inputs used by those tests.
 
 [tool-surfaces.json](tool-surfaces.json) tracks public CLI/MCP declarations and
-intentional capability gaps. Follow the [surface inventory guide](../docs/workflow/TOOL_SURFACES.md)
+required core parity and explicit administrative/adapter exceptions. Follow the [surface inventory guide](../docs/workflow/TOOL_SURFACES.md)
 when either interface changes; the unit-test gate rejects untracked drift.
 
 

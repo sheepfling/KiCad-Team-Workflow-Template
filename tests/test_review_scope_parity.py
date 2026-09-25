@@ -1,6 +1,7 @@
 """CLI/MCP engineering-review selection parity with explicitly synthetic native evidence."""
 from __future__ import annotations
 
+import csv
 import json
 import shutil
 import sys
@@ -17,6 +18,8 @@ from tools.hwrepo import mcp_workflow as workflow
 from tools.hwrepo.contracts import read_model, write_model
 from tools.hwrepo.mcp_server import create_server
 from tools.hwrepo.models import CommandEvidence, ReleaseClass, ReleaseManifest, ReleaseStatus
+from tools.hwrepo.product import load_repository
+from tools.hwrepo.release import expected_board_population
 
 
 class ReviewScopeParityTests(unittest.IsolatedAsyncioTestCase):
@@ -26,11 +29,21 @@ class ReviewScopeParityTests(unittest.IsolatedAsyncioTestCase):
         self.addCleanup(self.fixture.doCleanups)
         self.root = self.fixture.root
 
-    def synthetic_native(self, _root, project, output, _cli, _dependencies, export_only=False):
+    def synthetic_native(self, _root, project, output, _cli, _dependencies, export_only=False,
+                         assembly_variant=None):
         """Selection evidence only; these minimal records cannot establish release readiness."""
         output.mkdir(parents=True)
         filename = "exports.json" if export_only else "summary.json"
         (output / filename).write_text(json.dumps({"synthetic_project": project.id}), encoding="utf-8")
+        if export_only:
+            product = load_repository(self.root).products[0]
+            population = expected_board_population(product, "UNO_ONLY", project.id) or {}
+            (output / "assembly").mkdir()
+            with (output / "assembly/bom.csv").open("w", newline="", encoding="utf-8") as stream:
+                writer = csv.writer(stream)
+                writer.writerow(("Reference", "Value", "Footprint", "PartID", "DNP"))
+                for reference, part_id in sorted(population.items()):
+                    writer.writerow((reference, "Synthetic", "Synthetic:Footprint", part_id, ""))
 
     def cli(self, *arguments: str) -> tuple[int, str]:
         output = StringIO()

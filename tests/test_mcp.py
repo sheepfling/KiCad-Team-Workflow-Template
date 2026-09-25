@@ -35,11 +35,14 @@ DEFAULT_TOOLS = {
     "inspect_3d_models", "preview_model_population", "inspect_tool_surfaces",
     "plan_impact", "inspect_sourcing_snapshot",
 }
-CHECK_TOOLS = {"check_project", "diagnose_project", "capture_contract", "check_scope", "check_native_scope"}
+CHECK_TOOLS = {"check_project", "diagnose_project", "capture_contract", "check_scope", "check_native_scope", "analyze_electrical", "check_electrical_scope"}
 WRITE_TOOLS = {"new_project", "import_project"}
-EXPORT_TOOLS = {"package_release", "restore_package", "generate_views", "prepare_parts", "init_model_map"}
-EDIT_TOOLS = {"apply_project_edit", "apply_model_population", "save_parts_preferences"}
-NATIVE_EXPORT_TOOLS = {"export_project", "prepare_review", "prepare_review_scope", "export_3d"}
+EXPORT_TOOLS = {"package_release", "restore_package", "generate_views", "prepare_parts", "init_model_map",
+                "capture_electrical_inputs", "prepare_part_picker", "preview_part_selection",
+                "preview_model_sync", "preview_auto_cad", "prepare_supplier_handoff"}
+EDIT_TOOLS = {"apply_project_edit", "apply_model_population", "save_parts_preferences",
+              "init_electrical", "apply_part_selection", "apply_auto_cad"}
+NATIVE_EXPORT_TOOLS = {"export_project", "prepare_review", "prepare_review_scope", "export_3d", "convert_pcb"}
 DOCUMENTS = {
     "start-here": "START_HERE.md",
     "first-board": "FIRST_BOARD.md",
@@ -58,6 +61,7 @@ DOCUMENTS = {
     "three-d-workflow": "THREE_D_WORKFLOW.md",
     "parts-to-order": "PARTS_TO_ORDER.md",
     "tool-surfaces": "TOOL_SURFACES.md",
+    "electrical-analysis": "ELECTRICAL_ANALYSIS.md",
 }
 
 
@@ -150,6 +154,8 @@ class McpTests(unittest.IsolatedAsyncioTestCase):
         for options, enabled in (
             ({"allow_checks": True}, CHECK_TOOLS),
             ({"allow_writes": True}, WRITE_TOOLS),
+            ({"allow_downloads": True}, set()),
+            ({"allow_supplier_submissions": True}, {"submit_supplier_handoff"}),
             ({"allow_edits": True}, EDIT_TOOLS),
             ({"allow_exports": True}, EXPORT_TOOLS),
             ({"allow_checks": True, "allow_exports": True},
@@ -564,7 +570,7 @@ class McpTests(unittest.IsolatedAsyncioTestCase):
         ), mode="legacy") as client:
             tool = next(item for item in (await client.list_tools()).tools if item.name == "export_3d")
             self.assertFalse(tool.annotations.read_only_hint)
-            self.assertEqual(set(tool.input_schema["properties"]), {"project_id", "view_id", "runner"})
+            self.assertEqual(set(tool.input_schema["properties"]), {"project_id", "view_id", "runner", "assembly_variant"})
             with (patch("tools.hwrepo.three_d.doctor", return_value=test_visualize.passing_doctor()),
                   patch("tools.hwrepo.three_d._run_kicad", side_effect=native)):
                 report = self.structured(await client.call_tool("export_3d", options))
@@ -611,7 +617,7 @@ class McpTests(unittest.IsolatedAsyncioTestCase):
                               if Path(key).parts[0] != "build"}, before)
             receipt = Path(plan["run_directory"]).relative_to(self.root)
             saved = self.structured(await client.call_tool("read_artifact", {
-                "path": (receipt / "model-map.json").as_posix(),
+                "path": (receipt / "locked-model-map.json").as_posix(),
             }))
             saved_map = json.loads(saved["text"])
             self.assertEqual(saved_map["manifest_sha256"], plan["manifest_sha256"])
@@ -653,7 +659,7 @@ class McpTests(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual(plan["status"], "PLAN", plan["error"])
                     receipt = Path(plan["run_directory"])
                     path = {"board": board, "manifest": manifest, "model": model,
-                            "map": receipt / "model-map.json"}[changed]
+                            "map": receipt / "locked-model-map.json"}[changed]
                     if changed == "map":
                         data = json.loads(path.read_text())
                         data["assignments"][0]["reference"] = "J2"
@@ -687,7 +693,7 @@ class McpTests(unittest.IsolatedAsyncioTestCase):
             })
             self.assertTrue(mismatch.is_error, mismatch.content)
             self.assertEqual(snapshot(self.root), before)
-            spec = receipt / "model-map.json"
+            spec = receipt / "locked-model-map.json"
             outside = self.base / "model-map.json"
             spec.replace(outside)
             spec.symlink_to(outside)

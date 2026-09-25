@@ -33,7 +33,9 @@ CORE_WORKFLOWS = frozenset({
     "model-population", "three-d-export", "parts-preparation", "purchasing-preferences",
     "review-views", "native-release-export", "engineering-review", "release-readiness",
     "release-packaging", "package-verification", "package-restore", "change-impact",
-    "supplier-snapshots",
+    "supplier-snapshots", "foreign-board-conversion", "electrical-setup",
+    "electrical-input-capture", "electrical-analysis", "electrical-scope-checks",
+    "reviewed-part-selection", "paired-cad-import", "supplier-review-handoff",
 })
 
 
@@ -160,6 +162,7 @@ async def _live_mcp(root: Path) -> tuple[ToolMcpSnapshot, ...]:
 
     server = create_server(
         root, allow_checks=True, allow_writes=True, allow_edits=True, allow_exports=True,
+        allow_downloads=True, allow_supplier_submissions=True,
     )
     snapshots: list[ToolMcpSnapshot] = []
     for tool in await server.list_tools():

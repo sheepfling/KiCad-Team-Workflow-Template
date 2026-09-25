@@ -2280,7 +2280,9 @@ class SupplierHandoffReport(StrictModel):
     handoff_sha256: Digest
     payload_sha256: Digest
     attempt_receipt: RepositoryPath | None = None
-    single_use_url: NonEmptyText | None = None
+    single_use_url: Annotated[
+        str, StringConstraints(pattern=r"^https://www\.digikey\.com/short/[a-z0-9]{7,8}$"),
+    ] | None = None
     issues: tuple[NonEmptyText, ...] = ()
     purchase_authorized: Literal[False] = False
     build_authorized: Literal[False] = False

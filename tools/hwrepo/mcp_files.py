@@ -12,7 +12,9 @@ from typing import Literal, NamedTuple
 
 from .contracts import parse_model_text, read_model, repo_path, validate_json_object
 from .discovery import settings
+from .electrical import simulation_cases
 from .models import (
+    ElectricalAnalysisContract,
     McpArtifactEntry,
     McpArtifactList,
     McpEditPreview,
@@ -32,6 +34,7 @@ MAX_DIRECTORY_ENTRIES = 10_000
 ARTIFACT_TEXT_SUFFIXES = frozenset({
     ".json", ".jsonl", ".csv", ".tsv", ".txt", ".log", ".md", ".svg", ".xml",
     ".net", ".gbr", ".ger", ".gbrjob", ".drl", ".pos", ".yaml", ".yml", ".toml",
+    ".cir", ".raw",
 })
 CAD_TEXT_SUFFIXES = frozenset({
     ".kicad_pro", ".kicad_sch", ".kicad_pcb", ".kicad_sym", ".kicad_mod", ".kicad_wks",
@@ -91,6 +94,11 @@ def _bytes(path: Path, maximum: int | None = None) -> tuple[bytes, os.stat_resul
         if maximum is not None and len(data) > maximum:
             raise ValueError(f"File exceeds the {maximum}-byte limit")
     return data, after
+
+
+def read_regular_bytes(path: Path, maximum: int | None = None) -> tuple[bytes, os.stat_result]:
+    """Expose the stable, bounded regular-file boundary to other review adapters."""
+    return _bytes(path, maximum)
 
 
 def _digest(path: Path) -> tuple[str, int]:
@@ -197,6 +205,33 @@ def _island(root: Path, project_id: str) -> Path:
     return matches[0]
 
 
+def _electrical_sidecar(island: Path, value: str) -> bool:
+    if value == "tests/electrical.json":
+        return True
+    if not value.endswith(".json") or value in {"project.json", "tests/contract.json", "docs/purchasing.json"}:
+        return False
+    manifest = read_model(repo_path(island, "project.json"), ProjectManifest)
+    contract = read_model(repo_path(island, manifest.checks), ProjectTestContract)
+    return contract.electrical == value
+
+
+def _validate_electrical(root: Path, island: Path, project_id: str,
+                         text: str) -> None:
+    contract = parse_model_text(text, ElectricalAnalysisContract)
+    if contract.project_id != project_id:
+        raise ValueError("Electrical requirements must retain the selected project ID")
+    manifest = read_model(repo_path(island, "project.json"), ProjectManifest)
+    for case in simulation_cases(contract):
+        for name in case.model_sha256:
+            model = repo_path(root, name)
+            if (any(part.startswith(".") or part.casefold() in FORBIDDEN_SOURCE_PARTS
+                    for part in model.relative_to(root.resolve()).parts)
+                    or (not model.is_relative_to(island) and name not in manifest.shared_inputs)):
+                raise ValueError("Electrical models must be authored project source or declared shared inputs")
+            if not stat.S_ISREG(model.lstat().st_mode) or model.stat().st_mode & 0o111:
+                raise ValueError("Electrical models must be existing non-executable regular source files")
+
+
 def project_file_path(root: Path, project_id: str, value: str) -> Path:
     """Select existing authored text in one island, excluding code and approval records."""
     island = _island(root, project_id)
@@ -205,12 +240,14 @@ def project_file_path(root: Path, project_id: str, value: str) -> Path:
     if any(part.startswith(".") or part.casefold() in FORBIDDEN_SOURCE_PARTS for part in parts):
         raise ValueError("Local state, build outputs, releases and hidden paths are not editable source")
     allowed = (value in {"project.json", "tests/contract.json", "README.md", "docs/purchasing.json"}
+               or _electrical_sidecar(island, value)
+               or path.suffix.lower() == ".cir"
                or (parts[0] == "docs" and path.suffix.lower() == ".md")
                or path.suffix.lower() in CAD_TEXT_SUFFIXES
                or path.name in {"fp-lib-table", "sym-lib-table"})
     if not allowed:
         raise ValueError("Only authored KiCad text, project.json, tests/contract.json and "
-                         "docs/purchasing.json and project Markdown documentation are available")
+                         "electrical requirements/models, docs/purchasing.json and project Markdown are available")
     if not path.is_file() or path.stat().st_mode & 0o111:
         raise ValueError("Select an existing non-executable source file")
     return path
@@ -252,6 +289,18 @@ def _validate_edit(root: Path, project_id: str, path: Path,
         manifest = read_model(repo_path(island, "project.json"), ProjectManifest)
         if contract.validation.kind is not manifest.kind:
             raise ValueError("Test contract kind must match the project")
+        if contract.electrical is not None:
+            sidecar = repo_path(island, contract.electrical)
+            parts = sidecar.relative_to(island).parts
+            if (sidecar.suffix != ".json" or any(
+                part.startswith(".") or part.casefold() in FORBIDDEN_SOURCE_PARTS for part in parts
+            )):
+                raise ValueError("Electrical requirements must name an authored local JSON sidecar")
+            data, _ = _bytes(sidecar, MAX_EDIT_BYTES)
+            _validate_electrical(root, island, project_id, data.decode("utf-8"))
+        return "JSON_MODEL"
+    if _electrical_sidecar(island, relative):
+        _validate_electrical(root, island, project_id, text)
         return "JSON_MODEL"
     if relative == "docs/purchasing.json":
         parse_model_text(text, PurchasingPreferences)
@@ -304,10 +353,12 @@ def _prepare_edit(root: Path, project_id: str, path: str, expected_sha256: str,
                                        fromfile=relative, tofile=relative))
     if len(diff) > MAX_DIFF:
         raise ValueError("Edit diff is too large for review; use smaller source fragments")
+    depth = ("electrical" if selected.suffix.lower() == ".cir"
+             or _electrical_sidecar(_island(root, project_id), path) else "native")
     preview = McpEditPreview(project_id=project_id, path=relative, before_sha256=digest,
                              after_sha256=hashlib.sha256(after).hexdigest(), diff=diff,
                              validation=validation,
-                             next_command=f"python -B -m tools.verify --project {project_id} --depth native")
+                             next_command=f"python -B -m tools.verify --project {project_id} --depth {depth}")
     return _PreparedEdit(selected, before, after, information, preview)
 
 

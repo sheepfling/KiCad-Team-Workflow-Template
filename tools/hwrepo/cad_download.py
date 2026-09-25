@@ -190,7 +190,8 @@ def _validate_cache(footprints: Path, footprint_id: str, version: str) -> None:
         raise ValueError("Official CAD cache provenance does not match the requested assets")
 
 
-def fetch_official_footprint(cache: Path, footprint_id: str, version: str) -> Path:
+def fetch_official_footprint(cache: Path, footprint_id: str, version: str, *,
+                             allow_downloads: bool = True) -> Path:
     """Return a complete local footprints root, with sibling models and licenses.
 
     A failed transfer leaves no usable bundle. Completed bundles are reused only
@@ -199,14 +200,20 @@ def fetch_official_footprint(cache: Path, footprint_id: str, version: str) -> Pa
     """
     library, name = _identity(footprint_id, version)
     key = hashlib.sha256(footprint_id.encode("utf-8")).hexdigest()[:24]
+    # Check the caller-supplied path before resolve erases a symlink ancestor.
+    for ancestor in (cache, *cache.parents):
+        if ancestor.is_symlink():
+            raise ValueError("Official CAD cache and its ancestors must not be symlinks")
     parent = cache.resolve() / f"kicad-{version}"
     destination = parent / key
     footprints = destination / "footprints"
+    if parent.is_symlink():
+        raise ValueError("Official CAD cache version directory must not be a symlink")
     if destination.exists() or destination.is_symlink():
         _validate_cache(footprints, footprint_id, version)
         return footprints
-    if parent.is_symlink():
-        raise ValueError("Official CAD cache version directory must not be a symlink")
+    if not allow_downloads:
+        raise ValueError("Official CAD is not cached; restart with --allow-downloads to fetch it")
     parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix=".cad-download-", dir=parent) as temporary:
         stage = Path(temporary) / "bundle"
