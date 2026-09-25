@@ -124,6 +124,13 @@ through nesting. Parts group by catalog identity, whose revision is recorded.
 Variants exclude occurrence paths; descendants disappear from their BOM, and an
 active relation to an excluded endpoint or harness is an error. A functional
 relation cannot name a harness and is never emitted into electrical rows.
+For a built board that remains in the product, a variant may also map its
+project ID to a named KiCad design variant with `board_variants`, for example
+`"board_variants": {"battery-board": "Pilot A"}`. This selects a component
+population when generating the board's release BOM, placement file and other
+population-sensitive outputs. The KiCad name must be declared in that board's
+`.kicad_pro`; product-level exclusions and board-level population are separate
+choices. See [release exports](RELEASE_READINESS.md#board-fabrication-and-assembly-exports).
 The matching generated system view retains every explicit relation kind so a
 renderer cannot silently reinterpret functional or mechanical relationships as
 electrical continuity.
@@ -131,7 +138,7 @@ electrical continuity.
 v1 supports integer `each` quantities, up to 64 nesting levels / 10,000 expanded
 instances, and one current revision per part ID. Repeated physical instances that
 need terminal addressing must have separate occurrence refs. Fractional wire stock,
-DNP/alternate-selection reason records, mixed revisions of one ID, shielding,
+DNP/alternate-selection reason records beyond native KiCad variants, mixed revisions of one ID, shielding,
 splices, cable drawings and automatic substitution need an explicit schema
 extension plus good/bad fixtures; do not overload the existing fields.
 

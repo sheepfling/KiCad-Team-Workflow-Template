@@ -49,7 +49,20 @@ class ModelPopulationSafetyTests(unittest.TestCase):
     def plan(self) -> ModelPopulationReport:
         result = populate_models(self.root, PROJECT, self.spec)
         self.assertEqual(result.status, "PLAN", result.error)
+        self.assertIsNotNone(result.locked_map)
+        self.spec = read_model(Path(result.locked_map or ""), ModelMap)
         return result
+
+    def test_reviewed_receipt_does_not_bypass_digest_locked_map(self) -> None:
+        original_spec = self.spec
+        original_board = self.board.read_bytes()
+        original_manifest = self.manifest.read_bytes()
+        plan = self.plan()
+        result = populate_models(self.root, PROJECT, original_spec, apply=True, reviewed_plan=plan)
+        self.assertEqual(result.status, "FAIL")
+        self.assertIn("digest-locked map", result.error or "")
+        self.assertEqual(self.board.read_bytes(), original_board)
+        self.assertEqual(self.manifest.read_bytes(), original_manifest)
 
     def test_manifest_change_after_preview_rejects_apply_with_unchanged_board(self) -> None:
         plan = self.plan()
@@ -72,7 +85,7 @@ class ModelPopulationSafetyTests(unittest.TestCase):
         self.model.write_bytes(changed_model)
         result = populate_models(self.root, PROJECT, self.spec, apply=True, reviewed_plan=plan)
         self.assertEqual(result.status, "FAIL")
-        self.assertIn("changed since the reviewed plan", result.error or "")
+        self.assertIn("model source changed since review", result.error or "")
         self.assertEqual(self.board.read_bytes(), original_board)
         self.assertEqual(self.manifest.read_bytes(), original_manifest)
         self.assertEqual(self.model.read_bytes(), changed_model)
@@ -86,8 +99,9 @@ class ModelPopulationSafetyTests(unittest.TestCase):
         alternate = self.model.with_name("Alternate.step")
         alternate.write_bytes(self.model.read_bytes())
         for assignment in (
-            ModelMapAssignment(reference="R1", model=MODEL),
-            ModelMapAssignment(reference="J1", model=alternate.relative_to(self.root).as_posix()),
+            ModelMapAssignment(reference="R1", model=MODEL, model_sha256=digest(self.model.read_bytes())),
+            ModelMapAssignment(reference="J1", model=alternate.relative_to(self.root).as_posix(),
+                               model_sha256=digest(alternate.read_bytes())),
         ):
             changed = self.spec.model_copy(update={"assignments": (assignment,)})
             with self.subTest(assignment=assignment):
@@ -178,7 +192,7 @@ class ModelPopulationSafetyTests(unittest.TestCase):
         original_board = self.board.read_bytes()
         original_manifest = read_model(self.manifest, ProjectManifest)
         plan = self.plan()
-        saved_spec = read_model(Path(plan.run_directory) / "model-map.json", ModelMap)
+        saved_spec = read_model(Path(plan.run_directory) / "locked-model-map.json", ModelMap)
         saved_plan = read_model(Path(plan.run_directory) / "model-population.json", ModelPopulationReport)
         self.assertEqual(saved_spec, self.spec)
         self.assertEqual(saved_plan, plan)

@@ -400,6 +400,7 @@ def create_server(
         with service_operation(operation):
             reviewed = tuple(ModelMapAssignment(
                 reference=item.reference, model=item.model, candidate_assets=tuple(item.candidate_assets),
+                model_sha256=item.model_sha256,
             ) for item in assignments)
             return workflow.preview_model_population(root, project_id, board_sha256, reviewed)
 

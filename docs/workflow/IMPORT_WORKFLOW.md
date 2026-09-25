@@ -5,6 +5,34 @@ separate temporary copy of the candidate repository; keep the external designs
 untracked there. Run the commands from the candidate repository with its Python
 development environment installed.
 
+## Convert a foreign PCB before native import
+
+For a non-KiCad board file supported by KiCad's `pcb import` command (PADS,
+Altium, Eagle, CADSTAR, Fabmaster, P-CAD or SolidWorks), convert it into an
+ignored, per-run review receipt with the exact catalogued KiCad version:
+
+```sh
+python -B -m tools.template convert-pcb --source "/path/to/vendor-board.brd" --project-id battery-board --toolchain kicad-10.0.5 --input-format auto --format text
+```
+
+Use `--format json` for a typed receipt containing the source hash, runner,
+command evidence, converted-board hash, native import preview and next command.
+`--runner auto` selects an exact local CLI or the digest-pinned Docker image;
+`--runner local --cli /path/to/kicad-cli` and `--runner container` are explicit
+choices. Inspect `events.log`, `convert-command.json` and the raw
+`kicad-import-report.json` in the reported `build/diagnostics/` directory if
+conversion fails. The source remains untouched. A successful conversion creates
+only `stage/<id>.kicad_pcb` and `stage/<id>.kicad_pro` in that ignored receipt;
+it does not add a project island.
+
+Open the converted board in the same KiCad version. Compare copper and mechanical
+layers, board outline, net names, footprints, dimensions and the import report
+against the original and reference outputs. Resolve any importer warnings or
+layer-mapping ambiguity with the responsible engineer. Then run the receipt's
+`next_command`, which uses the normal native importer and creates a `pcb_only`
+development island. This CLI converts a PCB only; it does not convert a schematic
+or establish schematic parity, electrical truth or manufacturing readiness.
+
 For a directory containing several designs, first inventory it without copying:
 
 ```sh

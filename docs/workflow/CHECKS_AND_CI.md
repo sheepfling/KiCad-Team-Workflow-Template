@@ -143,13 +143,14 @@ Documentation-only PRs run only that policy.
 Markdown explicitly referenced by a project or product contract is an engineering
 input and selects its affected native lanes even when it lives in `docs/`.
 Changes to common tools, catalogs, workflow configuration or unrecognized paths receive full
-portable coverage on Windows/macOS/Linux and all native lanes. Pushes to main
-always receive full coverage. In GitHub Actions, open **KiCad template acceptance**
+portable coverage on Linux and macOS, a Windows smoke lane, and all native lanes.
+The Linux full lane also type-checks the Windows target. Pushes to main
+always receive that full scope. In GitHub Actions, open **KiCad template acceptance**
 and choose **Run workflow** on the desired branch. The `focus` input defaults
 to `full`. For a fast hosted check, choose `project`, `product` or `tag`, enter
 its ID or tag in `value`, and optionally set `exclude_tag`. A focused manual
 run uses Ubuntu portable checks and selected native lanes; a full manual run
-uses all three portable operating systems, every native lane and the release
+uses Linux/macOS portable checks, Windows smoke, every native lane and the release
 rehearsal. The controller's native fault probes run only for its known reference
 path when that project is in scope.
 Manual runs use distinct concurrency groups, so starting a focused check cannot
@@ -167,15 +168,23 @@ reference checkout, exports using pinned KiCad, prepares an engineering-review
 manifest, packages it and verifies an actual restore. It does not approve hardware.
 Native jobs start after impact planning and run alongside the portable OS jobs;
 the full-scope release rehearsal starts after native jobs, without waiting for
-Windows. Adding projects increases the cost of a full run. A project-only PR adds
+Windows. The Windows smoke installs the policy package, inventories projects through
+the CLI, and exercises subprocess entry points, path validation, PowerShell quoting
+and container command construction on a real Windows runner. It does not rerun the
+shared unit suite, project suites, or generated exports. Linux and macOS run the
+full portable gate; Linux also runs Pyright against the Windows target to catch
+Windows-specific typing errors. Adding projects increases the cost of a full run.
+A project-only PR adds
 work for its affected projects and their dependents, not every historical board.
 Native jobs can run concurrently subject to hosted runner capacity, so elapsed
 time need not grow one-for-one with project count; total CI compute and queue
 time can still grow.
 Portable jobs use a pip download cache keyed by `pyproject.toml`, Python and
-runner OS; installation and all checks still run on every job. Their project
+runner OS; installation and each job's planned checks still run on every job.
+Their project
 Python suites run with four bounded workers. Full portable jobs have a separate
 pipeline step timeout so evidence upload can still run after a timed-out check.
+The Windows smoke has its own shorter timeout and uploads its inventory and test log.
 
 An initialized fork with no projects emits an empty matrix. The final check still
 requires applicable policy success and states that no hardware was validated.

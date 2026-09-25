@@ -38,8 +38,10 @@ from .models import (
 from .release import (
     configured_toolchains,
     load_release_repository,
+    selected_board_variants,
     selected_products,
     selected_project_records,
+    verify_board_population,
 )
 
 
@@ -48,12 +50,13 @@ def reference(root: Path, path: Path) -> EvidenceFile:
 
 
 def run_native(root: Path, project: ProjectRecord, output: Path, cli: str | None,
-               dependencies: Path | None, export_only: bool = False) -> None:
+               dependencies: Path | None, export_only: bool = False,
+               assembly_variant: str | None = None) -> None:
     if cli is not None:
         if export_only:
             from .exports import export
 
-            exported = export(root, project.config, output, cli)
+            exported = export(root, project.config, output, cli, assembly_variant)
             if exported.status != "PASS":
                 raise ValueError(f"Release exports failed for {project.id}; see {output}")
         else:
@@ -66,7 +69,8 @@ def run_native(root: Path, project: ProjectRecord, output: Path, cli: str | None
     if dependencies is None:
         raise ValueError("Container dependencies were not prepared")
     config = load_config(root, project.config)
-    command = ("tools.release", "export", "--project", project.id) if export_only else (
+    command = ("tools.release", "export", "--project", project.id,
+               *(("--assembly-variant", assembly_variant) if assembly_variant else ())) if export_only else (
         "tools.validate", "--config", project.config)
     user: tuple[str, ...] = ()
     if sys.platform != "win32":
@@ -122,7 +126,9 @@ def resolve_variants(root: Path, values: tuple[str, ...]) -> tuple[ReleaseVarian
     return tuple(selections)
 
 
-def selected_projects(root: Path, candidate: ReleaseManifest) -> tuple[ProjectRecord, ...]:
+def selected_scope(
+    root: Path, candidate: ReleaseManifest,
+) -> tuple[tuple[ProjectRecord, ...], tuple[ProductRecord, ...]]:
     """Validate release scope and its common toolchain before creating any evidence."""
     repository = load_release_repository(root, candidate)
     findings: list[PolicyIssue] = list(repository.issues)
@@ -137,7 +143,19 @@ def selected_projects(root: Path, candidate: ReleaseManifest) -> tuple[ProjectRe
         raise ValueError("Non-review releases require production-profile release_candidate projects")
     if len(configured_toolchains(root, projects)) != 1:
         raise ValueError("Prepare separate release candidates for different toolchains")
-    return projects
+    board_variants = selected_board_variants(products, candidate.variants,
+                                             (project.id for project in projects))
+    for project in projects:
+        if project.id in board_variants and read_model(
+            repo_path(root, project.config), ProjectManifest,
+        ).release_exports is None:
+            raise ValueError(f"{project.id} needs release_exports to apply its product KiCad variant")
+    return projects, products
+
+
+def selected_projects(root: Path, candidate: ReleaseManifest) -> tuple[ProjectRecord, ...]:
+    """Return projects only after validating the full release and population scope."""
+    return selected_scope(root, candidate)[0]
 
 
 def prepare(root: Path, release_id: str, project_ids: tuple[str, ...],
@@ -155,8 +173,10 @@ def prepare(root: Path, release_id: str, project_ids: tuple[str, ...],
                                 status=ReleaseStatus.CANDIDATE, source_commit=source.commit,
                                 toolchain_id="pending", projects=project_ids, variants=variants,
                                 libraries=(), interfaces=(), artifacts=())
-    projects = selected_projects(root, candidate)
+    projects, products = selected_scope(root, candidate)
     toolchains = configured_toolchains(root, projects)
+    board_variants = selected_board_variants(products, variants,
+                                             (project.id for project in projects))
     output = repo_path(root, f"build/releases/{release_id}")
     output.mkdir(parents=True, exist_ok=False)
     selected_ids = tuple(project.id for project in projects)
@@ -189,7 +209,10 @@ def prepare(root: Path, release_id: str, project_ids: tuple[str, ...],
         manifest = read_model(repo_path(root, project.config), ProjectManifest)
         if manifest.release_exports is not None:
             export_output = output / "exports" / project.id
-            run_native(root, project, export_output, cli, dependencies, export_only=True)
+            run_native(root, project, export_output, cli, dependencies, export_only=True,
+                       assembly_variant=board_variants.get(project.id))
+            verify_board_population(products, variants, project.id,
+                                    export_output / "assembly/bom.csv")
             exports[project.id] = reference(root, export_output / "exports.json")
     # Only retain projections of selected product variants in this candidate.
     projections = expected_outputs(root, tuple(project.id for project in projects))
@@ -232,12 +255,16 @@ def artifact_kind(path: Path, output: Path) -> ReleaseArtifactKind:
     relative = path.relative_to(output)
     if path.name == "review.md":
         return ReleaseArtifactKind.REVIEW_RECORD
+    if path.name.endswith("bom.csv"):
+        return ReleaseArtifactKind.BOM
+    if "review" in relative.parts and path.name == "schematic.pdf":
+        return ReleaseArtifactKind.SCHEMATIC_EXPORT
+    if "review" in relative.parts and path.name == "pcb.pdf":
+        return ReleaseArtifactKind.PCB_EXPORT
     if "fabrication" in relative.parts:
         return ReleaseArtifactKind.FABRICATION_PACKAGE
     if "assembly" in relative.parts:
         return ReleaseArtifactKind.ASSEMBLY_PACKAGE
-    if path.name.endswith("bom.csv"):
-        return ReleaseArtifactKind.BOM
     if "schematic" in relative.parts and path.suffix == ".svg":
         return ReleaseArtifactKind.SCHEMATIC_EXPORT
     if path.name == "pcb.svg":

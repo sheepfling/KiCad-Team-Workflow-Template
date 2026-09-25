@@ -77,9 +77,10 @@ class SourceParityTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(cli_plan.manifest_diff, mcp_plan.manifest_diff)
             self.assertEqual(source_bytes(self.root), original)
             self.assertEqual(source_bytes(self.mcp_root), original)
+            self.assertIsNotNone(cli_plan.locked_map)
             applied = await self.cli(
                 "tools.visualize", "--project", population_fixture.PROJECT,
-                "--map-models", "build/model-map.json", "--apply", "--output", "build/cli-apply",
+                "--map-models", str(cli_plan.locked_map), "--apply", "--output", "build/cli-apply",
             )
             self.assertEqual(applied.returncode, 0, applied.stderr + applied.stdout)
             cli_apply = ModelPopulationReport.model_validate_json(applied.stdout)

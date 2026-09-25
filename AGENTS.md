@@ -29,6 +29,11 @@ and commit reviewed source through normal Git before export preparation.
   `python -B -m tools.template scan-imports --source-dir <directory> --toolchain <id> --format json`.
   Review suggested IDs and every exclusion; the command is read-only and does
   not establish design completeness or electrical correctness.
+- For a non-KiCad PCB file, run `python -B -m tools.template convert-pcb
+  --source <file> --project-id <id> --toolchain <id> --format json`. Review the
+  ignored receipt's `kicad-import-report.json`, converted board geometry and
+  native import preview with the exact KiCad toolchain. Only then run its
+  `next_command` to create a `pcb_only` island; this does not convert a schematic.
 - For a registered board, run
   `python -B -m tools.template diagnose --project-id <id>` before changing
   policy or tests. The default output groups repeated causes; `--detail full`
@@ -61,6 +66,8 @@ and commit reviewed source through normal Git before export preparation.
   have `models.status=REVIEW`; inspect the actual geometry and follow the
   [3D workflow](docs/workflow/THREE_D_WORKFLOW.md). The manual **KiCad 3D preview**
   Action provides a focused hosted run without slowing routine PR lanes.
+  For a named KiCad component population, pass `--assembly-variant <name>`;
+  the name must already be declared in the project's `.kicad_pro`.
 
 - For component selection or purchasing preparation, run
   `python -B -m tools.parts --project <id> --format json` to capture exact native
@@ -109,6 +116,13 @@ and commit reviewed source through normal Git before export preparation.
    results, receipt path, and any unresolved engineering decision. Keep run
    evidence in ignored `build/`, CI artifacts, or the issue/PR. Keep durable
    board decisions in `projects/<id>/docs/`.
+
+For release exports, `release_exports.assembly_variant` selects a board's
+standalone KiCad population, and a product variant's `board_variants` map may
+override it. The release gate checks that the native fitted BOM references and
+`PART_ID`s match the selected product population. Review the generated
+schematic/PCB PDFs, JSON board statistics and any requested supplier formats in
+the ignored export receipt before approving manufacturing files.
 
 Never commit imported practice projects, local KiCad state or generated working
 outputs. Follow the [source and output policy](docs/workflow/REPOSITORY_HYGIENE.md)

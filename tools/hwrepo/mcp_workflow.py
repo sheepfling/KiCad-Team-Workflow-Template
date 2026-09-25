@@ -429,7 +429,7 @@ def apply_model_population(root: Path, project_id: str, plan: str) -> ModelPopul
     reviewed = read_model(plan_path, ModelPopulationReport)
     if reviewed.status != "PLAN" or reviewed.project_id != project_id:
         raise ValueError("Select a PLAN receipt for the same project before applying model assignments")
-    map_path = artifact_file(root, (plan_path.parent / "model-map.json").relative_to(root).as_posix())
+    map_path = artifact_file(root, (plan_path.parent / "locked-model-map.json").relative_to(root).as_posix())
     spec = read_model(map_path, ModelMap)
     repo_path(root, "build/diagnostics")
     return model_population.populate_models(root, project_id, spec, apply=True, reviewed_plan=reviewed)

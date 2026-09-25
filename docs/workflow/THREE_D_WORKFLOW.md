@@ -5,6 +5,12 @@ coverage of a PCB. Generate review images and mechanical exchange files from the
 same committed KiCad source as the electrical checks. They are outputs, not a
 second editable copy of the design.
 
+For a named KiCad assembly population, add `--assembly-variant 'Pilot A'` to
+`tools.visualize --project <id>`. The name must be declared in the project's
+`.kicad_pro`; the top/angled images and STEP/GLB commands then use the same
+population selection and record it in the JSON receipt. Review the fitted model
+set against the native BOM and placement file before a mechanical handoff.
+
 ## Populate a board's 3D models
 
 1. Choose a model that matches the reviewed component package. A missing model
@@ -15,7 +21,12 @@ second editable copy of the design.
    `projects/<id>/kicad/models/`; the board will reference it with a path such
    as `${KIPRJMOD}/models/connector.step`. For a model reused by several boards,
    put it under a registered `libraries/<library-id>/` directory and declare
-   that library in each consumer's `project.json`. The
+   that library in each consumer's `project.json`. Before mapping a newly added
+   shared model, add its repository-relative path to `shared_inputs` in every
+   **other** consumer's manifest. The map command adds it to the selected
+   board's manifest. If another consumer is missing it, the plan and apply
+   both stop and name each manifest and exact path to add. Run the full
+   `python -B -m tools.ci` gate after the shared-library change. The
    [library policy](LIBRARIES.md) gives the shared-dependency and provenance
    requirements.
 2. Use the draft-map flow below to assign explicit model paths to placed
@@ -86,19 +97,22 @@ The tool accepts STEP/STP/IGS/IGES/WRL, but rejects IDF for this view workflow.
 
 ```sh
 python -B -m tools.visualize --project battery-board --map-models build/model-map.json
-# Read board.diff and manifest.diff in the new ignored receipt.
-python -B -m tools.visualize --project battery-board --map-models build/model-map.json --apply
+# Read board.diff and manifest.diff in the new ignored receipt, then use its locked map.
+python -B -m tools.visualize --project battery-board --map-models build/diagnostics/<receipt>/locked-model-map.json --apply
 python -B -m tools.verify --project battery-board --depth native
 python -B -m tools.visualize --project battery-board
 ```
 
 The first command is read-only and shows the exact proposed board and manifest
-diff, both in its ignored receipt and in `--format json` stdout. `--apply` requires
-the same board hash and a unique unassigned reference, then inserts the portable
+diff, both in its ignored receipt and in `--format json` stdout. It also writes a
+`locked-model-map.json` containing SHA-256 hashes of the chosen model files.
+The text report gives the exact next command; use that receipt's locked map with
+`--apply`. The original draft cannot be applied. If a model file, board or manifest
+changes after the plan, create and review a fresh plan. `--apply` requires
+matching source hashes and a unique unassigned reference, then inserts the portable
 `${KIPRJMOD}` path in that placed footprint and adds the asset to the proper
 manifest input list. It refuses to replace any existing model assignment, so
-reviewed offsets and rotation cannot be silently lost. If the board changed,
-refresh the model check and review a new map. Applying a path does **not** check
+reviewed offsets and rotation cannot be silently lost. Applying a path does **not** check
 the model's package identity, dimensions, alignment, side or actual geometry;
 inspect the PCB Editor 3D view and the exported images and STEP before accepting
 the mechanical handoff. The tool uses neutral zero offset/rotation and unit scale,

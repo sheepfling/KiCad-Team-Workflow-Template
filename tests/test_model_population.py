@@ -19,6 +19,7 @@ from tools.hwrepo.model_population import (
     ModelMap,
     ModelPopulationReport,
     _replace_bytes,
+    init_model_map,
     populate_models,
 )
 from tools.hwrepo.models import ProjectManifest
@@ -55,6 +56,12 @@ class ModelPopulationTests(unittest.TestCase):
         }
         self.map.write_text(json.dumps(data), encoding="utf-8")
 
+    def locked_map(self) -> Path:
+        plan = populate_models(self.root, PROJECT, self.map)
+        self.assertEqual(plan.status, "PLAN", plan.error)
+        self.assertIsNotNone(plan.locked_map)
+        return Path(plan.locked_map or "")
+
     def test_plan_then_apply_changes_only_board_and_manifest(self) -> None:
         original_board = self.board.read_bytes()
         original_manifest = self.manifest.read_bytes()
@@ -68,8 +75,16 @@ class ModelPopulationTests(unittest.TestCase):
         self.assertTrue((Path(plan.run_directory) / "board.diff").is_file())
         self.assertTrue((Path(plan.run_directory) / "manifest.diff").is_file())
         self.assertEqual(ModelMap.model_validate_json(self.map.read_text()).project_id, PROJECT)
+        self.assertIsNotNone(plan.locked_map)
+        locked = ModelMap.model_validate_json(Path(plan.locked_map or "").read_text())
+        self.assertEqual(locked.assignments[0].model_sha256,
+                         hashlib.sha256(self.model.read_bytes()).hexdigest())
 
-        applied = populate_models(self.root, PROJECT, self.map, apply=True)
+        unlocked = populate_models(self.root, PROJECT, self.map, apply=True)
+        self.assertEqual(unlocked.status, "FAIL")
+        self.assertIn("digest-locked map", unlocked.error or "")
+
+        applied = populate_models(self.root, PROJECT, Path(plan.locked_map or ""), apply=True)
         self.assertEqual(applied.status, "APPLIED", applied.error)
         self.assertEqual(applied.board_diff, plan.board_diff)
         self.assertEqual(applied.manifest_diff, plan.manifest_diff)
@@ -109,6 +124,7 @@ class ModelPopulationTests(unittest.TestCase):
         self.assertEqual(raw["manifest_sha256"], hashlib.sha256(self.manifest.read_bytes()).hexdigest())
         self.assertEqual({item["reference"] for item in raw["assignments"]}, {"J1", "R1", "D1"})
         self.assertTrue(all(item["model"] == "" for item in raw["assignments"]))
+        self.assertTrue(all("model_sha256" not in item for item in raw["assignments"]))
         self.assertEqual(next(item for item in raw["assignments"] if item["reference"] == "J1")
                          ["candidate_assets"], [MODEL])
         self.assertEqual(self.board.read_bytes(), original_board)
@@ -129,13 +145,53 @@ class ModelPopulationTests(unittest.TestCase):
         self.assertEqual(json.loads((Path(failed.run_directory) / "run.json").read_text())["status"],
                          "ERROR")
 
+    def test_model_bytes_must_match_the_reviewed_plan(self) -> None:
+        locked = self.locked_map()
+        original_board = self.board.read_bytes()
+        original_manifest = self.manifest.read_bytes()
+        self.model.write_bytes(self.model.read_bytes() + b"changed after plan")
+        rejected = populate_models(self.root, PROJECT, locked, apply=True)
+        self.assertEqual(rejected.status, "FAIL")
+        self.assertIn("model source changed since review", rejected.error or "")
+        self.assertEqual(self.board.read_bytes(), original_board)
+        self.assertEqual(self.manifest.read_bytes(), original_manifest)
+        refreshed = populate_models(self.root, PROJECT, self.map)
+        self.assertEqual(refreshed.status, "PLAN", refreshed.error)
+        self.assertNotEqual(refreshed.model_sha256, rejected.model_sha256)
+
+    def test_shared_model_root_must_match_registered_library(self) -> None:
+        private = self.root / "examples/projects/controller/kicad/borrowed.step"
+        private.write_bytes(b"STEP")
+        raw = json.loads(self.manifest.read_text(encoding="utf-8"))
+        raw["shared_source_roots"] = ["examples/projects/controller/kicad"]
+        self.manifest.write_text(json.dumps(raw, indent=2) + "\n", encoding="utf-8")
+        self.write_map(model=private.relative_to(self.root).as_posix())
+        rejected = populate_models(self.root, PROJECT, self.map)
+        self.assertEqual(rejected.status, "FAIL")
+        self.assertIn("registered library_ids", rejected.error or "")
+
+    def test_draft_map_staging_preserves_destination_on_error_and_reserves_receipt_names(self) -> None:
+        target = self.root / "build/new-map.json"
+        with patch("tools.hwrepo.model_population.os.link", side_effect=OSError("commit failed")):
+            failed = init_model_map(self.root, PROJECT, target)
+        self.assertEqual(failed.status, "FAIL")
+        self.assertFalse(target.exists())
+        self.assertEqual(list(target.parent.glob(".draft-model-map-*")), [])
+        collided = init_model_map(
+            self.root, PROJECT, Path("build/collision/model-population.json"),
+            output=Path("build/collision"),
+        )
+        self.assertEqual(collided.status, "FAIL")
+        self.assertIn("collides with receipt", collided.error or "")
+        self.assertTrue((self.root / "build/collision/model-population.json").is_file())
+
     def test_duplicate_board_reference_and_manifest_write_failure_leave_source_safe(self) -> None:
         original = self.board.read_text(encoding="utf-8")
         self.board.write_text(original.replace(
             '(property "Reference" "R1"', '(property "Reference" "J1"', 1,
         ), encoding="utf-8")
         self.write_map()
-        ambiguous = populate_models(self.root, PROJECT, self.map, apply=True)
+        ambiguous = populate_models(self.root, PROJECT, self.map)
         self.assertEqual(ambiguous.status, "FAIL")
         self.assertIn("Duplicate placed footprint", ambiguous.error or "")
 
@@ -150,7 +206,7 @@ class ModelPopulationTests(unittest.TestCase):
             _replace_bytes(path, value)
 
         with patch("tools.hwrepo.model_population._replace_bytes", side_effect=fail_manifest):
-            failed = populate_models(self.root, PROJECT, self.map, apply=True)
+            failed = populate_models(self.root, PROJECT, self.locked_map(), apply=True)
         self.assertEqual(failed.status, "FAIL")
         self.assertIn("manifest write failed", failed.error or "")
         self.assertEqual(self.board.read_bytes(), original_board)
@@ -165,10 +221,10 @@ class ModelPopulationTests(unittest.TestCase):
         self.assertIn("Board changed", stale.error or "")
         self.assertEqual(self.board.read_bytes(), initial)
         self.write_map(digest=hashlib.sha256(self.board.read_bytes()).hexdigest())
-        first = populate_models(self.root, PROJECT, self.map, apply=True)
+        first = populate_models(self.root, PROJECT, self.locked_map(), apply=True)
         self.assertEqual(first.status, "APPLIED", first.error)
         self.write_map()
-        repeated = populate_models(self.root, PROJECT, self.map, apply=True)
+        repeated = populate_models(self.root, PROJECT, self.map)
         self.assertEqual(repeated.status, "FAIL")
         self.assertIn("already has", repeated.error or "")
         self.assertNotEqual(old_digest, hashlib.sha256(self.board.read_bytes()).hexdigest())
@@ -198,15 +254,53 @@ class ModelPopulationTests(unittest.TestCase):
     def test_shared_model_is_added_to_shared_inventory(self) -> None:
         shared = self.root / "examples/libraries/status-led/Header_1x02.step"
         shared.write_bytes(b"STEP")
-        self.write_map(model=shared.relative_to(self.root).as_posix())
-        result = populate_models(self.root, PROJECT, self.map, apply=True)
+        shared_name = shared.relative_to(self.root).as_posix()
+        self.write_map(model=shared_name)
+        original_board = self.board.read_bytes()
+        original_manifest = self.manifest.read_bytes()
+        consumer = self.root / "examples/projects/raspberry-pi-status-led/project.json"
+        blocked = populate_models(self.root, PROJECT, self.map)
+        self.assertEqual(blocked.status, "FAIL")
+        self.assertIn("examples/projects/raspberry-pi-status-led/project.json", blocked.error or "")
+        self.assertIn(f"add {shared_name} to shared_inputs", blocked.error or "")
+        self.assertIsNone(blocked.locked_map)
+        self.assertEqual(self.board.read_bytes(), original_board)
+        self.assertEqual(self.manifest.read_bytes(), original_manifest)
+
+        consumer_data = json.loads(consumer.read_text(encoding="utf-8"))
+        consumer_data["shared_inputs"].append(shared_name)
+        consumer.write_text(json.dumps(consumer_data, indent=2) + "\n", encoding="utf-8")
+        consumer_before_apply = consumer.read_bytes()
+        result = populate_models(self.root, PROJECT, self.locked_map(), apply=True)
         self.assertEqual(result.status, "APPLIED", result.error)
         manifest = read_model(self.manifest, ProjectManifest)
-        self.assertIn("examples/libraries/status-led/Header_1x02.step", manifest.shared_inputs)
+        self.assertIn(shared_name, manifest.shared_inputs)
+        self.assertEqual(consumer.read_bytes(), consumer_before_apply)
         self.assertIn(
             '${KIPRJMOD}/../../../libraries/status-led/Header_1x02.step',
             self.board.read_text(encoding="utf-8"),
         )
+
+    def test_shared_consumer_inventory_is_rechecked_at_apply(self) -> None:
+        shared = self.root / "examples/libraries/status-led/Header_1x02.step"
+        shared.write_bytes(b"STEP")
+        shared_name = shared.relative_to(self.root).as_posix()
+        consumer = self.root / "examples/projects/raspberry-pi-status-led/project.json"
+        consumer_data = json.loads(consumer.read_text(encoding="utf-8"))
+        consumer_data["shared_inputs"].append(shared_name)
+        consumer.write_text(json.dumps(consumer_data, indent=2) + "\n", encoding="utf-8")
+        self.write_map(model=shared_name)
+        locked = self.locked_map()
+        consumer_data["shared_inputs"].remove(shared_name)
+        consumer.write_text(json.dumps(consumer_data, indent=2) + "\n", encoding="utf-8")
+        original_board = self.board.read_bytes()
+        original_manifest = self.manifest.read_bytes()
+        rejected = populate_models(self.root, PROJECT, locked, apply=True)
+        self.assertEqual(rejected.status, "FAIL")
+        self.assertIn("examples/projects/raspberry-pi-status-led/project.json", rejected.error or "")
+        self.assertIn(f"add {shared_name} to shared_inputs", rejected.error or "")
+        self.assertEqual(self.board.read_bytes(), original_board)
+        self.assertEqual(self.manifest.read_bytes(), original_manifest)
 
 
 if __name__ == "__main__":

@@ -10,6 +10,8 @@ from .hwrepo.cli_output import summary
 from .hwrepo.diagnostic_journal import DiagnosticJournal
 from .hwrepo.diagnostics import diagnose_import, diagnose_project, format_text
 from .hwrepo.doctor import doctor
+from .hwrepo.foreign_pcb import convert_pcb
+from .hwrepo.foreign_pcb import render_text as render_foreign_pcb
 from .hwrepo.import_inventory import format_import_inventory, scan_imports
 from .hwrepo.importing import import_project
 from .hwrepo.initialization import initialize
@@ -26,7 +28,7 @@ def main() -> int:
         "command",
         choices=(
             "doctor", "adopt", "init", "preflight", "bootstrap", "upgrade-plan",
-            "new-project", "import-project", "scan-imports", "diagnose", "rescue", "list",
+            "new-project", "import-project", "convert-pcb", "scan-imports", "diagnose", "rescue", "list",
         ),
     )
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
@@ -37,7 +39,7 @@ def main() -> int:
     parser.add_argument("--toolchain")
     parser.add_argument(
         "--cli", default="kicad-cli",
-        help="KiCad CLI for doctor (relative paths use the caller's cwd)",
+        help="KiCad CLI for doctor or convert-pcb (relative paths use the caller's cwd)",
     )
     parser.add_argument(
         "--native", action="store_true",
@@ -45,9 +47,13 @@ def main() -> int:
     )
     parser.add_argument(
         "--runner", choices=("auto", "local", "container"), default="auto",
-        help="Doctor native runner; requires --native; auto prefers an exact local CLI, then Docker",
+        help="Native runner for doctor or convert-pcb; auto prefers an exact local CLI, then Docker",
     )
-    parser.add_argument("--source", type=Path, help="Existing .kicad_pro file to import")
+    parser.add_argument("--source", type=Path,
+                        help="Native .kicad_pro for import/diagnose, or foreign board file for convert-pcb")
+    parser.add_argument("--input-format", choices=("auto", "pads", "altium", "eagle", "cadstar",
+                                                    "fabmaster", "pcad", "solidworks"),
+                        help="Foreign PCB format for convert-pcb (default: auto)")
     parser.add_argument("--source-dir", type=Path,
                         help="Directory of candidate .kicad_pro files to inventory without copying")
     parser.add_argument("--dry-run", action="store_true", help="Preview an import without writing files")
@@ -60,8 +66,10 @@ def main() -> int:
     parser.add_argument("--log-dir", type=Path,
                         help="New diagnose/rescue receipt directory (default: ignored build/diagnostics)")
     args = parser.parse_args()
-    if args.command not in {"import-project", "diagnose"} and args.source is not None:
-        parser.error("--source requires import-project or diagnose")
+    if args.command not in {"import-project", "convert-pcb", "diagnose"} and args.source is not None:
+        parser.error("--source requires import-project, convert-pcb or diagnose")
+    if args.command != "convert-pcb" and args.input_format is not None:
+        parser.error("--input-format requires convert-pcb")
     if args.command != "scan-imports" and args.source_dir is not None:
         parser.error("--source-dir requires scan-imports")
     if args.command != "import-project" and args.dry_run:
@@ -74,8 +82,8 @@ def main() -> int:
         parser.error("--detail and --log-dir require diagnose or rescue")
     if args.command != "doctor" and args.native:
         parser.error("--native requires doctor")
-    if args.command != "doctor" and args.runner != "auto":
-        parser.error("--runner requires doctor")
+    if args.command not in {"doctor", "convert-pcb"} and args.runner != "auto":
+        parser.error("--runner requires doctor or convert-pcb")
     if args.command == "doctor" and not args.native and args.runner != "auto":
         parser.error("--runner requires --native")
     if args.command == "doctor":
@@ -122,6 +130,13 @@ def main() -> int:
         if args.project_id is None or args.toolchain is None or args.source is None:
             parser.error("import-project requires --source, --project-id and --toolchain")
         result = import_project(args.root, args.source, args.project_id, args.toolchain, args.dry_run)
+    elif args.command == "convert-pcb":
+        if args.project_id is None or args.toolchain is None or args.source is None:
+            parser.error("convert-pcb requires --source, --project-id and --toolchain")
+        result = convert_pcb(args.root, args.source, args.project_id, args.toolchain,
+                             args.input_format or "auto", args.runner, args.cli)
+        print(render_foreign_pcb(result) if args.format != "json" else result.model_dump_json(indent=2))
+        return 0 if result.status == "PASS" else 1
     elif args.command == "scan-imports":
         if args.source_dir is None or args.toolchain is None:
             parser.error("scan-imports requires --source-dir and --toolchain")

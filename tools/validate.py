@@ -17,6 +17,7 @@ from typing import Literal, cast
 from .check_toolchain import cli_executable, toolchain
 from .hwrepo.contracts import repo_path, write_model
 from .hwrepo.discovery import load_config
+from .hwrepo.generation import csv_cell
 from .hwrepo.models import (
     CheckEvidence,
     CommandEvidence,
@@ -227,6 +228,21 @@ def execute(
         record = record.model_copy(update={"error": str(exc)})
     write_model(output / f"{name}.command.json", record)
     return record
+
+
+def write_native_bom(
+    path: Path, components: Mapping[str, ComponentContract], disposition: str,
+) -> None:
+    """Write the native review BOM with the same CSV cell policy as other exports."""
+    with path.open("w", newline="", encoding="utf-8") as stream:
+        writer = csv.writer(stream)
+        writer.writerow(("Reference", "Value", "Footprint", "Disposition"))
+        for reference, component in components.items():
+            writer.writerow(tuple(csv_cell(cell) for cell in (
+                reference, component.value, component.footprint, disposition,
+            )))
+
+
 def validate(
     root: Path, output: Path, cli: str, config_path: Path | None = None
 ) -> ValidationSummary:
@@ -435,18 +451,7 @@ def validate(
                         if config.not_for_manufacture
                         else "ENGINEERING — RELEASE REVIEW REQUIRED"
                     )
-                    with (output / "bom.csv").open("w", newline="", encoding="utf-8") as stream:
-                        writer = csv.writer(stream)
-                        writer.writerow(("Reference", "Value", "Footprint", "Disposition"))
-                        for reference, component in validation.components.items():
-                            writer.writerow(
-                                (
-                                    reference,
-                                    component.value,
-                                    component.footprint,
-                                    disposition,
-                                )
-                            )
+                    write_native_bom(output / "bom.csv", validation.components, disposition)
                     evidence = evidence.model_copy(
                         update={"identity_status": identity.status}
                     )

@@ -81,8 +81,9 @@ and behavior tests before reporting the portable policy result. `python -m tools
 are the corresponding GitHub pipeline modes. The pinned runtime and development set
 includes Pydantic 2.13.5, SnakeMD 2.4.1, snakemd-stubs 2.4.1.0, Ruff 0.16.1 and
 Pyright 1.1.411; hosted CI
-installs those exact versions before running the same checks on Windows, Linux
-and macOS. Native KiCad remains a separate, pinned-toolchain lane.
+installs those exact versions for the full Linux/macOS lanes. Linux also checks
+Windows-targeted types; the Windows lane installs the runtime package and runs
+focused portability smoke tests. Native KiCad remains a separate, pinned-toolchain lane.
 
 Pydantic does not establish electrical correctness, source provenance, an approved
 supplier record, physical fit or a human sign-off. It makes the software boundary

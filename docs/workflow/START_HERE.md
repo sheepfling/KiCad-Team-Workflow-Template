@@ -20,6 +20,8 @@ to understand what belongs with each board and what is shared.
    with `tools.template new-project`, choosing its ID, kind and toolchain. For an
    existing design or an archive of boards, follow the [import workflow](IMPORT_WORKFLOW.md),
    starting with its read-only inventory when there are multiple candidates.
+   For a non-KiCad PCB, use that guide's `convert-pcb` receipt and review the
+   converted board before importing it as a `pcb_only` island.
    Each new or imported island starts in `development`, visibly NOT FOR MANUFACTURE.
 4. Save its real source under `projects/<id>/kicad/`. Complete `project.json` and
    `tests/contract.json`; keep board requirements and decisions in its local docs.

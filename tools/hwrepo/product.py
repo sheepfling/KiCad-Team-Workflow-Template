@@ -236,6 +236,15 @@ def validate_product(
         for path in variant.exclude:
             if path not in instances:
                 fail("VARIANT_REF", variant.id, f"Unknown excluded instance {path}")
+        for project_id in variant.board_variants:
+            matching = (
+                path for path, occurrence in instances.items()
+                if (assembly := assemblies.get(occurrence.item)) is not None
+                and assembly.project_id == project_id and not excluded(path, variant)
+            )
+            if not any(matching):
+                fail("VARIANT_BOARD", variant.id,
+                     f"Board variant maps {project_id} without an included board occurrence")
 
     terminal_pairs: set[tuple[str, str]] = set()
     for terminal in terminals.values():
