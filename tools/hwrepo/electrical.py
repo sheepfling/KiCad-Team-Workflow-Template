@@ -9,6 +9,7 @@ from .discovery import load_config, load_registry
 from .evidence import digest
 from .models import (
     AnalysisNotApplicable,
+    AnalysisPending,
     ElectricalAnalysisContract,
     ElectricalCheck,
     FrequencyAnalysis,
@@ -82,8 +83,10 @@ def bound_inputs(root: Path, config: ProjectConfig,
     return inputs
 
 
-def grounding_checks(spec: GroundingAnalysis | AnalysisNotApplicable,
+def grounding_checks(spec: GroundingAnalysis | AnalysisNotApplicable | AnalysisPending,
                      observed: NetlistContract) -> tuple[ElectricalCheck, ...]:
+    if isinstance(spec, AnalysisPending):
+        return (ElectricalCheck(id="grounding", status="NOT_CONFIGURED", detail=spec.reason),)
     if isinstance(spec, AnalysisNotApplicable):
         return (ElectricalCheck(id="grounding", status="NOT_APPLICABLE", detail=spec.reason),)
     results: list[ElectricalCheck] = []
@@ -123,7 +126,9 @@ def grounding_checks(spec: GroundingAnalysis | AnalysisNotApplicable,
     return tuple(results)
 
 
-def power_budget_checks(spec: PowerAnalysis | AnalysisNotApplicable) -> tuple[ElectricalCheck, ...]:
+def power_budget_checks(spec: PowerAnalysis | AnalysisNotApplicable | AnalysisPending) -> tuple[ElectricalCheck, ...]:
+    if isinstance(spec, AnalysisPending):
+        return (ElectricalCheck(id="power", status="NOT_CONFIGURED", detail=spec.reason),)
     if isinstance(spec, AnalysisNotApplicable):
         return (ElectricalCheck(id="power", status="NOT_APPLICABLE", detail=spec.reason),)
     results: list[ElectricalCheck] = []
@@ -149,12 +154,23 @@ def power_budget_checks(spec: PowerAnalysis | AnalysisNotApplicable) -> tuple[El
     return tuple(results)
 
 
+def pending_sections(contract: ElectricalAnalysisContract) -> tuple[str, ...]:
+    return tuple(name for name, section in (
+        ("grounding", contract.grounding), ("power", contract.power),
+        ("high_frequency", contract.high_frequency),
+    ) if isinstance(section, AnalysisPending))
+
+
 def policy_issues(root: Path, config: ProjectConfig) -> tuple[str, ...]:
     """Portable checks validate requirements/models/budgets, never claim a simulation ran."""
     try:
         contract = load_analysis(root, config)
         if contract is None:
             return ()
+        pending = pending_sections(contract)
+        if pending:
+            return ((f"Pending electrical requirements: {', '.join(pending)}. "
+                     "Complete tests/electrical.json using the electrical quickstart."),)
         bound_inputs(root, config, contract)
         from .spice import expanded_deck
 

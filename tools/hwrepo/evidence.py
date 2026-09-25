@@ -207,7 +207,7 @@ def verify_native(root: Path, reference: EvidenceFile, source: SourceState,
 
         electrical = load_analysis(root, config)
         if electrical is not None and any(
-            row.status == "FAIL" for row in grounding_checks(
+            row.status not in {"PASS", "NOT_APPLICABLE"} for row in grounding_checks(
                 electrical.grounding, read_netlist(path.parent / "netlist.xml")
             )
         ):

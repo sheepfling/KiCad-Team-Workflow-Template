@@ -26,6 +26,7 @@ rather than adding a dated report to this directory.
 - [Product workflow](workflow/PRODUCT_WORKFLOW.md)
 - [Import workflow](workflow/IMPORT_WORKFLOW.md)
 - [Checks and CI](workflow/CHECKS_AND_CI.md)
+- [Grounding, power and high-frequency analysis](workflow/ELECTRICAL_ANALYSIS.md)
 - [Diagnose and repair a project](workflow/DIAGNOSTICS.md)
 - [Quick reference](workflow/QUICK_REFERENCE.md)
 - [Contributor guide](workflow/CONTRIBUTOR_GUIDE.md)

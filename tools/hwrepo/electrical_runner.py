@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 from uuid import uuid4
 
 from .contract_coach import (
@@ -23,6 +24,7 @@ from .electrical import (
 from .evidence import digest
 from .models import (
     AnalysisNotApplicable,
+    AnalysisPending,
     CommandEvidence,
     ElectricalAnalysisReport,
     ElectricalCheck,
@@ -48,7 +50,7 @@ def analyze(root: Path, project_id: str, output: Path | None = None,
         if contract is None:
             status = "NOT_CONFIGURED"
             checks.append(ElectricalCheck(id="configuration", status="NOT_CONFIGURED",
-                                         detail="Declare electrical in tests/contract.json and author its requirements."))
+                                         detail=f"Run python -B -m tools.electrical --project {project_id} --init, then review the starter."))
         else:
             inputs = bound_inputs(root, config, contract)
             write_model(output / "requirements.json", contract)
@@ -66,9 +68,9 @@ def analyze(root: Path, project_id: str, output: Path | None = None,
                 else:
                     checks.extend(grounding_checks(contract.grounding, observed.observed))
             else:
-                checks.append(ElectricalCheck(id="grounding", status="NOT_APPLICABLE", detail=contract.grounding.reason))
-            if isinstance(contract.high_frequency, AnalysisNotApplicable):
-                checks.append(ElectricalCheck(id="high-frequency", status="NOT_APPLICABLE", detail=contract.high_frequency.reason))
+                checks.append(ElectricalCheck(id="grounding", status="NOT_CONFIGURED" if isinstance(contract.grounding, AnalysisPending) else "NOT_APPLICABLE", detail=contract.grounding.reason))
+            if isinstance(contract.high_frequency, (AnalysisNotApplicable, AnalysisPending)):
+                checks.append(ElectricalCheck(id="high-frequency", status="NOT_CONFIGURED" if isinstance(contract.high_frequency, AnalysisPending) else "NOT_APPLICABLE", detail=contract.high_frequency.reason))
             checks.extend(power_budget_checks(contract.power))
             cases = simulation_cases(contract)
             if cases:
@@ -97,13 +99,29 @@ def analyze(root: Path, project_id: str, output: Path | None = None,
         commands=commands, checks=tuple(checks),
     )
     write_model(output / "electrical.json", report)
-    (output / "electrical.txt").write_text(format_report(report) + "\n", encoding="utf-8")
+    (output / "electrical.txt").write_text(format_report(report, "full") + "\n", encoding="utf-8")
     return report
 
 
-def format_report(report: ElectricalAnalysisReport) -> str:
+def format_report(report: ElectricalAnalysisReport, detail: Literal["brief", "full"] = "brief") -> str:
     lines = [f"Electrical analysis: {report.status}", f"Project: {report.project_id}"]
-    lines.extend(f"  {row.id}: {row.status} — {row.detail}" for row in report.checks)
+    failed = [row for row in report.checks if row.status not in {"PASS", "NOT_APPLICABLE"}]
+    if detail == "brief":
+        passed = sum(row.status == "PASS" for row in report.checks)
+        excluded = sum(row.status == "NOT_APPLICABLE" for row in report.checks)
+        lines.append(f"Checks: {passed} passed, {len(failed)} need attention, {excluded} not applicable")
+        shown = failed[:5]
+    else:
+        shown = report.checks
+    lines.extend(f"  {row.id}: {row.status} — {row.detail}" for row in shown)
+    if detail == "brief" and len(failed) > len(shown):
+        lines.append("More findings: --detail full or --format json.")
     lines.append(f"Receipt: {report.run_directory}")
-    lines.extend(f"Scope: {limit}" for limit in report.limits)
+    if failed:
+        lines.append("Next: follow docs/workflow/ELECTRICAL_ANALYSIS.md or run "
+                     f"tools.template doctor --electrical --project-id {report.project_id} --format text.")
+    if detail == "full":
+        lines.extend(f"Scope: {limit}" for limit in report.limits)
+    else:
+        lines.append("Scope: declared pins, budgets and reviewed circuit models; layout and hardware acceptance remain separate.")
     return "\n".join(lines)

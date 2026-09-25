@@ -59,7 +59,7 @@ def install_fixture(root: Path, version: str = "47") -> ElectricalAnalysisContra
     directory = root / ISLAND / "tests/electrical"
     directory.mkdir(parents=True)
     for name in ("startup.cir", "signal.cir"):
-        shutil.copy2(Path(__file__).parent / "fixtures/electrical" / name, directory / name)
+        shutil.copy2(Path(__file__).resolve().parents[1] / "templates/electrical" / name, directory / name)
     config = selected_config(root, PROJECT)
     source = hashes(root, config.source_roots)
 
@@ -374,6 +374,8 @@ class ElectricalTests(unittest.TestCase):
         from tools.verify import verify
 
         root = self.stage().resolve()
+        contract = install_fixture(root).model_copy(update={"power": NA, "high_frequency": NA})
+        write_model(root / ISLAND / "tests/electrical.json", contract)
         failed = ElectricalAnalysisReport(
             project_id=PROJECT, status="FAIL", run_directory=str(root / "build/simulation"),
             checks=(ElectricalCheck(id="grounding", status="FAIL", detail="Missing pin U1.2"),),

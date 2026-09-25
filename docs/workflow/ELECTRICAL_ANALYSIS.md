@@ -5,10 +5,73 @@ power, then high-frequency circuit response. Each board owns independent limits
 and reviewed models. The tools never infer a ground pin, current rating, model
 approval or an acceptable waveform from an observed export.
 
+## Quickstart
+
+Start in a registered board's repository with the Python environment from
+[setup](START_HERE.md). Discover its ID with `tools.template list --format text`.
+Replace `my-board` and model paths below with that board's actual values.
+
+1. Create a connected starter:
+
+   ```sh
+   python -B -m tools.electrical --project my-board --init
+   ```
+
+   This creates `tests/electrical.json` in the project island and connects it from
+   `tests/contract.json`. Existing electrical requirements are never overwritten.
+   All three sections start as `pending`; verification fails until each is completed.
+   The simulator version starts as `UNREVIEWED`. If already selected by the engineer,
+   pass `--ngspice-version 47` to record that exact choice during initialization.
+
+2. Author requirements in priority order: ground pins, power, then high frequency.
+   Use the [complete synthetic example](../../templates/electrical/README.md) to learn
+   the fields. Keep reviewed decks and includes under the project's `tests/electrical/`.
+   Set each applicable section to `required`; use `not_applicable` only with an
+   engineering reason. Leaving a section pending cannot yield a partial pass.
+   For a deliberate grounding-only scope, explicitly justify why the other two
+   sections do not apply. Grounding-only analysis does not require ngspice.
+
+3. Capture the files for model review:
+
+   ```sh
+   python -B -m tools.electrical --project my-board --capture-inputs \
+     --model projects/my-board/tests/electrical/startup.cir \
+     --model projects/my-board/tests/electrical/signal.cir
+   ```
+
+   The command prints a fresh `build/electrical-inputs/` receipt and file counts.
+   Repeat `--model` for every deck and include. Without `--model`, it captures the
+   model inventory already named in the contract. `inputs.json` contains actual
+   design/model SHA-256 values with status `UNREVIEWED`. Review the circuit mapping
+   and assumptions, then copy `source_sha256` and the applicable `model_sha256`
+   entries into each case. Capture never edits approved hashes or engineering limits.
+
+4. Check readiness and run the complete verification:
+
+   ```sh
+   python -B -m tools.template doctor --electrical --project-id my-board --format text
+   python -B -m tools.verify --project my-board --depth electrical
+   ```
+
+   Doctor checks the contract, bindings, exact KiCad runner and exact host ngspice
+   version. It runs no circuit. Use `--ngspice /path/to/ngspice` on both commands
+   when the selected simulator is outside `PATH`; `--runner container` selects
+   pinned KiCad while the simulator still runs on the host. Fix the first reported
+   prerequisite before running verification.
+
+Text output summarizes status and prints the receipt path. `tools.electrical`
+adds `--detail full` for every check; `--format json` always preserves all findings.
+For scripting, setup exits `0` with `CREATED`, input capture exits `0` with
+`UNREVIEWED`, and analysis exits `0` only with `PASS`. These setup statuses are not
+analysis results. Analysis failure exits `1`; invocation/setup errors exit `2`.
+
 ## Commands and scope
 
 | Command | Evidence produced |
 | --- | --- |
+| `python -B -m tools.electrical --project <id> --init` | Connected pending contract; no invented requirements |
+| `python -B -m tools.electrical --project <id> --capture-inputs` | UNREVIEWED hashes for design and already-declared models; no contract edits |
+| `python -B -m tools.template doctor --electrical --project-id <id> --format text` | Contract, native runner and host simulator readiness; no simulation |
 | `python -B -m tools.verify --project <id>` | Portable requirements, reviewed model/source bindings and simultaneous power budgets; no circuit simulation |
 | `python -B -m tools.verify --project <id> --depth native` | The portable lane plus ERC/DRC and configured grounding checks on the actual exported netlist |
 | `python -B -m tools.verify --project <id> --depth electrical --ngspice /path/to/ngspice` | Native verification followed by every configured power and high-frequency simulation |
@@ -29,12 +92,14 @@ select a project or tag when only part of the repository has electrical contract
 
 1. Complete the independent components/nets in `tests/contract.json`. An electrical
    analysis requires an authoritative schematic (`pcb` or `schematic` kind).
-2. Add `"electrical": "tests/electrical.json"` alongside `validation` in that file.
-   This pointer is relative to the project island.
+2. Run `tools.electrical --project <id> --init` to add the sidecar and its pointer.
+   The pointer is relative to the project island; initialization preserves the
+   existing native expectations and refuses to replace electrical requirements.
 3. Author `tests/electrical.json` with `schema_version: "1"`, the exact `project_id`,
    `ngspice_version`, and all three sections: `grounding`, `power`, `high_frequency`.
-   Each section has `mode: "required"` and the fields below, or
-   `mode: "not_applicable"` with a substantive engineering `reason`.
+   Each section begins with `mode: "pending"` and a completion `reason`. Replace
+   it with `mode: "required"` and the fields below, or `mode: "not_applicable"`
+   with a substantive engineering `reason`. Pending sections block verification.
 4. Keep model decks and their dependencies with the project, for example under
    `tests/electrical/`. Model and design hash keys are repository-relative, unlike
    the contract pointer. Shared models must also be explicitly declared shared inputs.
@@ -44,8 +109,8 @@ select a project or tag when only part of the repository has electrical contract
 The authoritative schema is `ElectricalAnalysisContract` in
 [models.py](../../tools/hwrepo/models.py). `python -B -m tools.hardware generate`
 exports its machine-readable schema to ignored `schemas/electrical-analysis-v1.schema.json`.
-The [synthetic fixture builder](../../tests/test_electrical.py) contains a complete
-worked contract and [SPICE decks](../../tests/fixtures/electrical/startup.cir).
+The [standalone examples](../../templates/electrical/README.md) contain a complete
+worked JSON contract and SPICE decks, with intentionally invalid placeholder hashes.
 These demonstrate the tools; they are not design requirements for an adopted board.
 Do not copy their limits or ground-net choices into a real design.
 
@@ -149,6 +214,23 @@ proof that the deck faithfully represents that design. Review the circuit-to-mod
 mapping, excluded components, tolerances and assumptions in `basis` and local docs.
 When a design/model changes, review that mapping and update the hashes intentionally.
 The tool refuses stale hashes and does not rewrite them to make a run pass.
+
+## Hosted electrical check
+
+The manual GitHub Actions workflow **Electrical analysis** accepts a registered
+`project_id`, `ngspice_version` and the reviewed `ngspice_sha256` of that version's
+source archive. The defaults are version `47` and its recorded archive checksum.
+The simulator version must match the board contract; when changing versions,
+review and update the checksum as a pair. The workflow checks portable requirements,
+builds ngspice from the checksum-verified official source archive, runs electrical
+and native readiness checks, then calls `tools.ci --electrical --project <id>`.
+It retains reports, waveforms and simulator build logs even after failure.
+
+This focused workflow checks declared grounding and circuit models. Run the normal
+**KiCad template acceptance** native lane for ERC/DRC as well, or use
+`tools.verify --depth electrical` locally to combine both. The manual electrical
+workflow does not add a required branch-protection check or change ordinary PR
+runs. Adopt those enforcement decisions through the repository's review process.
 
 ## Receipts and acceptance
 

@@ -1053,6 +1053,7 @@ class TemplateDoctorReport(StrictModel):
     lane: Literal["TEMPLATE_DOCTOR"] = "TEMPLATE_DOCTOR"
     build_authorized: Literal[False] = False
     native_requested: bool
+    electrical_requested: bool = False
     checks: tuple[EnvironmentCheck, ...]
     status: Literal["PASS", "FAIL"]
     next_actions: tuple[NonEmptyText, ...] = ()
@@ -1424,6 +1425,13 @@ SpiceExpression = Annotated[
 ]
 
 
+class AnalysisPending(StrictModel):
+    """An unanswered engineering question; this can never supply passing evidence."""
+
+    mode: Literal["pending"] = "pending"
+    reason: NonEmptyText
+
+
 class AnalysisNotApplicable(StrictModel):
     mode: Literal["not_applicable"]
     reason: NonEmptyText
@@ -1590,9 +1598,9 @@ class ElectricalAnalysisContract(StrictModel):
     schema_version: Literal["1"] = "1"
     project_id: Identifier
     ngspice_version: NonEmptyText
-    grounding: Annotated[GroundingAnalysis | AnalysisNotApplicable, Field(discriminator="mode")]
-    power: Annotated[PowerAnalysis | AnalysisNotApplicable, Field(discriminator="mode")]
-    high_frequency: Annotated[HighFrequencyAnalysis | AnalysisNotApplicable, Field(discriminator="mode")]
+    grounding: Annotated[GroundingAnalysis | AnalysisNotApplicable | AnalysisPending, Field(discriminator="mode")]
+    power: Annotated[PowerAnalysis | AnalysisNotApplicable | AnalysisPending, Field(discriminator="mode")]
+    high_frequency: Annotated[HighFrequencyAnalysis | AnalysisNotApplicable | AnalysisPending, Field(discriminator="mode")]
 
     @model_validator(mode="after")
     def unique_cases(self) -> ElectricalAnalysisContract:
@@ -1637,3 +1645,23 @@ class ElectricalSuiteReport(StrictModel):
     schema_version: Literal["1"] = "1"
     status: Literal["PASS", "FAIL"]
     projects: tuple[ElectricalAnalysisReport, ...]
+
+
+class ElectricalSetupReport(StrictModel):
+    schema_version: Literal["1"] = "1"
+    status: Literal["CREATED"] = "CREATED"
+    project_id: Identifier
+    contract: RepositoryPath
+    changed: tuple[RepositoryPath, ...]
+    next_actions: tuple[NonEmptyText, ...]
+
+
+class ElectricalInputInventory(StrictModel):
+    schema_version: Literal["1"] = "1"
+    status: Literal["UNREVIEWED"] = "UNREVIEWED"
+    build_authorized: Literal[False] = False
+    project_id: Identifier
+    run_directory: NonEmptyText
+    source_sha256: Mapping[RepositoryPath, Digest]
+    model_sha256: Mapping[RepositoryPath, Digest]
+    next_actions: tuple[NonEmptyText, ...]

@@ -9,6 +9,7 @@ JsonValue: TypeAlias = "str | int | float | bool | None | list[JsonValue] | dict
 
 LABELS: dict[str, str] = {
     "project_id": "Project",
+    "contract": "Contract",
     "projects": "Projects",
     "directory": "Directory",
     "destination": "Destination",
@@ -68,10 +69,17 @@ def summary(label: str, report: BaseModel, *, limit: int = 5) -> str:
                     for project in project_rows:
                         if project is None:
                             continue
-                        receipt = f" ({project['summary']})" if project.get("summary") else ""
+                        location = project.get("summary") or project.get("run_directory")
+                        receipt = f" ({location})" if location else ""
                         lines.append(
-                            f"  {project.get('id', '?')}: {project.get('status', '?')}{receipt}"
+                            f"  {project.get('id', project.get('project_id', '?'))}: {project.get('status', '?')}{receipt}"
                         )
+                        failing = [row for row in (mapping(item) for item in sequence(project.get("checks")))
+                                   if row is not None and row.get("status") in {"FAIL", "NOT_RUN", "NOT_CONFIGURED"}]
+                        for row in failing[:limit]:
+                            lines.append(f"    {row.get('id', 'check')}: {row.get('detail', 'Review the receipt.')}")
+                        if len(failing) > limit:
+                            lines.append("    More findings are available in the receipt or --format json.")
                 else:
                     lines.append(f"{title}: {', '.join(str(item) for item in values)}")
     for key in ("preflight", "initialization", "portable"):

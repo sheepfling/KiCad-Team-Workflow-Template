@@ -168,10 +168,14 @@ def executable_path(cli: str) -> str:
     return str(path.resolve()) if path.is_absolute() or path.parent != Path(".") else cli
 
 
+def observed_versions(command: CommandEvidence) -> tuple[str, ...]:
+    return tuple(re.findall(r"(?i)\bngspice-([0-9][A-Za-z0-9.+_-]*)", command.stdout))
+
+
 def simulator_version(output: Path, cli: str, expected: str) -> CommandEvidence:
     command = run_command(output, (cli, "--version"), timeout=30)
     write_model(output / "ngspice-version.command.json", command)
-    versions = re.findall(r"(?i)\bngspice-([0-9][A-Za-z0-9.+_-]*)", command.stdout)
+    versions = observed_versions(command)
     if command.returncode != 0 or command.error or expected not in versions:
         raise ValueError(f"Exact ngspice {expected} required; observed {versions or command.error or command.stderr}")
     return command

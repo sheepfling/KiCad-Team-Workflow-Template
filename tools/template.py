@@ -45,8 +45,10 @@ def main() -> int:
     )
     parser.add_argument(
         "--runner", choices=("auto", "local", "container"), default="auto",
-        help="Doctor native runner; requires --native; auto prefers an exact local CLI, then Docker",
+        help="Doctor native runner; requires --native or --electrical; auto prefers an exact local CLI, then Docker",
     )
+    parser.add_argument("--electrical", action="store_true", help="Doctor: require native and electrical setup plus the exact host ngspice")
+    parser.add_argument("--ngspice", default="ngspice", help="Simulator executable for doctor --electrical")
     parser.add_argument("--source", type=Path, help="Existing .kicad_pro file to import")
     parser.add_argument("--source-dir", type=Path,
                         help="Directory of candidate .kicad_pro files to inventory without copying")
@@ -72,16 +74,20 @@ def main() -> int:
         args.detail is not None or args.log_dir is not None
     ):
         parser.error("--detail and --log-dir require diagnose or rescue")
+    if args.command != "doctor" and args.electrical:
+        parser.error("--electrical requires doctor")
+    if args.ngspice != "ngspice" and not args.electrical:
+        parser.error("--ngspice requires doctor --electrical")
     if args.command != "doctor" and args.native:
         parser.error("--native requires doctor")
     if args.command != "doctor" and args.runner != "auto":
         parser.error("--runner requires doctor")
-    if args.command == "doctor" and not args.native and args.runner != "auto":
-        parser.error("--runner requires --native")
+    if args.command == "doctor" and not (args.native or args.electrical) and args.runner != "auto":
+        parser.error("--runner requires --native or --electrical")
     if args.command == "doctor":
         result = doctor(
             args.root, args.native, args.toolchain, args.cli,
-            project_id=args.project_id, runner=args.runner,
+            project_id=args.project_id, runner=args.runner, electrical=args.electrical, ngspice=args.ngspice,
         )
     elif args.command == "rescue":
         if args.project_id is None:

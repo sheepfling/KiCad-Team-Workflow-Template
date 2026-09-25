@@ -116,6 +116,7 @@ portable lane passes, but they must be resolved before the activity they name
 | `UNREGISTERED_DESIGN` | Give a separate native design its own registered island; do not hide it in another project's input inventory. |
 | `EMPTY_COMPONENT_CONTRACT` | Run `tools.contract_coach --project-id <id> --capture` to inventory UNREVIEWED components and nets with exact local KiCad or the catalogued digest-pinned Docker image. Compare them with requirements, then write independent expectations in `tests/contract.json`. |
 | `EMPTY_NET_CONTRACT` | Review the empty net expectation; author real expected connectivity or record that the design is intentionally net-free. |
+| `ELECTRICAL_SETUP` | Review the named electrical sidecar, pending requirements, model bindings or power budget. Run `tools.template doctor --electrical --project-id <id> --format text`; follow the [electrical quickstart](ELECTRICAL_ANALYSIS.md#quickstart). |
 | `PROJECT_TEST` | Read the failing assertion and requirement, repair the design or test fixture, then rerun the selected lane. |
 | `PART_ID_SCOPE` or `EXPORT_SETTINGS` | Complete these reviewed records before purchasing or manufacturing work; a portable pass does not imply release readiness. |
 | `PCB_ONLY_SCOPE` | Keep board capture in development. Add an authoritative schematic before electrical or manufacturing claims. |
@@ -228,3 +229,24 @@ not a design failure. Reacquire and verify the complete source before import; do
 not infer missing schematics or dependencies from a partial backup. The import
 receipt records copied file hashes and exclusions, but it cannot certify the
 upstream archive's completeness.
+
+## Electrical readiness and failed simulations
+
+Run `python -B -m tools.template doctor --electrical --project-id <id> --format text`
+before requesting `tools.verify --depth electrical`. Missing configuration points to
+`tools.electrical --project <id> --init`; pending sections need engineering input.
+A simulator failure names the exact version and `--ngspice` override. Selecting a
+KiCad container does not install ngspice on the host.
+
+For stale design or model bindings, run `tools.electrical --project <id> --capture-inputs`
+and review the new ignored `inputs.json` before intentionally updating the contract.
+Specify repeated `--model` paths when adding models. Capture never approves a changed
+model or rewrites existing bindings.
+
+For a failed electrical run, open the printed receipt's `electrical.txt` or use
+`tools.electrical --project <id> --detail full`. Inspect the named case's
+`ngspice.command.json`, generated deck and `waveforms.raw`. Missing/non-finite
+measurements, simulator errors, truncated data and uncovered measurement windows
+all fail the run. Repair the model or runner based on that evidence; change limits
+only when supported by independent engineering requirements. See the
+[electrical guide](ELECTRICAL_ANALYSIS.md) for the complete scope and hosted workflow.

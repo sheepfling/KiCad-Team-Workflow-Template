@@ -24,6 +24,10 @@ Use [the documentation map](docs/README.md) to choose where information belongs,
 the shortest working path, and [the contributor guide](docs/workflow/CONTRIBUTOR_GUIDE.md)
 for branches, review and handoff. The [worked examples](examples/README.md) use this
 same layout and provide regression fixtures for the shared tools.
+For grounding, startup/steady power and high-frequency circuit checks, follow the
+[electrical quickstart](docs/workflow/ELECTRICAL_ANALYSIS.md#quickstart): initialize
+pending requirements, capture review inputs, check tools, then verify.
+
 See also the [quick reference](docs/workflow/QUICK_REFERENCE.md),
 [mechanical handoff](docs/workflow/MECHANICAL_HANDOFF.md), [metrics](docs/workflow/METRICS.md)
 and [Markdown policy](docs/workflow/MARKDOWN_POLICY.md). The [scaffold changelog](CHANGELOG.md)

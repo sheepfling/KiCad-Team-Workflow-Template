@@ -449,7 +449,7 @@ def validate(
                         electrical = load_analysis(root, config)
                         if electrical is not None:
                             ground = grounding_checks(electrical.grounding, read_netlist(output / "netlist.xml"))
-                            failures = [row.detail for row in ground if row.status == "FAIL"]
+                            failures = [row.detail for row in ground if row.status not in {"PASS", "NOT_APPLICABLE"}]
                             checks["grounding"] = CheckEvidence(
                                 status="FAIL" if failures else "PASS",
                                 error="; ".join(failures) if failures else None,

@@ -40,3 +40,24 @@ path. The template exercises KiCad 10.0.0 and 10.0.5.
 Preview changed-file scope with `python -B -m tools.impact --base <ref> --head <ref> --format text`.
 Keep each island at `projects/<id>/`: nested project directories are not discovered.
 Use Python 3.11+ and preserve every declared local/shared library dependency.
+
+## Grounding, power and high frequency
+
+For a board with electrical requirements, use this setup-to-verification sequence:
+
+```sh
+python -B -m tools.electrical --project <id> --init
+# Author requirements/models, then capture hashes for engineering review:
+python -B -m tools.electrical --project <id> --capture-inputs --model <repo-relative-deck>
+python -B -m tools.template doctor --electrical --project-id <id> --format text
+python -B -m tools.verify --project <id> --depth electrical
+```
+
+Repeat `--model` for includes. Initial sections are pending and cannot pass;
+captured hashes stay UNREVIEWED until the engineer reviews and records the mapping.
+Use `--ngspice /path/to/ngspice` for a simulator outside `PATH`. For focused checks,
+use `tools.electrical --project <id>` or `tools.ci --electrical --project <id> --format text`.
+Text includes project identity and receipt; `--format json` contains every finding.
+The manual **Electrical analysis** Action provides the hosted focused gate; normal
+native acceptance still checks ERC/DRC. Follow the
+[electrical quickstart and examples](ELECTRICAL_ANALYSIS.md#quickstart).

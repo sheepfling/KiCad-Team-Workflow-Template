@@ -1,4 +1,4 @@
-"""Verify one project with portable policy and optional exact native KiCad checks."""
+"""Verify a project: portable policy, native KiCad, or native plus electrical simulations."""
 from __future__ import annotations
 
 import argparse
@@ -159,6 +159,7 @@ def verify(
                 native_doctor = doctor(
                     root, native=True, toolchain_id=config.toolchain_id,
                     cli=cli, project_id=project_id, runner=runner,
+                    electrical=depth == "electrical", ngspice=ngspice,
                 )
                 journal.save_model("doctor", native_doctor)
             if native_doctor.status != "PASS":
@@ -282,7 +283,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path.cwd())
     parser.add_argument("--project", required=True, help="One registered project ID")
-    parser.add_argument("--depth", choices=("portable", "native", "electrical"), default="portable")
+    parser.add_argument("--depth", choices=("portable", "native", "electrical"), default="portable",
+                        help="portable: requirements/budgets; native: add KiCad/grounding; electrical: add simulation preflight and all configured cases")
     parser.add_argument("--runner", choices=("auto", "local", "container"), default="auto",
                         help="Native runner; auto prefers an exact local CLI, then pinned Docker")
     parser.add_argument(
@@ -295,7 +297,7 @@ def main() -> int:
     parser.add_argument("--detail", choices=("brief", "full"), default="brief")
     args = parser.parse_args()
     if args.depth == "portable" and args.runner != "auto":
-        parser.error("--runner requires --depth native")
+        parser.error("--runner requires --depth native or electrical")
     if args.format == "json" and args.detail != "brief":
         parser.error("--detail is for text; JSON already includes every finding")
     try:
