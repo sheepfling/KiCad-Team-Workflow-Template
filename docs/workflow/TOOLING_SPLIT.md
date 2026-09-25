@@ -60,6 +60,11 @@ kicad-team template list --root . --format text
 kicad-team ci --format text
 ```
 
+For Python automation, use `python -I -m kicad_tooling.<module>` with the active
+environment's interpreter. Normal imports come from that installation. `--root` selects
+project data; it never changes Python's import paths. Do not inject `PYTHONPATH`,
+modify `sys.path`, or depend on the sibling checkout's location after installation.
+
 The editable installation is local development state, not a replacement for the committed pin.
 Run the tooling repository's own development checks there and the affected project/native workflows
 here. Restore the reviewed requirements installation before testing the pinned acceptance path.
@@ -74,7 +79,7 @@ For a repository carrying the earlier in-tree implementation, make the cutover o
    project/product contracts and tests. Keep authored approvals and frozen release records intact.
 2. Add the reviewed `requirements-tooling.txt` pin and install it in a new environment. Convert
    `python -m tools.<module>` calls to `kicad-team <hyphenated-command>` or
-   `python -B -m kicad_tooling.<module>` in automation. Keep `--root` bound to project data.
+   `python -I -B -m kicad_tooling.<module>` in automation. Keep `--root` bound to project data.
 3. Update hosted workflows and agent setup, then remove shared `tools/`, root implementation
    regression tests and template Python package metadata. Move any actual project-specific test
    into its owning island before removing an old shared test directory.

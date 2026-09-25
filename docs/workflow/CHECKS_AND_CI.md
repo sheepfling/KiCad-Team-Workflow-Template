@@ -234,8 +234,9 @@ runners mount shared Git metadata read-only and retain the worktree's own commit
 and index. Docker needs access to both the worktree and its shared Git directory.
 
 The official pinned images do not include pip. `kicad-team native-deps` probes the image's
-Python version and uses host pip to prepare compatible Linux x86 dependencies and the installed
-tooling package in an ignored directory. The image itself remains unchanged.
+Python version, creates a standard native virtual environment, and uses host pip to prepare
+compatible Linux x86 dependencies in its site-packages alongside the installed tooling.
+The image itself remains unchanged; no project directory is added to Python's import path.
 Install the repository's Python environment first, then use the image string from
 `catalog/toolchains.json` for the selected project. On a macOS/Linux Docker host:
 
@@ -244,8 +245,8 @@ Install the repository's Python environment first, then use the image string fro
 kicad-team native-deps --image "$KICAD_IMAGE" --output build/policy-deps
 docker run --rm --platform linux/amd64 --user "$(id -u):$(id -g)" --entrypoint sh \
   -e HOME=/tmp/kicad-template -e PYTHONDONTWRITEBYTECODE=1 \
-  -e PYTHONPATH=/work/build/policy-deps -v "$PWD:/work" -w /work "$KICAD_IMAGE" \
-  -ec 'python3 -B -m kicad_tooling.ci --kicad --project battery-board --output build/review-001'
+  -v "$PWD:/work" -w /work "$KICAD_IMAGE" \
+  -ec '/work/build/policy-deps/bin/python -I -B -m kicad_tooling.ci --kicad --project battery-board --output build/review-001'
 ```
 
 Use a new dependency directory for a different image/runtime and a fresh evidence
