@@ -39,19 +39,22 @@ From the repository root:
 
 ```sh
 python -B -m tools.ci
-python -B -m tools.ci --project arduino-uno-status-led
+python -B -m tools.verify --project arduino-uno-status-led
 python -B -m tools.hardware generate
 python -B -m tools.ci
+python -B -m tools.verify --project arduino-uno-status-led --depth native
 python -B -m tools.ci --kicad --output build/review-001
 ```
 
 The first command runs registry/discovery/path/link/local-state policy, product
 validation, fresh isolated generation and unit/mutation tests. It explicitly
-reports `static_only` and KiCad `NOT_RUN`. `--project <id>` reports
-`project_static` and limits local work to the selected board plus product records
-that declare it; it does not run unrelated historical boards or the repository-wide
-Python quality suite. `--kicad` adds actual pinned KiCad checks; use a new evidence
-directory every time. KiCad must be closed and exactly match the declared version.
+reports `static_only` and KiCad `NOT_RUN`. `tools.verify --project <id>` checks
+the selected board plus its declared dependencies, retains a fresh ignored
+receipt, and gives repair guidance. Add `--depth native` for exact KiCad checks
+of that board. The final lower-level `tools.ci --kicad` command deliberately
+checks every discovered native project; use a new evidence directory for it.
+Close KiCad before checking source. Native checks use an exact local CLI or the
+project's digest-pinned container image.
 No command stashes, resets, commits, pushes, merges, buys parts or changes permissions.
 
 `generate` writes only ignored review views and schema exports. To retain a complete

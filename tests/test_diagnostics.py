@@ -299,6 +299,44 @@ class DiagnosticTests(unittest.TestCase):
         self.assertEqual(quote_argument("C:\\Users\\O'Connor\\board", windows=True),
                          "'C:\\Users\\O''Connor\\board'")
 
+    def test_stale_native_report_requests_fresh_verification(self) -> None:
+        repository = self.root / "repository"
+        shutil.copytree(reference_root(), repository, ignore=shutil.ignore_patterns(".git"))
+        initialize_git(repository)
+        native = self.root / "stale-native"
+        native.mkdir()
+        write_model(native / "summary.json", ValidationSummary(
+            timestamp_utc="2026-09-24T00:00:00+00:00",
+            checked_commit="LOCAL_UNBOUND",
+            project_id="controller",
+            checks={"source_scope": CheckEvidence(
+                status="PASS", source_hashes={"outdated-source": "0" * 64}
+            )},
+            status="PASS",
+            artifacts_sha256={},
+        ))
+        result = diagnose_project(repository, "controller", native_report=native)
+        self.assertIn("STALE_NATIVE_REPORT", {row.code for row in result.findings})
+        self.assertIn("tools.verify", result.next_command)
+        self.assertIn("--depth native", result.next_command)
+        self.assertNotIn("--native-report", result.next_command)
+
+        bom = self.root / "bom.csv"
+        bom.write_text("Reference,Value,Footprint,PartID,DNP\nR1,1k,R_Axial,,\n")
+        with_bom = diagnose_project(repository, "controller", native_report=native, bom=bom)
+        self.assertIsNotNone(with_bom.follow_up_command)
+        self.assertIn("--native-report FRESH_NATIVE_DIR", with_bom.follow_up_command or "")
+        self.assertIn(f"--bom {quote_argument(str(bom))}", with_bom.follow_up_command or "")
+        self.assertIn("Follow-up command:", format_text(with_bom))
+
+        summary_path = native / "summary.json"
+        summary = read_model(summary_path, ValidationSummary)
+        write_model(summary_path, summary.model_copy(update={"project_id": "another-board"}))
+        wrong_project = diagnose_project(repository, "controller", native_report=native)
+        self.assertIn("NATIVE_REPORT", {row.code for row in wrong_project.findings})
+        self.assertIn("--depth native", wrong_project.next_command)
+        self.assertNotIn("--native-report", wrong_project.next_command)
+
     def test_incomplete_backup_receives_specific_import_repair(self) -> None:
         source = self.root / "incomplete"
         source.mkdir()

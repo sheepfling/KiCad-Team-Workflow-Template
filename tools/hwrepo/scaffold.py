@@ -54,7 +54,13 @@ def new_project(root: Path, project_id: str, kind: ProjectKind, toolchain_id: st
         write_scaffold(root, stage, manifest)
         os.replace(stage, destination)
         stage = None
-        return ProjectScaffoldReport(status="PASS", directory=destination.relative_to(root).as_posix())
+        return ProjectScaffoldReport(
+            status="PASS", directory=destination.relative_to(root).as_posix(),
+            next_step=(
+                "Create the native KiCad design and complete the test contract, then run "
+                f"python -B -m tools.verify --project {manifest.id}."
+            ),
+        )
     except (OSError, ValueError) as exc:
         return ProjectScaffoldReport(status="FAIL", directory=f"projects/{project_id}", issues=(str(exc),))
     finally:

@@ -82,9 +82,9 @@ def inventory(root: Path) -> TemplateInventoryReport:
                 missing_inputs=missing,
                 next_command=(
                     f"Complete declared inputs for {record.id}, then run "
-                    f"python -B -m tools.ci --project {record.id} --format text"
+                    f"python -B -m tools.verify --project {record.id} --format text"
                     if missing else
-                    f"python -B -m tools.ci --project {record.id} --format text"
+                    f"python -B -m tools.verify --project {record.id} --format text"
                 ),
             ))
         return TemplateInventoryReport(
@@ -97,7 +97,7 @@ def inventory(root: Path) -> TemplateInventoryReport:
             next_actions=(
                 "No live projects are registered. Create one with tools.template new-project."
                 if not project_rows else
-                "Input presence is not validation. Run the selected CI command and review its findings.",
+                "Input presence is not validation. Run the selected verify command and review its receipt.",
             ),
         )
     except (OSError, ValueError) as exc:
