@@ -50,11 +50,11 @@ attempt needs a new ID; previous evidence is never overwritten. The default
 `engineering_review` class is suitable for rehearsal and review, including the
 synthetic fixtures. It does not approve a board for manufacture.
 
-The verifier checks the actual commit, source-file hashes, source cleanliness,
-the exact portable/native project scope, toolchain, report results, native artifact hashes and native
-ERC/DRC/netlist content. A manifest containing only self-declared `PASS` labels fails.
-Integrity checks detect missing or altered evidence; trusted CI and reviewed release
-publication establish who produced and approved it.
+The verifier checks the actual commit, source-file hashes, source cleanliness, the exact
+portable/native project scope, toolchain, report results, native artifact hashes and native
+ERC/DRC/netlist content. A manifest containing only self-declared `PASS` labels fails. Integrity
+checks detect missing or altered evidence; trusted CI and reviewed release publication establish who
+produced and approved it.
 
 Boards requiring component identity bind each reference's `part_id` in
 `tests/contract.json`, in addition to value, footprint and nets. Native `PART_ID`

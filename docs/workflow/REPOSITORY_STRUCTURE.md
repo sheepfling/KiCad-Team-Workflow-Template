@@ -4,21 +4,21 @@ Organize by independently maintained deliverable. A project is a repeatable fold
 containing its source, manifest, documentation and tests. The project kind is metadata
 in `project.json`; it does not add another directory level.
 
-| Location | Owner and purpose | Tracked content |
-| --- | --- | --- |
-| `projects/<id>/` | Board or deliverable owner | Native design, local libraries, manifest, docs, tests, optional firmware and release records |
-| `products/<id>/` | System integrator | `product.json`, integration docs/tests and release records linking project IDs |
-| `docs/workflow/` | Scaffold maintainers | Durable reusable workflow, policy and adoption guidance |
-| `docs/team/` | Adopting team | Durable organization-wide decisions and process |
-| `tools/` | Tool maintainers | Shared runners, typed models, discovery, validation and exports |
-| `tests/` | Tool maintainers | Regression tests of the shared tooling |
-| `catalog/` | Library, electrical and process owners | Shared identities, approved toolchains, product index and project discovery roots |
-| `libraries/<id>/` | Library owners | Shared symbols, footprints, models and provenance/licensing |
-| `templates/` | Process maintainers | Copyable manifests, test contracts, handoff and governance records |
-| `examples/` | Tool maintainers | Regression inputs using the same project/product layout |
-| `.github/` | Repository maintainers | Shared workflows and review forms |
-| `generated/`, `schemas/` | Tooling | Only their guidance files; derived shared exports are ignored |
-| Any `build/` | The generating run | Nothing tracked; local generated views, native exports and test evidence |
+| Location                 | Owner and purpose                      | Tracked content                                                                              |
+| ------------------------ | -------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `projects/<id>/`         | Board or deliverable owner             | Native design, local libraries, manifest, docs, tests, optional firmware and release records |
+| `products/<id>/`         | System integrator                      | `product.json`, integration docs/tests and release records linking project IDs               |
+| `docs/workflow/`         | Scaffold maintainers                   | Durable reusable workflow, policy and adoption guidance                                      |
+| `docs/team/`             | Adopting team                          | Durable organization-wide decisions and process                                              |
+| `tools/`                 | Tool maintainers                       | Shared runners, typed models, discovery, validation and exports                              |
+| `tests/`                 | Tool maintainers                       | Regression tests of the shared tooling                                                       |
+| `catalog/`               | Library, electrical and process owners | Shared identities, approved toolchains, product index and project discovery roots            |
+| `libraries/<id>/`        | Library owners                         | Shared symbols, footprints, models and provenance/licensing                                  |
+| `templates/`             | Process maintainers                    | Copyable manifests, test contracts, handoff and governance records                           |
+| `examples/`              | Tool maintainers                       | Regression inputs using the same project/product layout                                      |
+| `.github/`               | Repository maintainers                 | Shared workflows and review forms                                                            |
+| `generated/`, `schemas/` | Tooling                                | Only their guidance files; derived shared exports are ignored                                |
+| Any `build/`             | The generating run                     | Nothing tracked; local generated views, native exports and test evidence                     |
 
 ## Documentation ownership
 

@@ -41,13 +41,13 @@ new, nonexistent directory outside the source template:
 python -B -m tools.template bootstrap --destination ../my-hardware-repo --project-id my-board
 ```
 
-The command copies the controlled template into a staging directory and atomically
-places it only after writing `template-adoption.json` and removing the known root
-template `LICENSE`. It copies only Git-tracked source and excludes generated exports and local state;
-ignored downloads and untracked files cannot be copied. It never overwrites a destination, initializes a
-remote, creates a commit, changes repository permissions, opens KiCad or modifies a
-design. Bootstrap copies the synthetic examples as regression inputs. Retain them while
-replacing their live catalog entries with adopted source; see the
+The command copies the controlled template into a staging directory and atomically places it only
+after writing `template-adoption.json` and removing the known root template `LICENSE`. It copies
+only Git-tracked source and excludes generated exports and local state; ignored downloads and
+untracked files cannot be copied. It never overwrites a destination, initializes a remote, creates a
+commit, changes repository permissions, opens KiCad or modifies a design. Bootstrap copies the
+synthetic examples as regression inputs. Retain them while replacing their live catalog entries with
+adopted source; see the
 [folder standard](REPOSITORY_STRUCTURE.md).
 
 Run `tools.template init --project-id my-board` inside that copy. The adopting
@@ -108,13 +108,12 @@ updated upgrade catalog while retaining their old contract version to inspect th
 
 ## Version 1.0.0 workflow migration
 
-The 0.3.0-to-1.0.0 plan adds fresh-fork initialization, configurable team policy,
-per-reference component identities, root-license cleanup and the evidence-backed release/restore path.
-The 1.0.0 contract records 1.0.0. A new 1.0.0 copy needs no migration; an existing
-adopter keeps its earlier version in `template-adoption.json` and uses
-`upgrade-plan --target-version 1.0.0` with the updated tools and catalog. The planner
-then returns the intervening steps. Existing adopters keep their live project and
-catalog records; initialization is for fresh forks.
+The 0.3.0-to-1.0.0 plan adds fresh-fork initialization, configurable team policy, per-reference
+component identities, root-license cleanup and the evidence-backed release/restore path. The 1.0.0
+contract records 1.0.0. A new 1.0.0 copy needs no migration; an existing adopter keeps its earlier
+version in `template-adoption.json` and uses `upgrade-plan --target-version 1.0.0` with the updated
+tools and catalog. The planner then returns the intervening steps. Existing adopters keep their live
+project and catalog records; initialization is for fresh forks.
 
 Review each board's identity expectations and export settings, then regenerate
 release evidence from a clean source commit. Retain historical approved packages as

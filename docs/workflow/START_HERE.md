@@ -61,14 +61,14 @@ company licenses and nested notices are preserved.
 
 Record actual decisions and evidence before changing a project to `production`:
 
-| Decision | Record |
-| --- | --- |
-| Repository and branch controls | Default branch, required checks and hosted enforcement |
-| Engineering ownership | Electrical/mechanical reviewers and integrator |
-| Toolchain and libraries | Approved versions, installer sources, dependencies and owners |
-| Mechanical handoff | Board-local reviewed interface and fit records |
-| Release authority | Approval roles, exact frozen BOM/package location and retention |
-| Recovery and handoff | Tag, artifact hashes, restore procedure and responsible owner |
+| Decision                       | Record                                                          |
+| ------------------------------ | --------------------------------------------------------------- |
+| Repository and branch controls | Default branch, required checks and hosted enforcement          |
+| Engineering ownership          | Electrical/mechanical reviewers and integrator                  |
+| Toolchain and libraries        | Approved versions, installer sources, dependencies and owners   |
+| Mechanical handoff             | Board-local reviewed interface and fit records                  |
+| Release authority              | Approval roles, exact frozen BOM/package location and retention |
+| Recovery and handoff           | Tag, artifact hashes, restore procedure and responsible owner   |
 
 Use the [production profile](ASSURANCE_PROFILES.md), [GitHub governance](GITHUB_GOVERNANCE.md)
 and [release workflow](VERSIONING.md). Do not fill real-world approvals with template

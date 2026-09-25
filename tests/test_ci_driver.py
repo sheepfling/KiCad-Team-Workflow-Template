@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import textwrap
+import tomllib
 import unittest
 from datetime import UTC, datetime
 from io import StringIO
@@ -15,6 +16,7 @@ from unittest.mock import patch
 
 from tests.support import reference_root
 from tools.ci import main, project_static_pipeline, run_command, static_pipeline
+from tools.hwrepo.documentation import check as documentation_check
 from tools.hwrepo.models import CommandEvidence, StaticPipelineReport
 
 ROOT = reference_root()
@@ -42,14 +44,34 @@ class CiDriverTests(unittest.TestCase):
         self.assertIsNotNone(result.error)
 
     def test_static_pipeline_requires_every_quality_command(self) -> None:
-        with patch("tools.ci.run_command", side_effect=(evidence(0), evidence(0), evidence(1))):
+        with patch("tools.ci.run_command", side_effect=(
+            evidence(0), evidence(0), evidence(0), evidence(0), evidence(1))):
             result = static_pipeline(ROOT, None)
         if not isinstance(result, StaticPipelineReport):
             self.fail("The unselected CI lane must return the full static report")
         self.assertEqual(result.registry.status, "PASS")
         self.assertEqual(result.documentation.status, "PASS")
+        self.assertEqual(result.rumdl.returncode, 0)
+        self.assertEqual(result.mdrepo.returncode, 0)
         self.assertEqual(result.unit_tests.returncode, 1)
         self.assertEqual(result.status, "FAIL")
+
+    def test_each_markdown_command_is_required_by_full_pipeline(self) -> None:
+        for failed_index, name in ((0, "rumdl"), (1, "mdrepo")):
+            with self.subTest(check=name):
+                outcomes = [evidence(0) for _ in range(5)]
+                outcomes[failed_index] = evidence(1)
+                with patch("tools.ci.run_command", side_effect=outcomes):
+                    result = static_pipeline(ROOT, None)
+                if not isinstance(result, StaticPipelineReport):
+                    self.fail("The full lane must return the full static report")
+                self.assertEqual(getattr(result, name).returncode, 1)
+                self.assertEqual(result.status, "FAIL")
+
+    def test_mdrepo_roots_follow_documentation_roots(self) -> None:
+        config = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+        configured = tuple(config["tool"]["mdrepo"]["orphans"]["roots"])
+        self.assertEqual(configured, documentation_check(ROOT).roots)
 
     def test_project_pipeline_skips_repository_wide_python_quality_commands(self) -> None:
         with patch("tools.ci.run_command") as command:
@@ -312,11 +334,13 @@ class CiDriverTests(unittest.TestCase):
         self.assertIn('tools.ci --matrix "${args[@]}"', matrix)
         self.assertIn('fromJSON(needs.scope.outputs.portable-matrix)', portable)
         self.assertIn('python -B -m tools.docs_policy', portable)
+        self.assertIn('rumdl check . --no-cache', portable)
+        self.assertIn('python -B -m mdrepo check .', portable)
         self.assertIn('python -B -m tools.ci "${args[@]}" --jobs 4 --output build/portable', portable)
         self.assertIn('python -B -m tools.ci --jobs 4 --output build/portable', portable)
         self.assertIn('timeout-minutes: 13', portable)
         self.assertIn('cache-dependency-path: pyproject.toml', portable)
-        self.assertIn('if [ "$DOCS_CHANGED" = true ]; then python -B -m tools.docs_policy; fi', portable)
+        self.assertIn('if [ "$DOCS_CHANGED" = true ]; then', portable)
         self.assertIn("if: matrix.os != 'windows-2022'", portable)
         self.assertIn("if: matrix.os == 'ubuntu-24.04' && needs.scope.outputs.scope == 'full'", portable)
         self.assertIn('--pythonplatform Windows --pythonversion 3.11 tools', portable)

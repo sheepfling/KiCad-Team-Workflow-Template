@@ -3,11 +3,11 @@
 The project manifest owns its assurance profile. Profiles describe the work's maturity;
 production readiness is separate from creating a project folder.
 
-| Profile | Intended use | Requirements |
-| --- | --- | --- |
-| `training` | Synthetic workflow fixtures | Training status, NOT FOR MANUFACTURE, explicit accepted-check inventory |
-| `development` | Real, unreleased engineering work | Engineering status, NOT FOR MANUFACTURE, all applicable ERC/DRC rules enabled; release/governance paperwork is not required yet |
-| `production` | Reviewed production-level controls | Approved identities/libraries, mechanical handoff, governance record and no disabled applicable checks |
+| Profile       | Intended use                       | Requirements                                                                                                                    |
+| ------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `training`    | Synthetic workflow fixtures        | Training status, NOT FOR MANUFACTURE, explicit accepted-check inventory                                                         |
+| `development` | Real, unreleased engineering work  | Engineering status, NOT FOR MANUFACTURE, all applicable ERC/DRC rules enabled; release/governance paperwork is not required yet |
+| `production`  | Reviewed production-level controls | Approved identities/libraries, mechanical handoff, governance record and no disabled applicable checks                          |
 
 `tools.template new-project` starts in `development`. Native sources and independent
 contracts must still be completed before checks pass. The profile does not permit

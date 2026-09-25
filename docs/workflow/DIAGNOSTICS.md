@@ -12,13 +12,13 @@ Every invocation creates a new ignored `build/diagnostics/<project>-.../` receip
 Terminal output shows a short repair queue, grouping repeated findings by cause;
 the receipt preserves every location. Its files are:
 
-| File | When to open it |
-| --- | --- |
-| `events.log` | See which stage started, completed, or stopped, with elapsed time. |
-| `diagnosis.txt` / `diagnosis.json` | Read the repair queue or every finding and exact file location. |
-| `import-preview.json` or `portable.json` | Inspect the underlying import inventory or selected CI result, including failing project-test stdout/stderr. |
-| `native-summary.json` | Check the native report identity and each recorded KiCad check. The original native output directory holds `erc.json`, `drc.json` and `*.command.json`. |
-| `error.txt` | Read the complete Python traceback when the coach itself stops unexpectedly. |
+| File                                     | When to open it                                                                                                                                         |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `events.log`                             | See which stage started, completed, or stopped, with elapsed time.                                                                                      |
+| `diagnosis.txt` / `diagnosis.json`       | Read the repair queue or every finding and exact file location.                                                                                         |
+| `import-preview.json` or `portable.json` | Inspect the underlying import inventory or selected CI result, including failing project-test stdout/stderr.                                            |
+| `native-summary.json`                    | Check the native report identity and each recorded KiCad check. The original native output directory holds `erc.json`, `drc.json` and `*.command.json`. |
+| `error.txt`                              | Read the complete Python traceback when the coach itself stops unexpectedly.                                                                            |
 
 The receipt also includes `run.json` with Python/platform identity, timing, and
 run status. No KiCad source files are copied into it. It remains outside Git under
@@ -30,11 +30,11 @@ use `--log-dir` outside the checkout.
 
 Choose the amount of output you need without changing the checks:
 
-| View | Command option | Use it for |
-| --- | --- | --- |
-| Short repair queue | default or `--detail brief` | First pass: repeated causes are grouped, with up to three example locations per group. |
-| Every finding in text | `--detail full` | A larger terminal dump with every location, observation, repair action and guide. The same text is saved as `diagnosis.txt`. |
-| Complete structured data | `--format json` | Scripts or agents that need stable fields and every finding. The same data is saved as `diagnosis.json` on every run. |
+| View                     | Command option              | Use it for                                                                                                                   |
+| ------------------------ | --------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Short repair queue       | default or `--detail brief` | First pass: repeated causes are grouped, with up to three example locations per group.                                       |
+| Every finding in text    | `--detail full`             | A larger terminal dump with every location, observation, repair action and guide. The same text is saved as `diagnosis.txt`. |
+| Complete structured data | `--format json`             | Scripts or agents that need stable fields and every finding. The same data is saved as `diagnosis.json` on every run.        |
 
 The options work with either import preview or an existing project. JSON
 already contains all findings, so it does not take `--detail`. Progress
@@ -103,23 +103,23 @@ test contract just to make a red check green. `REVIEW` rows can remain after the
 portable lane passes, but they must be resolved before the activity they name
 (such as purchasing or manufacturing).
 
-| Finding | Engineer's repair |
-| --- | --- |
-| `IMPORT` missing matching design or sheet | Select a complete saved project, repair the sheet reference in KiCad, or use the explicit PCB-only lane for a real board-only source. Do not make up a missing schematic. |
-| `IMPORT` nonportable/case-colliding/linked path | Rename the source and its references to an exact portable spelling, or bring the real asset into a declared local/shared library. Preview again before copying. |
-| `IMPORT_EXCLUSIONS` | Open `import-preview.json` to see every excluded path. Regenerate exports, leave caches behind, review restricted authored assets separately, and import sibling/nested designs as separate islands. |
-| `CAD_PATH` installed KiCad library path | Replace the operating-system installation prefix with the pinned versioned KiCad library variable and verify the named library exists. Do not copy the whole standard library into the project. |
-| `CAD_PATH` private machine path | Bring the actual custom asset into the project or a declared shared library, then update the KiCad reference to a portable path. |
-| `CAD_PATH` old variable | Use the correct library variable for the pinned KiCad version, or a reviewed project-local asset via `KIPRJMOD`; verify the target exists. |
-| `CAD_PATH` missing, embedded or case-mismatched target | Correct exact spelling/case or add the intended asset and verify it opens in KiCad. Do not add a dummy file. |
-| `TRACKED_GENERATED_OUTPUT`, `TRACKED_LOCAL_STATE`, `TRACKED_UNMANAGED_ARTIFACT` | Keep generated exports and local state under ignored `build/`; remove already tracked copies from the Git index with `git rm --cached -- <path>` after confirming their source of truth. Review any authored document or image placement before moving it. |
-| `UNREGISTERED_DESIGN` | Give a separate native design its own registered island; do not hide it in another project's input inventory. |
-| `EMPTY_COMPONENT_CONTRACT` | Run `tools.contract_coach --project-id <id> --capture` to inventory UNREVIEWED components and nets with exact local KiCad or the catalogued digest-pinned Docker image. Compare them with requirements, then write independent expectations in `tests/contract.json`. |
-| `EMPTY_NET_CONTRACT` | Review the empty net expectation; author real expected connectivity or record that the design is intentionally net-free. |
-| `ELECTRICAL_SETUP` | Review the named electrical sidecar, pending requirements, model bindings or power budget. Run `tools.template doctor --electrical --project-id <id> --format text`; follow the [electrical quickstart](ELECTRICAL_ANALYSIS.md#quickstart). |
-| `PROJECT_TEST` | Read the failing assertion and requirement, repair the design or test fixture, then rerun the selected lane. |
-| `PART_ID_SCOPE` or `EXPORT_SETTINGS` | Complete these reviewed records before purchasing or manufacturing work; a portable pass does not imply release readiness. |
-| `PCB_ONLY_SCOPE` | Keep board capture in development. Add an authoritative schematic before electrical or manufacturing claims. |
+| Finding                                                                         | Engineer's repair                                                                                                                                                                                                                                                     |
+| ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `IMPORT` missing matching design or sheet                                       | Select a complete saved project, repair the sheet reference in KiCad, or use the explicit PCB-only lane for a real board-only source. Do not make up a missing schematic.                                                                                             |
+| `IMPORT` nonportable/case-colliding/linked path                                 | Rename the source and its references to an exact portable spelling, or bring the real asset into a declared local/shared library. Preview again before copying.                                                                                                       |
+| `IMPORT_EXCLUSIONS`                                                             | Open `import-preview.json` to see every excluded path. Regenerate exports, leave caches behind, review restricted authored assets separately, and import sibling/nested designs as separate islands.                                                                  |
+| `CAD_PATH` installed KiCad library path                                         | Replace the operating-system installation prefix with the pinned versioned KiCad library variable and verify the named library exists. Do not copy the whole standard library into the project.                                                                       |
+| `CAD_PATH` private machine path                                                 | Bring the actual custom asset into the project or a declared shared library, then update the KiCad reference to a portable path.                                                                                                                                      |
+| `CAD_PATH` old variable                                                         | Use the correct library variable for the pinned KiCad version, or a reviewed project-local asset via `KIPRJMOD`; verify the target exists.                                                                                                                            |
+| `CAD_PATH` missing, embedded or case-mismatched target                          | Correct exact spelling/case or add the intended asset and verify it opens in KiCad. Do not add a dummy file.                                                                                                                                                          |
+| `TRACKED_GENERATED_OUTPUT`, `TRACKED_LOCAL_STATE`, `TRACKED_UNMANAGED_ARTIFACT` | Keep generated exports and local state under ignored `build/`; remove already tracked copies from the Git index with `git rm --cached -- <path>` after confirming their source of truth. Review any authored document or image placement before moving it.            |
+| `UNREGISTERED_DESIGN`                                                           | Give a separate native design its own registered island; do not hide it in another project's input inventory.                                                                                                                                                         |
+| `EMPTY_COMPONENT_CONTRACT`                                                      | Run `tools.contract_coach --project-id <id> --capture` to inventory UNREVIEWED components and nets with exact local KiCad or the catalogued digest-pinned Docker image. Compare them with requirements, then write independent expectations in `tests/contract.json`. |
+| `EMPTY_NET_CONTRACT`                                                            | Review the empty net expectation; author real expected connectivity or record that the design is intentionally net-free.                                                                                                                                              |
+| `ELECTRICAL_SETUP`                                                              | Review the named electrical sidecar, pending requirements, model bindings or power budget. Run `tools.template doctor --electrical --project-id <id> --format text`; follow the [electrical quickstart](ELECTRICAL_ANALYSIS.md#quickstart).                           |
+| `PROJECT_TEST`                                                                  | Read the failing assertion and requirement, repair the design or test fixture, then rerun the selected lane.                                                                                                                                                          |
+| `PART_ID_SCOPE` or `EXPORT_SETTINGS`                                            | Complete these reviewed records before purchasing or manufacturing work; a portable pass does not imply release readiness.                                                                                                                                            |
+| `PCB_ONLY_SCOPE`                                                                | Keep board capture in development. Add an authoritative schematic before electrical or manufacturing claims.                                                                                                                                                          |
 
 When `PROJECT_TEST` names `discovery`, check that the island has discoverable
 `test_*.py` files, package markers in nested test folders, and valid imports.

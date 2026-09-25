@@ -112,6 +112,12 @@ def static_pipeline(
     registry = phase(journal, "registry", lambda: lint(root))
     repository = phase(journal, "repository", lambda: check_repository(root))
     documentation = phase(journal, "documentation", lambda: documentation_check(root))
+    rumdl_path = Path(sys.executable).with_name(
+        "rumdl.exe" if sys.platform == "win32" else "rumdl")
+    rumdl = phase(journal, "rumdl", lambda: run_command(
+        root, str(rumdl_path), "check", ".", "--no-cache"))
+    mdrepo = phase(journal, "mdrepo", lambda: run_command(
+        root, sys.executable, "-m", "mdrepo", "check", "."))
     product = phase(journal, "product", lambda: product_check(root))
     generation = phase(journal, "generation", lambda: generation_report(root))
     ruff = phase(journal, "ruff", lambda: run_command(
@@ -126,6 +132,8 @@ def static_pipeline(
         registry.status == "PASS"
         and repository.status == "PASS"
         and documentation.status == "PASS"
+        and rumdl.returncode == 0
+        and mdrepo.returncode == 0
         and product.status == "PASS"
         and generation.status == "PASS"
         and ruff.returncode == 0
@@ -140,6 +148,8 @@ def static_pipeline(
         registry=registry,
         repository=repository,
         documentation=documentation,
+        rumdl=rumdl,
+        mdrepo=mdrepo,
         product=product,
         generation=generation,
         ruff=ruff,

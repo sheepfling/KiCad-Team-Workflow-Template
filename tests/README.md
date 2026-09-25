@@ -52,12 +52,12 @@ test directories need `__init__.py` for unittest discovery. Tests must not depen
 hardware, network access or files on an engineer's desktop; native/physical checks
 belong in their separately declared workflow.
 
-| Change | Useful regression coverage |
-| --- | --- |
-| Policy rule | Valid case plus a mutation rejected with the intended reason |
-| Manifest/contract | Strict parse, unknown/wrong fields, path escape and duplicate ID cases |
-| Generator | Meaningful expected values, deterministic ordering, stale/missing/tampered output and invalid-input rejection |
-| Discovery/runner | A new island appears automatically; a failing local test fails its gate |
+| Change            | Useful regression coverage                                                                                    |
+| ----------------- | ------------------------------------------------------------------------------------------------------------- |
+| Policy rule       | Valid case plus a mutation rejected with the intended reason                                                  |
+| Manifest/contract | Strict parse, unknown/wrong fields, path escape and duplicate ID cases                                        |
+| Generator         | Meaningful expected values, deterministic ordering, stale/missing/tampered output and invalid-input rejection |
+| Discovery/runner  | A new island appears automatically; a failing local test fails its gate                                       |
 
 Ruff checks the shared code/tests; strict Pyright checks shared tools. Project Python
 suites execute automatically. New substantial shared services are also discovered by

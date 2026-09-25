@@ -67,17 +67,17 @@ analysis results. Analysis failure exits `1`; invocation/setup errors exit `2`.
 
 ## Commands and scope
 
-| Command | Evidence produced |
-| --- | --- |
-| `python -B -m tools.electrical --project <id> --init` | Connected pending contract; no invented requirements |
-| `python -B -m tools.electrical --project <id> --capture-inputs` | UNREVIEWED hashes for design and already-declared models; no contract edits |
-| `python -B -m tools.template doctor --electrical --project-id <id> --format text` | Contract, native runner and host simulator readiness; no simulation |
-| `python -B -m tools.verify --project <id>` | Portable requirements, reviewed model/source bindings and simultaneous power budgets; no circuit simulation |
-| `python -B -m tools.verify --project <id> --depth native` | The portable lane plus ERC/DRC and configured grounding checks on the actual exported netlist |
-| `python -B -m tools.verify --project <id> --depth electrical --ngspice /path/to/ngspice` | Native verification followed by every configured power and high-frequency simulation |
-| `python -B -m tools.electrical --project <id> --format json` | Focused electrical run with an exact-version native netlist capture and an ngspice run; this does not run ERC/DRC |
-| `python -B -m tools.electrical --project <id> --native-summary build/<receipt>/<id>/summary.json` | Reuse an existing netlist only after checking its project, toolchain, source hashes and artifact hashes |
-| `python -B -m tools.ci --electrical --project <id>` | Separate electrical CI gate; the usual project/product/tag selectors apply |
+| Command                                                                                           | Evidence produced                                                                                                 |
+| ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `python -B -m tools.electrical --project <id> --init`                                             | Connected pending contract; no invented requirements                                                              |
+| `python -B -m tools.electrical --project <id> --capture-inputs`                                   | UNREVIEWED hashes for design and already-declared models; no contract edits                                       |
+| `python -B -m tools.template doctor --electrical --project-id <id> --format text`                 | Contract, native runner and host simulator readiness; no simulation                                               |
+| `python -B -m tools.verify --project <id>`                                                        | Portable requirements, reviewed model/source bindings and simultaneous power budgets; no circuit simulation       |
+| `python -B -m tools.verify --project <id> --depth native`                                         | The portable lane plus ERC/DRC and configured grounding checks on the actual exported netlist                     |
+| `python -B -m tools.verify --project <id> --depth electrical --ngspice /path/to/ngspice`          | Native verification followed by every configured power and high-frequency simulation                              |
+| `python -B -m tools.electrical --project <id> --format json`                                      | Focused electrical run with an exact-version native netlist capture and an ngspice run; this does not run ERC/DRC |
+| `python -B -m tools.electrical --project <id> --native-summary build/<receipt>/<id>/summary.json` | Reuse an existing netlist only after checking its project, toolchain, source hashes and artifact hashes           |
+| `python -B -m tools.ci --electrical --project <id>`                                               | Separate electrical CI gate; the usual project/product/tag selectors apply                                        |
 
 `tools.electrical` accepts `--runner auto|local|container` for netlist capture.
 Its `--ngspice` argument selects the simulator executable, whose exact version must
@@ -187,13 +187,13 @@ Window units are seconds for transient analysis and hertz for AC analysis.
 Measurement units are declared by the engineer; dimensional correctness of arbitrary
 SPICE expressions is not inferred. Examples:
 
-| Meaning | Expression | Statistic | Unit |
-| --- | --- | --- | --- |
-| Current drawn from voltage source Vrail | `-i(vrail)` | `max` or `avg` | `A` |
-| Power supplied at node supply | `-v(supply)*i(vrail)` | `avg` | `W` |
-| Minimum rail voltage | `v(out)` | `min` | `V` |
-| Transfer gain | `db(v(out)/v(in))` | `min` or `max` | `dB` |
-| Peak output voltage | `v(out)` | `max` | `V` |
+| Meaning                                 | Expression            | Statistic      | Unit |
+| --------------------------------------- | --------------------- | -------------- | ---- |
+| Current drawn from voltage source Vrail | `-i(vrail)`           | `max` or `avg` | `A`  |
+| Power supplied at node supply           | `-v(supply)*i(vrail)` | `avg`          | `W`  |
+| Minimum rail voltage                    | `v(out)`              | `min`          | `V`  |
+| Transfer gain                           | `db(v(out)/v(in))`    | `min` or `max` | `dB` |
+| Peak output voltage                     | `v(out)`              | `max`          | `V`  |
 
 The source-current sign convention must match the model. AC sources must have the
 appropriate small-signal amplitude. Expressions use a restricted single-line SPICE
@@ -217,10 +217,11 @@ The tool refuses stale hashes and does not rewrite them to make a run pass.
 
 ## Charts and structured data from a saved run
 
-Install the optional chart support once with
-`python -m pip install -e '.[charts]'`. Matplotlib uses a noninteractive [Agg/SVG backend](https://matplotlib.org/stable/users/explain/figure/backends.html),
-so the same command works on a desktop or in hosted CI. After an analysis run,
-pass its printed receipt directory (or its `electrical.json`) to:
+Install the optional chart support once with `python -m pip install -e '.[charts]'`. Matplotlib uses
+a noninteractive
+[Agg/SVG backend](https://matplotlib.org/stable/users/explain/figure/backends.html), so the same
+command works on a desktop or in hosted CI. After an analysis run, pass its printed receipt
+directory (or its `electrical.json`) to:
 
 ```sh
 python -B -m tools.electrical_charts --receipt build/electrical/<id>-<run> --format text

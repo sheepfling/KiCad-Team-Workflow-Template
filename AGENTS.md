@@ -21,14 +21,19 @@ and commit reviewed source through normal Git before export preparation.
   Shared policy and automation live under `tools/`, `catalog/` and `tests/`.
   For shared tooling changes, use the [tool map](tools/README.md),
   [test guide](tests/README.md) and [scripting standard](docs/workflow/SCRIPTING_STANDARD.md).
-- For an existing design, preview the import before copying it. Use
-  `python -B -m tools.template diagnose --source <path-to-.kicad_pro> --project-id <id> --toolchain <id>`.
-  Read the import inventory and repair missing sheets or nonportable paths in
-  the original source. Then follow the [import workflow](docs/workflow/IMPORT_WORKFLOW.md).
-  For a directory with several candidates, first run
+- For an existing design, preview the import before copying it. Use the command below:
+
+  ```sh
+  python -B -m tools.template diagnose \
+    --source <path-to-.kicad_pro> --project-id <id> --toolchain <id>
+  ```
+
+  Read the import inventory and repair missing sheets or nonportable paths in the original source.
+  Then follow the [import workflow](docs/workflow/IMPORT_WORKFLOW.md). For a directory with several
+  candidates, first run
   `python -B -m tools.template scan-imports --source-dir <directory> --toolchain <id> --format json`.
-  Review suggested IDs and every exclusion; the command is read-only and does
-  not establish design completeness or electrical correctness.
+  Review suggested IDs and every exclusion; the command is read-only and does not establish design
+  completeness or electrical correctness.
 - For a non-KiCad PCB file, run `python -B -m tools.template convert-pcb
   --source <file> --project-id <id> --toolchain <id> --format json`. Review the
   ignored receipt's `kicad-import-report.json`, converted board geometry and
@@ -68,7 +73,6 @@ and commit reviewed source through normal Git before export preparation.
   Action provides a focused hosted run without slowing routine PR lanes.
   For a named KiCad component population, pass `--assembly-variant <name>`;
   the name must already be declared in the project's `.kicad_pro`.
-
 - For an exact sourced part's STEP model, run
   `python -B -m tools.parts --project <id> --check-step <LCSC_ID>` or use **Check
   STEP alignment** after **Find CAD** in the parts assistant. Review the paired
@@ -86,7 +90,6 @@ and commit reviewed source through normal Git before export preparation.
   receipts under ignored `build/`, recheck native source after applying, and follow
   [parts to order](docs/workflow/PARTS_TO_ORDER.md). Purchasing metadata readiness
   does not establish live stock, price, electrical or physical approval.
-
 - For grounding, power and high-frequency requirements, follow the
   [electrical analysis workflow](docs/workflow/ELECTRICAL_ANALYSIS.md). Author independent
   limits and model bindings, then use `tools.verify --project <id> --depth electrical`.

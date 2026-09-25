@@ -20,15 +20,15 @@ projects/<id>/
 
 Use [the documentation map](docs/README.md) to choose where information belongs,
 [the folder standard](docs/workflow/REPOSITORY_STRUCTURE.md) for ownership and boundaries,
-[Start here](docs/workflow/START_HERE.md) for adoption, [First board](docs/workflow/FIRST_BOARD.md) for
-the shortest working path, and [the contributor guide](docs/workflow/CONTRIBUTOR_GUIDE.md)
-for branches, review and handoff. The [worked examples](examples/README.md) use this
-same layout and provide regression fixtures for the shared tools.
-For grounding, startup/steady power and high-frequency circuit checks, follow the
-[electrical quickstart](docs/workflow/ELECTRICAL_ANALYSIS.md#quickstart): initialize
-pending requirements, capture review inputs, check tools, then verify.
-Use `python -B -m tools.electrical_charts --receipt <analysis-receipt>` to export
-CSV, PNG and SVG from saved simulations after installing `.[charts]`.
+[Start here](docs/workflow/START_HERE.md) for adoption, [First board](docs/workflow/FIRST_BOARD.md)
+for the shortest working path, and [the contributor guide](docs/workflow/CONTRIBUTOR_GUIDE.md) for
+branches, review and handoff. The [worked examples](examples/README.md) use this same layout and
+provide regression fixtures for the shared tools. For grounding, startup/steady power and
+high-frequency circuit checks, follow the
+[electrical quickstart](docs/workflow/ELECTRICAL_ANALYSIS.md#quickstart): initialize pending
+requirements, capture review inputs, check tools, then verify. Use
+`python -B -m tools.electrical_charts --receipt <analysis-receipt>` to export CSV, PNG and SVG from
+saved simulations after installing `.[charts]`.
 
 See also the [quick reference](docs/workflow/QUICK_REFERENCE.md),
 [mechanical handoff](docs/workflow/MECHANICAL_HANDOFF.md), [metrics](docs/workflow/METRICS.md)
@@ -81,17 +81,15 @@ python -B -m tools.template new-project --project-id battery-board --kind pcb --
 python -B -m tools.template new-project --project-id pwm-board --kind pcb --toolchain kicad-10.0.5 --format text
 ```
 
-The command creates the folder, manifest, notes and test-contract skeleton. Create
-and save the actual KiCad design in its `kicad/` folder, then complete its source
-inventory and electrical expectations. An incomplete scaffold intentionally fails
-checks. It never copies a training circuit into your design or overwrites a project.
-Discovery automatically adds each `projects/*/project.json` to CI.
-Keep projects directly under `projects/`; discovery does not recurse into a
-physical tree of nested projects. Use manifest tags for a flexible cohort and a
-registered product for a named group of related deliverables.
-Before native work, run `python -B -m tools.template doctor --native --project-id battery-board --format text`.
-This checks the board's catalogued toolchain and the runner that `tools.verify`
-will use.
+The command creates the folder, manifest, notes and test-contract skeleton. Create and save the
+actual KiCad design in its `kicad/` folder, then complete its source inventory and electrical
+expectations. An incomplete scaffold intentionally fails checks. It never copies a training circuit
+into your design or overwrites a project. Discovery automatically adds each
+`projects/*/project.json` to CI. Keep projects directly under `projects/`; discovery does not
+recurse into a physical tree of nested projects. Use manifest tags for a flexible cohort and a
+registered product for a named group of related deliverables. Before native work, run
+`python -B -m tools.template doctor --native --project-id battery-board --format text`. This checks
+the board's catalogued toolchain and the runner that `tools.verify` will use.
 
 For an existing design, use the [import workflow](docs/workflow/IMPORT_WORKFLOW.md).
 Exercise imports in a temporary copy and retain each run through its PR or CI artifacts.
@@ -134,26 +132,21 @@ with the default `full` focus for a complete rehearsal, or choose `project`,
 scope, while a release still has its own acceptance process.
 
 See [checks and CI](docs/workflow/CHECKS_AND_CI.md) and [extending tests](tests/README.md).
-`tools.verify` defaults to a short text result and writes the full typed JSON,
-stage log, portable result, and any native/diagnostic reports in a unique ignored
-`build/diagnostics/` directory. Use `--format json` for agents and scripts,
-`--detail full` for every repair finding, or `--runner local|container` to choose
-one exact native runner; `auto` prefers a matching local CLI and otherwise uses
-the project's digest-pinned Docker image.
-When a board fails, `python -B -m tools.template diagnose --project-id battery-board`
-shows the observed issue, a repair action and the relevant [diagnostic guide](docs/workflow/DIAGNOSTICS.md).
-If an unrelated malformed manifest blocks that command,
-`tools.template rescue --project-id battery-board` provides a local read-only
-repair view. It always
-reports `UNVERIFIED_GLOBAL` and exits nonzero; repair discovery and rerun the
-normal gates before relying on any result.
-Use `--detail full` for every finding or `--format json` for scripts; each run
-saves a logged receipt under ignored `build/diagnostics/`. Coding agents can
-start with [AGENTS.md](AGENTS.md) or [CLAUDE.md](CLAUDE.md).
-In an uninitialized template checkout, select `arduino-uno-status-led`,
-`raspberry-pi-status-led` or `controller` for a bundled rehearsal. Initialization
-removes these examples from live discovery; shared-tool tests still use their
-independent fixture catalogs. Close KiCad before native checks.
+`tools.verify` defaults to a short text result and writes the full typed JSON, stage log, portable
+result, and any native/diagnostic reports in a unique ignored `build/diagnostics/` directory. Use
+`--format json` for agents and scripts, `--detail full` for every repair finding, or
+`--runner local|container` to choose one exact native runner; `auto` prefers a matching local CLI
+and otherwise uses the project's digest-pinned Docker image. When a board fails,
+`python -B -m tools.template diagnose --project-id battery-board` shows the observed issue, a repair
+action and the relevant [diagnostic guide](docs/workflow/DIAGNOSTICS.md). If an unrelated malformed
+manifest blocks that command, `tools.template rescue --project-id battery-board` provides a local
+read-only repair view. It always reports `UNVERIFIED_GLOBAL` and exits nonzero; repair discovery and
+rerun the normal gates before relying on any result. Use `--detail full` for every finding or
+`--format json` for scripts; each run saves a logged receipt under ignored `build/diagnostics/`.
+Coding agents can start with [AGENTS.md](AGENTS.md) or [CLAUDE.md](CLAUDE.md). In an uninitialized
+template checkout, select `arduino-uno-status-led`, `raspberry-pi-status-led` or `controller` for a
+bundled rehearsal. Initialization removes these examples from live discovery; shared-tool tests
+still use their independent fixture catalogs. Close KiCad before native checks.
 
 ## BOMs and releases
 
@@ -165,18 +158,16 @@ python -B -m tools.template list --format text
 python -B -m tools.parts --project battery-board --assist
 ```
 
-Replace `battery-board` with an ID from the first command. The assistant can
-fetch an exact LCSC part, show paired STEP/WRL alignment views, add its reviewed
-project-local CAD, find 3D models for placed footprints, and prepare part choices
-and order files. The STEP comparison needs Docker running; other native
-board checks need Docker or a matching local KiCad CLI. Follow the [first-part walkthrough](docs/workflow/CAD_SOURCING.md)
-for button-by-button instructions and recovery steps. Update the PCB in KiCad
-when a selected footprint needs replacing. The plain command without `--assist`
-creates an offline BOM and purchasing checklist.
-Follow [choose parts and prepare an order](docs/workflow/PARTS_TO_ORDER.md) for
-saved preferences, model synchronization and DigiKey upload. The training catalog
-has no production choices; add reviewed part/CAD records before using the picker
-for a real board.
+Replace `battery-board` with an ID from the first command. The assistant can fetch an exact LCSC
+part, show paired STEP/WRL alignment views, add its reviewed project-local CAD, find 3D models for
+placed footprints, and prepare part choices and order files. The STEP comparison needs Docker
+running; other native board checks need Docker or a matching local KiCad CLI. Follow the
+[first-part walkthrough](docs/workflow/CAD_SOURCING.md) for button-by-button instructions and
+recovery steps. Update the PCB in KiCad when a selected footprint needs replacing. The plain command
+without `--assist` creates an offline BOM and purchasing checklist. Follow
+[choose parts and prepare an order](docs/workflow/PARTS_TO_ORDER.md) for saved preferences, model
+synchronization and DigiKey upload. The training catalog has no production choices; add reviewed
+part/CAD records before using the picker for a real board.
 
 Commit authored design and BOM inputs. Generate working BOMs and review exports;
 retain exact approved outputs when releasing or manufacturing. Authored assembly
@@ -193,9 +184,9 @@ python -B -m tools.release package --manifest build/releases/battery-review-001/
 python -B -m tools.release restore --archive build/battery-review-001.zip --destination ../battery-review-restored
 ```
 
-Preparation runs portable tests and the pinned KiCad container. Packaging verifies
-the evidence and performs a restore before completing. The default is an engineering
-review candidate; production requires the controls in [release readiness](docs/workflow/RELEASE_READINESS.md).
+Preparation runs portable tests and the pinned KiCad container. Packaging verifies the evidence and
+performs a restore before completing. The default is an engineering review candidate; production
+requires the controls in [release readiness](docs/workflow/RELEASE_READINESS.md).
 
 ## Shared areas
 
@@ -208,8 +199,8 @@ review candidate; production requires the controls in [release readiness](docs/w
 - [Generated shared views](generated/README.md) and [schemas](schemas/README.md)
   are optional local exports, ignored except for their guidance files.
 
-The [authority model](docs/workflow/AUTHORITY_MODEL.md) distinguishes source, fixtures and
-release evidence. [Assurance profiles](docs/workflow/ASSURANCE_PROFILES.md) distinguish
-training, development and production. Complete [hosted governance](docs/workflow/GITHUB_GOVERNANCE.md)
-before production adoption. [Template upgrades](docs/workflow/TEMPLATE_ADOPTION.md) record
-layout migrations.
+The [authority model](docs/workflow/AUTHORITY_MODEL.md) distinguishes source, fixtures and release
+evidence. [Assurance profiles](docs/workflow/ASSURANCE_PROFILES.md) distinguish training,
+development and production. Complete [hosted governance](docs/workflow/GITHUB_GOVERNANCE.md) before
+production adoption. [Template upgrades](docs/workflow/TEMPLATE_ADOPTION.md) record layout
+migrations.

@@ -142,14 +142,14 @@ normal lookup reuses an intact frozen cache when available. Use `--refresh-cad`
 with `--source-cad` or `--check-step` only when intentionally requesting a fresh
 provider snapshot; it preserves older snapshots and requires another review.
 
-| If you see | Next step |
-| --- | --- |
-| No project ID in `tools.template list` | Create or import a board; this command needs a registered island. |
-| `Find CAD` reports a converter setup issue | Activate the repository Python environment and install `.[dev,cad]` from the root. |
-| Exact LCSC/MPN mismatch or missing model | Check the chosen part number against its manufacturer data. The tool will not substitute another part or invent geometry. |
-| STEP review reports no source STEP | Use the WRL model for visualization if its library plan is ready; obtain a reviewed STEP model before a mechanical handoff. |
-| Pinned KiCad command fails | Run `docker info`, start Docker if needed, and open the named `*.command.json` in the printed receipt. |
-| A source or cache changed after review | Find the exact part again, inspect the new report, and repeat the review. |
+| If you see                                 | Next step                                                                                                                   |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| No project ID in `tools.template list`     | Create or import a board; this command needs a registered island.                                                           |
+| `Find CAD` reports a converter setup issue | Activate the repository Python environment and install `.[dev,cad]` from the root.                                          |
+| Exact LCSC/MPN mismatch or missing model   | Check the chosen part number against its manufacturer data. The tool will not substitute another part or invent geometry.   |
+| STEP review reports no source STEP         | Use the WRL model for visualization if its library plan is ready; obtain a reviewed STEP model before a mechanical handoff. |
+| Pinned KiCad command fails                 | Run `docker info`, start Docker if needed, and open the named `*.command.json` in the printed receipt.                      |
+| A source or cache changed after review     | Find the exact part again, inspect the new report, and repeat the review.                                                   |
 
 After importing, run `python -B -m tools.verify --project my-board --depth native`.
 Run it again after placing the part on the PCB, and inspect the actual board's

@@ -4,7 +4,8 @@ Training harness_interface project — NOT FOR MANUFACTURE.
 
 - [Project manifest](project.json): identity, toolchain, local inventory and shared dependencies.
 - [Design notes](docs/design.md): purpose and interface assumptions.
-- [Native project](kicad/status-indicator-harness-interface.kicad_pro): open with the exact selected KiCad version.
+- [Native project](kicad/status-indicator-harness-interface.kicad_pro): open with the exact selected
+  KiCad version.
 - [Test contract](tests/contract.json): independent native expectations.
 
 From the repository root, run `python -B -m tools.ci --project status-indicator-harness-interface`.

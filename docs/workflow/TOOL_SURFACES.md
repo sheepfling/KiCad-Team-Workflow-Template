@@ -19,11 +19,11 @@ referenced tests or start KiCad. The full CI gate runs the behavioral tests.
 
 The versioned [catalog](../../catalog/tool-surfaces.json) separates three scopes:
 
-| Scope | Acceptance requirement |
-| --- | --- |
-| `core` | Both surfaces, no recorded functional gaps, and existing behavioral test references |
+| Scope            | Acceptance requirement                                                                                                        |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `core`           | Both surfaces, no recorded functional gaps, and existing behavioral test references                                           |
 | `administration` | Explicit reason for an operator/CI-only workflow, such as repository adoption, production governance or infrastructure probes |
-| `adapter` | Explicit reason for a transport or editor convenience, such as bounded file browsing or starting the MCP server |
+| `adapter`        | Explicit reason for a transport or editor convenience, such as bounded file browsing or starting the MCP server               |
 
 Core scope covers discovery, setup diagnosis, scaffolding/import, repair diagnosis,
 portable and grouped native checks, contract inspection, model draft/population and
@@ -62,13 +62,13 @@ permission boundary. A caller cannot widen it through tool arguments.
 
 The report uses schema version `2` and separates its outcomes:
 
-| Field | What a pass establishes |
-| --- | --- |
-| `coverage_status` | Discovered command/tool names and parameter names match the reviewed catalog |
-| `parity_status` | Required core rows have both interfaces, no functional gaps/exceptions, and resolvable behavioral test methods |
-| `status` | Both policy checks passed |
-| `mcp_verification` | `LIVE` compares actual full-server registration; `STATIC_ONLY` means the optional SDK was absent; `UNAVAILABLE` means live checking failed |
-| `behavior_verification` | Always `NOT_RUN` in this inspection; run `tools.ci` for behavioral test results |
+| Field                   | What a pass establishes                                                                                                                    |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `coverage_status`       | Discovered command/tool names and parameter names match the reviewed catalog                                                               |
+| `parity_status`         | Required core rows have both interfaces, no functional gaps/exceptions, and resolvable behavioral test methods                             |
+| `status`                | Both policy checks passed                                                                                                                  |
+| `mcp_verification`      | `LIVE` compares actual full-server registration; `STATIC_ONLY` means the optional SDK was absent; `UNAVAILABLE` means live checking failed |
+| `behavior_verification` | Always `NOT_RUN` in this inspection; run `tools.ci` for behavioral test results                                                            |
 
 A catalog pass is a policy check, not a test execution result. Referenced tests
 compare actual CLI JSON with real MCP protocol responses, including failed results,

@@ -12,14 +12,13 @@ libraries, including its paired WRL model. See [CAD sourcing](CAD_SOURCING.md) f
 the one-time setup, identity and pin checks, and KiCad chooser workflow. Imported
 CAD is available for design review; it is not an approved purchasing record.
 
-The assistant scans automatically, shows each component and the proposed source
-diff, and lets you add matched models with one button. It uses the assigned
-`library:footprint` identity, the installed KiCad libraries, and the footprint's
-own model references and transforms. When the footprint is absent locally, it
-fetches the exact project's KiCad release from the official libraries. Downloads
-are cached; model files, the source footprint snapshot, license and provenance are copied into the project and
-added to its input inventory automatically. No account or model-map JSON is needed
-for this path. Save and close the board in KiCad before applying source changes.
+The assistant scans automatically, shows each component and the proposed source diff, and lets you
+add matched models with one button. It uses the assigned `library:footprint` identity, the installed
+KiCad libraries, and the footprint's own model references and transforms. When the footprint is
+absent locally, it fetches the exact project's KiCad release from the official libraries. Downloads
+are cached; model files, the source footprint snapshot, license and provenance are copied into the
+project and added to its input inventory automatically. No account or model-map JSON is needed for
+this path. Save and close the board in KiCad before applying source changes.
 
 Before adding a model, the tool compares numbered pad positions, size, rotation
 and drills against the source footprint, including rotated and bottom-side parts.
@@ -38,17 +37,17 @@ changes after a preview invalidate that plan; rescanning is enough.
 The server listens only on localhost and stops with Ctrl-C. Use `--no-browser`
 when you prefer to open the printed address yourself.
 
-Part identity and CAD availability are different. The catalog picker still needs
-reviewed manufacturer/MPN records; an electrical value such as `1k` cannot identify
-a unique purchasable component. The bundled training catalog deliberately has no
-production approvals. Exact LCSC CAD retrieval is connected through the pinned EasyEDA converter;
-arbitrary-MPN retrieval from other CAD providers is not connected. DigiKey product lookup and CAD-provider APIs
-require their own access setup; DigiKey's separate myLists BOM handoff does not
-require an API key. See the [provider and endpoint map](PARTS_PROVIDERS.md) for the
-implemented path, account-free options and proposed connections. The automatic
-CAD path uses the already assigned footprint, not a guessed supplier package.
-The [catalog guide](../../catalog/README.md#reviewed-cad-bindings-for-the-parts-picker)
-explains reusable part bindings.
+Part identity and CAD availability are different. The catalog picker still needs reviewed
+manufacturer/MPN records; an electrical value such as `1k` cannot identify a unique purchasable
+component. The bundled training catalog deliberately has no production approvals. Exact LCSC CAD
+retrieval is connected through the pinned EasyEDA converter; arbitrary-MPN retrieval from other CAD
+providers is not connected. DigiKey product lookup and CAD-provider APIs require their own access
+setup; DigiKey's separate myLists BOM handoff does not require an API key. See the
+[provider and endpoint map](PARTS_PROVIDERS.md) for the implemented path, account-free options and
+proposed connections. The automatic CAD path uses the already assigned footprint, not a guessed
+supplier package. The
+[catalog guide](../../catalog/README.md#reviewed-cad-bindings-for-the-parts-picker) explains
+reusable part bindings.
 
 For scripts, `--auto-models --format json` creates the same source-bound preview;
 `--cad-plan <printed-path> --apply` imports it. The older file-based picker commands
@@ -75,16 +74,15 @@ an option or downloading the JSON does not change your KiCad files. Keep the
 download path for the next command. The receipt's `selection-draft.json` is an empty
 starting map; the browser download contains the choices you actually made.
 
-A choice appears only when an approved, non-placeholder catalog record has a CAD
-binding whose `symbol_id` and `value` exactly match the saved symbol. Its reviewed
-model must be paired by its source footprint and be an inventoried repository asset under this project's declared local
-or shared source roots. Its `library:name` footprint must resolve through the
-project's `fp-lib-table` to a declared repository `.kicad_mod` asset. For this catalog-selection mode, installed global
-KiCad libraries alone do not establish a reviewed repository binding: copy the reviewed
-footprint into a controlled local/shared library and declare it before picking.
-Existing same-path models retain user-authored transforms without establishing alignment.
-Exact matching is a catalog filter; the engineer who adds the part still reviews
-ratings, pin numbering, package and physical fit.
+A choice appears only when an approved, non-placeholder catalog record has a CAD binding whose
+`symbol_id` and `value` exactly match the saved symbol. Its reviewed model must be paired by its
+source footprint and be an inventoried repository asset under this project's declared local or
+shared source roots. Its `library:name` footprint must resolve through the project's `fp-lib-table`
+to a declared repository `.kicad_mod` asset. For this catalog-selection mode, installed global KiCad
+libraries alone do not establish a reviewed repository binding: copy the reviewed footprint into a
+controlled local/shared library and declare it before picking. Existing same-path models retain
+user-authored transforms without establishing alignment. Exact matching is a catalog filter; the
+engineer who adds the part still reviews ratings, pin numbering, package and physical fit.
 
 The first version supports uniquely identified, top-level, single-unit symbols
 that belong on the board. Multi-unit and off-board components remain visible but
@@ -239,13 +237,12 @@ or quantity options, its initial contents are:
 }
 ```
 
-Set `boards` to the number of boards to assemble. Set `spare_percent` to a whole
-percentage from 0 through 100 and `spare_minimum` to the minimum number of extra
-pieces of each grouped part. The board count must be a positive integer; spare
-settings are nonnegative integers. For example, ten boards with two identical resistors each need twenty
-resistors. With ten percent spares and a minimum of three, the order quantity is
-23: twenty fitted pieces plus the larger of two percentage spares or three minimum
-spares. The two spare allowances are not added together.
+Set `boards` to the number of boards to assemble. Set `spare_percent` to a whole percentage from 0
+through 100 and `spare_minimum` to the minimum number of extra pieces of each grouped part. The
+board count must be a positive integer; spare settings are nonnegative integers. For example, ten
+boards with two identical resistors each need twenty resistors. With ten percent spares and a
+minimum of three, the order quantity is 23: twenty fitted pieces plus the larger of two percentage
+spares or three minimum spares. The two spare allowances are not added together.
 
 `digikey_skus` maps an internal part ID to an exact, reviewed DigiKey SKU. Add an
 entry only after checking that SKU's manufacturer, MPN and packaging. An absent
@@ -276,15 +273,15 @@ python -B -m tools.parts --project my-board --save-preferences --boards 12 --exp
 Reviewed project preferences can be committed as authored input. Keep temporary
 experiments under ignored `build/` and pass their file with `--preferences`.
 
-For fewer repeated edits in future designs, put the reviewed `PART_ID`, footprint,
-manufacturer, MPN and datasheet fields in your controlled symbol library, following the [library policy](LIBRARIES.md).
-KiCad also supports project field-name templates in Schematic Setup, which can add
-an empty `PART_ID` field automatically. User-wide templates live in Preferences.
-These conveniences still require a real part selection; they do not validate it.
-See [KiCad field-name templates](https://docs.kicad.org/10.0/en/eeschema/eeschema.html#field-name-templates).
-Keep stock, price and lead-time observations in sourcing evidence rather than
-embedding them as permanent library facts. Approved alternatives are recorded for
-review; `tools.parts` never chooses one automatically.
+For fewer repeated edits in future designs, put the reviewed `PART_ID`, footprint, manufacturer, MPN
+and datasheet fields in your controlled symbol library, following the
+[library policy](LIBRARIES.md). KiCad also supports project field-name templates in Schematic Setup,
+which can add an empty `PART_ID` field automatically. User-wide templates live in Preferences. These
+conveniences still require a real part selection; they do not validate it. See
+[KiCad field-name templates](https://docs.kicad.org/10.0/en/eeschema/eeschema.html#field-name-templates).
+Keep stock, price and lead-time observations in sourcing evidence rather than embedding them as
+permanent library facts. Approved alternatives are recorded for review; `tools.parts` never chooses
+one automatically.
 
 ## Review and upload
 
@@ -301,12 +298,12 @@ Searches use the manufacturer and MPN, or an explicitly saved DigiKey SKU.
 Each run creates a fresh receipt under ignored `build/parts/`. Use `--output` with
 a fresh path under ignored `build/` to choose its location. Order-review files are:
 
-| File | Purpose |
-| --- | --- |
-| `index.html` | Searchable checklist, missing-details guidance and DigiKey search links |
-| `report.txt` / `report.json` | Human report and complete structured result |
-| `bom.csv` | Grouped review BOM with excluded and unresolved references also visible |
-| `digikey.csv` | Upload quantities, emitted only when every fitted part is ready for order review |
+| File                         | Purpose                                                                          |
+| ---------------------------- | -------------------------------------------------------------------------------- |
+| `index.html`                 | Searchable checklist, missing-details guidance and DigiKey search links          |
+| `report.txt` / `report.json` | Human report and complete structured result                                      |
+| `bom.csv`                    | Grouped review BOM with excluded and unresolved references also visible          |
+| `digikey.csv`                | Upload quantities, emitted only when every fitted part is ready for order review |
 
 Each resolved BOM group lists its references together and includes its order total
 once. Excluded and unresolved references appear without quantities, so a review BOM
@@ -337,11 +334,11 @@ request contract and explains the separate authenticated product-data APIs.
 For the CSV fallback or a static command-line receipt, upload `digikey.csv` to
 DigiKey myLists and map these columns:
 
-| CSV column | myLists meaning |
-| --- | --- |
-| `Part Number` | Reviewed DigiKey SKU, or catalog manufacturer part number |
-| `Quantity` | Total pieces for all requested boards, including the calculated spares |
-| `Customer Reference` | Internal `PART_ID` for reconciling the list |
+| CSV column           | myLists meaning                                                        |
+| -------------------- | ---------------------------------------------------------------------- |
+| `Part Number`        | Reviewed DigiKey SKU, or catalog manufacturer part number              |
+| `Quantity`           | Total pieces for all requested boards, including the calculated spares |
+| `Customer Reference` | Internal `PART_ID` for reconciling the list                            |
 
 Set the myLists assembly multiplier to **1** and turn additional attrition off:
 the exported quantities already include both board count and spares. Review every
@@ -367,14 +364,13 @@ python -B -m tools.parts --project my-board --picker --native-summary build/nati
 python -B -m tools.parts --project my-board --native-summary build/native/my-board/summary.json --format json
 ```
 
-Replace the example path with the actual summary from your receipt. The tool
-validates project identity, source hashes and native netlist evidence before using
-it. Changed source requires a new capture. `--format json` is the agent/script
-interface; parse its structured result instead of scraping terminal text. The
-read-only purchasing review returns exit code `0` when ready for order review and `1` when parts or evidence
-need attention; invalid command arguments return `2`. A purchasing checklist does
-not replace `tools.verify`, ERC/DRC review or the full shared gate after catalog or
-tooling changes.
+Replace the example path with the actual summary from your receipt. The tool validates project
+identity, source hashes and native netlist evidence before using it. Changed source requires a new
+capture. `--format json` is the agent/script interface; parse its structured result instead of
+scraping terminal text. The read-only purchasing review returns exit code `0` when ready for order
+review and `1` when parts or evidence need attention; invalid command arguments return `2`. A
+purchasing checklist does not replace `tools.verify`, ERC/DRC review or the full shared gate after
+catalog or tooling changes.
 
 ## Use the MCP workflow
 

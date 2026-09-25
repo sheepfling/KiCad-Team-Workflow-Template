@@ -110,16 +110,16 @@ material; startup flags take effect after reconnecting.
 Add the relevant flags to the startup `args` array. Each flag enables a distinct
 operation; enabling project creation does not enable edits to an existing design.
 
-| Startup capability | Tools enabled | Files or execution affected |
-| --- | --- | --- |
-| Default | Discovery, tool-surface inventory, impact planning, sourcing inspection, guidance, source/artifact reads, import scanning and preview, edit preview, saved contract inspection, model-population preview, rescue and import diagnosis, release/package verification | Reads bounded repository data. Model-population preview, rescue and import diagnosis create ignored diagnostic receipts. Package verification temporarily restores the archive. |
-| `--allow-writes` | `new_project`, `import_project` | Creates a new project island; refuses an existing destination. |
-| `--allow-edits` | `apply_project_edit`, `apply_model_population`, `save_parts_preferences`, `init_electrical`, `apply_part_selection`, `apply_auto_cad`, `apply_cad_import` | Creates pending electrical requirements or applies reviewed source/preferences changes with stale-write protection. |
-| `--allow-checks` | `check_project`, `diagnose_project`, `capture_contract`, `check_scope`, `check_native_scope`, `analyze_electrical`, `check_electrical_scope` | Executes repository checks and creates ignored receipts. Native work also runs KiCad or Docker. |
-| `--allow-exports` | `generate_views`, `init_model_map`, `prepare_parts`, `package_release`, `restore_package`, `capture_electrical_inputs`, `prepare_part_picker`, `preview_part_selection`, `preview_model_sync`, `preview_auto_cad`, `source_cad`, `preview_cad_import`, `prepare_supplier_handoff`, `export_electrical_charts`, `export_electrical_chart_suite` | Creates generated review views, model-map drafts, purchasing receipts from saved evidence and new package/restore outputs in the checkout's ignored build area. Fresh parts capture also requires checks. |
-| Both `--allow-checks` and `--allow-exports` | `export_project`, `export_3d`, `prepare_review`, `prepare_review_scope`, `convert_pcb`, `check_step_alignment` | Executes checks/native tooling and creates fresh exports, 3D views or an engineering review candidate. |
-| `--allow-downloads` | Allows official CAD fetches in `preview_auto_cad` / `apply_auto_cad` and exact-part community-provider fetches in `source_cad` / `check_step_alignment` | Without this additional flag, intact cached assets may be reused, but missing downloads remain unresolved. A tool argument cannot enable network access. |
-| `--allow-supplier-submissions` | `submit_supplier_handoff` | Sends one reviewed BOM to DigiKey for matching and returns a review link; never places an order. |
+| Startup capability                          | Tools enabled                                                                                                                                                                                                                                                                                                                                  | Files or execution affected                                                                                                                                                                               |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Default                                     | Discovery, tool-surface inventory, impact planning, sourcing inspection, guidance, source/artifact reads, import scanning and preview, edit preview, saved contract inspection, model-population preview, rescue and import diagnosis, release/package verification                                                                            | Reads bounded repository data. Model-population preview, rescue and import diagnosis create ignored diagnostic receipts. Package verification temporarily restores the archive.                           |
+| `--allow-writes`                            | `new_project`, `import_project`                                                                                                                                                                                                                                                                                                                | Creates a new project island; refuses an existing destination.                                                                                                                                            |
+| `--allow-edits`                             | `apply_project_edit`, `apply_model_population`, `save_parts_preferences`, `init_electrical`, `apply_part_selection`, `apply_auto_cad`, `apply_cad_import`                                                                                                                                                                                      | Creates pending electrical requirements or applies reviewed source/preferences changes with stale-write protection.                                                                                       |
+| `--allow-checks`                            | `check_project`, `diagnose_project`, `capture_contract`, `check_scope`, `check_native_scope`, `analyze_electrical`, `check_electrical_scope`                                                                                                                                                                                                   | Executes repository checks and creates ignored receipts. Native work also runs KiCad or Docker.                                                                                                           |
+| `--allow-exports`                           | `generate_views`, `init_model_map`, `prepare_parts`, `package_release`, `restore_package`, `capture_electrical_inputs`, `prepare_part_picker`, `preview_part_selection`, `preview_model_sync`, `preview_auto_cad`, `source_cad`, `preview_cad_import`, `prepare_supplier_handoff`, `export_electrical_charts`, `export_electrical_chart_suite` | Creates generated review views, model-map drafts, purchasing receipts from saved evidence and new package/restore outputs in the checkout's ignored build area. Fresh parts capture also requires checks. |
+| Both `--allow-checks` and `--allow-exports` | `export_project`, `export_3d`, `prepare_review`, `prepare_review_scope`, `convert_pcb`, `check_step_alignment`                                                                                                                                                                                                                                 | Executes checks/native tooling and creates fresh exports, 3D views or an engineering review candidate.                                                                                                    |
+| `--allow-downloads`                         | Allows official CAD fetches in `preview_auto_cad` / `apply_auto_cad` and exact-part community-provider fetches in `source_cad` / `check_step_alignment`                                                                                                                                                                                        | Without this additional flag, intact cached assets may be reused, but missing downloads remain unresolved. A tool argument cannot enable network access.                                                  |
+| `--allow-supplier-submissions`              | `submit_supplier_handoff`                                                                                                                                                                                                                                                                                                                      | Sends one reviewed BOM to DigiKey for matching and returns a review link; never places an order.                                                                                                          |
 
 Checks execute trusted repository code, including project and product tests.
 Native work may download the pinned container image and Python dependencies.
@@ -153,14 +153,14 @@ Discovery's `INPUTS_PRESENT` state describes file presence. It does not establis
 that a board passes checks. Doctor describes prerequisites, and an import preview
 describes eligible source files; neither establishes electrical correctness.
 
-| Tool | Arguments and use |
-| --- | --- |
-| `list_projects` | No arguments. List project, product, tag and toolchain inventory. |
-| `inspect_tool_surfaces` | No arguments. Inspect the CLI/MCP operation catalog, capability gates and recorded reasons for CLI-only operations. |
-| `get_project` | `project_id`. Return the selected inventory row, manifest and test contract. |
-| `doctor` | Optional `project_id`, `toolchain_id` and `runner`; `native` and `electrical` default to `false`. Electrical readiness checks native setup and the fixed host ngspice against the selected contract. |
-| `read_document` | `name`. Read a named workflow guide. |
-| `new_project` | `project_id`, `kind`, `toolchain_id`. Create an incomplete development scaffold with `--allow-writes`. |
+| Tool                    | Arguments and use                                                                                                                                                                                    |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `list_projects`         | No arguments. List project, product, tag and toolchain inventory.                                                                                                                                    |
+| `inspect_tool_surfaces` | No arguments. Inspect the CLI/MCP operation catalog, capability gates and recorded reasons for CLI-only operations.                                                                                  |
+| `get_project`           | `project_id`. Return the selected inventory row, manifest and test contract.                                                                                                                         |
+| `doctor`                | Optional `project_id`, `toolchain_id` and `runner`; `native` and `electrical` default to `false`. Electrical readiness checks native setup and the fixed host ngspice against the selected contract. |
+| `read_document`         | `name`. Read a named workflow guide.                                                                                                                                                                 |
+| `new_project`           | `project_id`, `kind`, `toolchain_id`. Create an incomplete development scaffold with `--allow-writes`.                                                                                               |
 
 Project kinds are `pcb`, `pcb_only`, `schematic`, `system_wiring` and
 `harness_interface`; see [project kinds](PROJECT_KINDS.md). A scaffold needs actual
@@ -175,12 +175,12 @@ Workflow documents are also resources at `kicad://docs/{name}`, for example
 
 ## Scan, preview and import existing designs
 
-| Tool | Arguments and use |
-| --- | --- |
-| `scan_imports` | `source_directory`, `toolchain_id`. Inventory a directory of candidate designs without copying them. |
-| `preview_import` | `source`, `project_id`, `toolchain_id`. Preview one saved `.kicad_pro` file, its hashes and exclusions. |
+| Tool              | Arguments and use                                                                                                           |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `scan_imports`    | `source_directory`, `toolchain_id`. Inventory a directory of candidate designs without copying them.                        |
+| `preview_import`  | `source`, `project_id`, `toolchain_id`. Preview one saved `.kicad_pro` file, its hashes and exclusions.                     |
 | `diagnose_import` | `source`, `project_id`, `toolchain_id`. Turn the import preview into a repair queue and keep an ignored diagnostic receipt. |
-| `import_project` | `source`, `project_id`, `toolchain_id`. Copy the reviewed source into a new project with `--allow-writes`. |
+| `import_project`  | `source`, `project_id`, `toolchain_id`. Copy the reviewed source into a new project with `--allow-writes`.                  |
 
 Import paths start at the configured checkout. Absolute import paths can also name
 an explicitly enabled external source directory; add its parent at startup:
@@ -206,24 +206,25 @@ the copied design. See the [import workflow](IMPORT_WORKFLOW.md).
 Use `list_artifacts` to find retained outputs and `read_artifact` to read their
 metadata or bounded text.
 
-| Tool | Arguments and use |
-| --- | --- |
-| `list_artifacts` | `directory` defaults to `build`; `offset` to `0`, `limit` to `100`. List one directory page. |
-| `read_artifact` | `path`; `offset` defaults to `0`, `limit` to `20000`. Read an artifact chunk or metadata. |
-| `read_project_file` | `project_id`, `path`; the same text `offset` and `limit` defaults. Read allowed authored source. |
-| `preview_project_edit` | `project_id`, `path`, `expected_sha256`, `old_text`, `new_text`. Preview one exact replacement. |
-| `apply_project_edit` | The same arguments as the reviewed preview. Apply with `--allow-edits`. |
+| Tool                   | Arguments and use                                                                                |
+| ---------------------- | ------------------------------------------------------------------------------------------------ |
+| `list_artifacts`       | `directory` defaults to `build`; `offset` to `0`, `limit` to `100`. List one directory page.     |
+| `read_artifact`        | `path`; `offset` defaults to `0`, `limit` to `20000`. Read an artifact chunk or metadata.        |
+| `read_project_file`    | `project_id`, `path`; the same text `offset` and `limit` defaults. Read allowed authored source. |
+| `preview_project_edit` | `project_id`, `path`, `expected_sha256`, `old_text`, `new_text`. Preview one exact replacement.  |
+| `apply_project_edit`   | The same arguments as the reviewed preview. Apply with `--allow-edits`.                          |
 
 Artifact paths are relative to the checkout and limited
 to managed `build/` areas, including a selected island's `build/`. Restored checkouts
 under `build/restores/` are excluded from artifact browsing. Listings cover one
 directory level; use pagination and select a returned subdirectory to explore it.
 
-Use `read_project_file` for the selected board's authored source. Its `path`, and
-the edit tools' `path`, are relative to the project island: for example,
-`kicad/board.kicad_sch`, `project.json` or `tests/contract.json`. Source reads include
-supported KiCad text files, library tables, the manifest, contract, island README
-and Markdown under `docs/`. Electrical source access includes the typed sidecar and project-owned `.cir` model text; shared models remain outside project editing authority. They do not read arbitrary desktop files.
+Use `read_project_file` for the selected board's authored source. Its `path`, and the edit tools'
+`path`, are relative to the project island: for example, `kicad/board.kicad_sch`, `project.json` or
+`tests/contract.json`. Source reads include supported KiCad text files, library tables, the
+manifest, contract, island README and Markdown under `docs/`. Electrical source access includes the
+typed sidecar and project-owned `.cir` model text; shared models remain outside project editing
+authority. They do not read arbitrary desktop files.
 
 Reads return a SHA-256 digest and at most 20,000 characters of supported UTF-8
 content per request. Binary or unsupported artifact types return metadata. Use
@@ -270,32 +271,31 @@ validation or release evidence.
 
 ## Diagnose and check
 
-| Tool | Arguments and use |
-| --- | --- |
-| `rescue_project` | `project_id`. Inspect one island when malformed peer metadata blocks normal discovery; keep an ignored receipt. Always `UNVERIFIED_GLOBAL`, with no CI or release eligibility. |
-| `diagnose_project` | `project_id`; optional `native_report` and `bom`. Run selected portable checks and combine current source/native/BOM findings. Requires `--allow-checks`. |
-| `check_project` | `project_id`; `depth` defaults to `portable`, `runner` to `auto`. Run selected portable, native or electrical verification and retain the receipt. Requires `--allow-checks`. |
-| `check_scope` | Optional `project_ids`, `product_ids`, `tags`, `exclude_tags` lists. Run the selected portable gate, or the full gate without selectors. Requires `--allow-checks`. |
+| Tool                 | Arguments and use                                                                                                                                                                                       |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `rescue_project`     | `project_id`. Inspect one island when malformed peer metadata blocks normal discovery; keep an ignored receipt. Always `UNVERIFIED_GLOBAL`, with no CI or release eligibility.                          |
+| `diagnose_project`   | `project_id`; optional `native_report` and `bom`. Run selected portable checks and combine current source/native/BOM findings. Requires `--allow-checks`.                                               |
+| `check_project`      | `project_id`; `depth` defaults to `portable`, `runner` to `auto`. Run selected portable, native or electrical verification and retain the receipt. Requires `--allow-checks`.                           |
+| `check_scope`        | Optional `project_ids`, `product_ids`, `tags`, `exclude_tags` lists. Run the selected portable gate, or the full gate without selectors. Requires `--allow-checks`.                                     |
 | `check_native_scope` | `view_id`; optional `project_ids`, `product_ids`, `tags`, `exclude_tags` lists. Run the grouped native CLI lane with the fixed local `kicad-cli` and retain a fresh receipt. Requires `--allow-checks`. |
-| `inspect_contract` | `project_id`, `native_summary`. Inspect saved source-bound native evidence without capturing again. Observations remain `UNREVIEWED`. |
-| `capture_contract` | `project_id`; optional `runner`. Capture native evidence to help independently author the contract. Requires `--allow-checks`. |
+| `inspect_contract`   | `project_id`, `native_summary`. Inspect saved source-bound native evidence without capturing again. Observations remain `UNREVIEWED`.                                                                   |
+| `capture_contract`   | `project_id`; optional `runner`. Capture native evidence to help independently author the contract. Requires `--allow-checks`.                                                                          |
 
-Native `runner` choices are `auto`, `local` and `container`. `auto` selects an exact
-local KiCad CLI when available, otherwise the project's pinned image. A local or
-container runner requires native or electrical depth for `check_project` and `native: true` or `electrical: true` for
-`doctor`. Doctor can inspect a toolchain before a project exists; a supplied project
-and toolchain must agree. Scope include selectors form a union, then `exclude_tags`
-removes matches; with only exclusions, selection starts from all projects.
-The grouped `check_native_scope` operation matches `tools.ci --kicad`; use
-`check_project` for per-project automatic or container runner selection.
-Native failures retain runner and command evidence. Portable checks do not establish native acceptance.
+Native `runner` choices are `auto`, `local` and `container`. `auto` selects an exact local KiCad CLI
+when available, otherwise the project's pinned image. A local or container runner requires native or
+electrical depth for `check_project` and `native: true` or `electrical: true` for `doctor`. Doctor
+can inspect a toolchain before a project exists; a supplied project and toolchain must agree. Scope
+include selectors form a union, then `exclude_tags` removes matches; with only exclusions, selection
+starts from all projects. The grouped `check_native_scope` operation matches `tools.ci --kicad`; use
+`check_project` for per-project automatic or container runner selection. Native failures retain
+runner and command evidence. Portable checks do not establish native acceptance.
 
-Read `events.log`, the full diagnostic report and captured portable/native outputs
-from the returned `run_directory`. When that directory is absolute, remove the
-configured `--root` prefix for an artifact tool's checkout-relative path.
-`rescue_project` is a repair aid while global discovery is broken; fix the manifest and rerun normal checks before relying on a
-pass. Shared tooling or policy changes require the full gate. See
-[diagnostics](DIAGNOSTICS.md) and [checks and CI](CHECKS_AND_CI.md).
+Read `events.log`, the full diagnostic report and captured portable/native outputs from the returned
+`run_directory`. When that directory is absolute, remove the configured `--root` prefix for an
+artifact tool's checkout-relative path. `rescue_project` is a repair aid while global discovery is
+broken; fix the manifest and rerun normal checks before relying on a pass. Shared tooling or policy
+changes require the full gate. See [diagnostics](DIAGNOSTICS.md) and
+[checks and CI](CHECKS_AND_CI.md).
 
 For BOM diagnosis, supply the native assembly BOM and its corresponding project
 native report from the same source revision. The binder checks source identity,
@@ -305,13 +305,13 @@ BOM separately for the controlled manufacturer, MPN and revision join.
 
 ## Inspect and export board 3D models
 
-| Tool | Arguments and use |
-| --- | --- |
-| `inspect_3d_models` | `project_id`. Read placed-footprint model assignments, missing or broken references and declared candidate assets. Available by default; creates no files and runs no native tools. |
-| `init_model_map` | `project_id`, `view_id`. Create a source-bound draft for unassigned footprints under `build/model-maps/<view_id>` with `--allow-exports`. |
-| `preview_model_population` | `project_id`, `board_sha256`, `assignments`. Retain a plan for explicit reference/model pairs without editing source. Available by default. |
-| `apply_model_population` | `project_id`, `plan`. Apply a reviewed `model-population.json` plan and its saved model map with `--allow-edits`. |
-| `export_3d` | `project_id`, `view_id`; optional `runner` defaults to `auto`, and `assembly_variant` selects a declared KiCad population. Generate top/angled PNG, STEP and GLB files using exact local KiCad or the pinned container. Requires both checks and exports capabilities. |
+| Tool                       | Arguments and use                                                                                                                                                                                                                                                      |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `inspect_3d_models`        | `project_id`. Read placed-footprint model assignments, missing or broken references and declared candidate assets. Available by default; creates no files and runs no native tools.                                                                                    |
+| `init_model_map`           | `project_id`, `view_id`. Create a source-bound draft for unassigned footprints under `build/model-maps/<view_id>` with `--allow-exports`.                                                                                                                              |
+| `preview_model_population` | `project_id`, `board_sha256`, `assignments`. Retain a plan for explicit reference/model pairs without editing source. Available by default.                                                                                                                            |
+| `apply_model_population`   | `project_id`, `plan`. Apply a reviewed `model-population.json` plan and its saved model map with `--allow-edits`.                                                                                                                                                      |
+| `export_3d`                | `project_id`, `view_id`; optional `runner` defaults to `auto`, and `assembly_variant` selects a declared KiCad population. Generate top/angled PNG, STEP and GLB files using exact local KiCad or the pinned container. Requires both checks and exports capabilities. |
 
 Select a `pcb` or `pcb_only` project. Begin with `inspect_3d_models`, review its
 findings, and follow [the 3D workflow](THREE_D_WORKFLOW.md) to populate the board's
@@ -337,14 +337,14 @@ source paths to the manifest's required/shared inventory. New assignments use un
 scale with zero offset and rotation; package fit and transforms need visual review.
 
 The preview creates a fresh `build/diagnostics/` receipt with `model-map.json`,
-`locked-model-map.json`, `model-population.json`, `board.diff` and `manifest.diff`. Review both diffs. Close
-KiCad, then call `apply_model_population` with the checkout-relative
+`locked-model-map.json`, `model-population.json`, `board.diff` and `manifest.diff`. Review both
+diffs. Close KiCad, then call `apply_model_population` with the checkout-relative
 `model-population.json` path. Apply rereads the digest-locked map and rejects changed board,
-manifest or model hashes, a changed map, or differing planned edits. It retains a
-new receipt and verifies the source readback. A `PLAN` or `APPLIED` result still has
-`checks_required: true` and `build_authorized: false`. Inspect the authored board,
-rerun portable/native checks and review scale, rotation, offset and board side in
-KiCad. Existing assignments and transform adjustments remain manual source edits.
+manifest or model hashes, a changed map, or differing planned edits. It retains a new receipt and
+verifies the source readback. A `PLAN` or `APPLIED` result still has `checks_required: true` and
+`build_authorized: false`. Inspect the authored board, rerun portable/native checks and review
+scale, rotation, offset and board side in KiCad. Existing assignments and transform adjustments
+remain manual source edits.
 
 Named `assembly_variant` values for 3D and fabrication exports must already exist
 in the selected KiCad project. Product release variants use reviewed board-to-KiCad
@@ -383,14 +383,14 @@ nor claims schematic/electrical completeness. See [import workflow](IMPORT_WORKF
 
 ## Configure and run electrical analysis
 
-| Tool | Arguments and use |
-| --- | --- |
-| `init_electrical` | `project_id`; optional `ngspice_version` defaults to `UNREVIEWED`. Creates pending requirements without replacing an existing contract. Requires edits. |
-| `capture_electrical_inputs` | `project_id`, `view_id`; optional repository-relative `models` list. Captures unreviewed source/model hashes in ignored build output. Requires exports. |
-| `analyze_electrical` | `project_id`, `view_id`; optional source-bound `native_summary` and `runner`. Runs declared grounding, power and frequency analysis with fixed KiCad/ngspice commands. Requires checks. |
-| `check_electrical_scope` | Optional `project_ids`, `product_ids`, `tags`, `exclude_tags`. Uses the same union/exclusion selection as `tools.ci --electrical`. Requires checks. |
-| `export_electrical_charts` | `view_id`, saved `receipt` directory or `electrical.json`. Exports PNG/SVG and full precision CSV from retained waveforms; requires exports and the pinned charts extra. |
-| `export_electrical_chart_suite` | `view_id`, saved electrical `suite` JSON. Exports each project from the retained suite; requires exports and the pinned charts extra when waveforms exist. |
+| Tool                            | Arguments and use                                                                                                                                                                       |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `init_electrical`               | `project_id`; optional `ngspice_version` defaults to `UNREVIEWED`. Creates pending requirements without replacing an existing contract. Requires edits.                                 |
+| `capture_electrical_inputs`     | `project_id`, `view_id`; optional repository-relative `models` list. Captures unreviewed source/model hashes in ignored build output. Requires exports.                                 |
+| `analyze_electrical`            | `project_id`, `view_id`; optional source-bound `native_summary` and `runner`. Runs declared grounding, power and frequency analysis with fixed KiCad/ngspice commands. Requires checks. |
+| `check_electrical_scope`        | Optional `project_ids`, `product_ids`, `tags`, `exclude_tags`. Uses the same union/exclusion selection as `tools.ci --electrical`. Requires checks.                                     |
+| `export_electrical_charts`      | `view_id`, saved `receipt` directory or `electrical.json`. Exports PNG/SVG and full precision CSV from retained waveforms; requires exports and the pinned charts extra.                |
+| `export_electrical_chart_suite` | `view_id`, saved electrical `suite` JSON. Exports each project from the retained suite; requires exports and the pinned charts extra when waveforms exist.                              |
 
 Start with the [electrical guide](ELECTRICAL_ANALYSIS.md). Review requirements and
 model assumptions independently; captured hashes remain `UNREVIEWED`. Use
@@ -409,18 +409,18 @@ review. A chart does not rerun a simulation or create new electrical evidence.
 
 ## Review parts and paired CAD changes
 
-| Tool | Arguments and use |
-| --- | --- |
-| `prepare_part_picker` | `project_id`, `view_id`; optional `native_summary` and `runner`. Writes eligible reviewed catalog choices; fresh capture also needs checks. |
-| `preview_part_selection` | `project_id`, `view_id`, retained `picker_report`, and an `assignments` list of explicit `reference`/`part_id` pairs. Writes diffs and a locked map. |
-| `apply_part_selection` | `project_id`, `view_id`, retained `selection_map`, `expected_sha256`. Applies the exact reviewed map and current source. Requires edits. |
-| `preview_model_sync` | `project_id`, `view_id`. Replans model assignments after the engineer updates PCB footprints in KiCad. |
-| `preview_auto_cad` | `project_id`, `view_id`. Plans paired CAD imports, preserving source hashes and geometry assumptions. Missing official assets need host downloads capability. |
-| `apply_auto_cad` | `project_id`, `view_id`, retained `plan`, `expected_sha256`. Applies exact reviewed CAD changes; requires edits, plus downloads if fetching missing assets. |
-| `source_cad` | `project_id`, `view_id`, exact LCSC `supplier_id`; optional `expected_mpn` and `refresh`. Freezes a provider bundle and previews project-local import. Requires exports; a new fetch additionally needs downloads. |
-| `preview_cad_import` | `project_id`, `view_id`, saved `source_report` (`cad-source.json`). Rechecks the bundle and writes an import diff and plan; requires exports. |
-| `apply_cad_import` | `project_id`, `view_id`, saved `plan` (`cad-import-plan.json`), `expected_sha256`. Applies exactly the reviewed plan bytes if the source and cached assets still match; requires edits. |
-| `check_step_alignment` | `project_id`, `view_id`, exact `supplier_id`; optional `expected_mpn`, `refresh`, saved `source_report`. Renders paired WRL/STEP views with pinned KiCad; requires checks and exports, plus downloads for a new lookup. |
+| Tool                     | Arguments and use                                                                                                                                                                                                       |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `prepare_part_picker`    | `project_id`, `view_id`; optional `native_summary` and `runner`. Writes eligible reviewed catalog choices; fresh capture also needs checks.                                                                             |
+| `preview_part_selection` | `project_id`, `view_id`, retained `picker_report`, and an `assignments` list of explicit `reference`/`part_id` pairs. Writes diffs and a locked map.                                                                    |
+| `apply_part_selection`   | `project_id`, `view_id`, retained `selection_map`, `expected_sha256`. Applies the exact reviewed map and current source. Requires edits.                                                                                |
+| `preview_model_sync`     | `project_id`, `view_id`. Replans model assignments after the engineer updates PCB footprints in KiCad.                                                                                                                  |
+| `preview_auto_cad`       | `project_id`, `view_id`. Plans paired CAD imports, preserving source hashes and geometry assumptions. Missing official assets need host downloads capability.                                                           |
+| `apply_auto_cad`         | `project_id`, `view_id`, retained `plan`, `expected_sha256`. Applies exact reviewed CAD changes; requires edits, plus downloads if fetching missing assets.                                                             |
+| `source_cad`             | `project_id`, `view_id`, exact LCSC `supplier_id`; optional `expected_mpn` and `refresh`. Freezes a provider bundle and previews project-local import. Requires exports; a new fetch additionally needs downloads.      |
+| `preview_cad_import`     | `project_id`, `view_id`, saved `source_report` (`cad-source.json`). Rechecks the bundle and writes an import diff and plan; requires exports.                                                                           |
+| `apply_cad_import`       | `project_id`, `view_id`, saved `plan` (`cad-import-plan.json`), `expected_sha256`. Applies exactly the reviewed plan bytes if the source and cached assets still match; requires edits.                                 |
+| `check_step_alignment`   | `project_id`, `view_id`, exact `supplier_id`; optional `expected_mpn`, `refresh`, saved `source_report`. Renders paired WRL/STEP views with pinned KiCad; requires checks and exports, plus downloads for a new lookup. |
 
 The exact-part path follows [CAD sourcing](CAD_SOURCING.md): enter a supplier ID,
 check the reported manufacturer and MPN, inspect `cad-import.diff`, then apply the
@@ -458,10 +458,10 @@ The existing offline BOM/CSV workflow remains usable without supplier submission
 
 ## Prepare a parts list and remember purchasing preferences
 
-| Tool | Arguments and use |
-| --- | --- |
-| `prepare_parts` | `project_id`, `view_id`; optional `native_summary`, `preferences`, `boards`, `spare_percent`, `spare_minimum` and `runner`. Prepare a local purchasing checklist and order-review CSVs with `--allow-exports`. Fresh native capture also requires `--allow-checks`. |
-| `save_parts_preferences` | `project_id`, typed `preferences`; optional `expected_sha256`. Save the selected island's fixed `docs/purchasing.json` with `--allow-edits`. |
+| Tool                     | Arguments and use                                                                                                                                                                                                                                                   |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `prepare_parts`          | `project_id`, `view_id`; optional `native_summary`, `preferences`, `boards`, `spare_percent`, `spare_minimum` and `runner`. Prepare a local purchasing checklist and order-review CSVs with `--allow-exports`. Fresh native capture also requires `--allow-checks`. |
+| `save_parts_preferences` | `project_id`, typed `preferences`; optional `expected_sha256`. Save the selected island's fixed `docs/purchasing.json` with `--allow-edits`.                                                                                                                        |
 
 Start with [parts to order](PARTS_TO_ORDER.md). Supply an existing source-bound
 `native_summary` from a native receipt to prepare without executing KiCad; keep
@@ -529,36 +529,35 @@ to the project manifest before that commit; layer, origin and placement settings
 are design-specific. Exact runner readiness and a complete source/contract remain
 prerequisites. See [release readiness](RELEASE_READINESS.md).
 
-| Tool | Arguments and use |
-| --- | --- |
-| `generate_views` | `view_id`; optional `project_ids`, `product_ids`, `tags`, `exclude_tags` lists. Generate product/variant BOMs, harness schedules and electrical/system review views with `--allow-exports`. |
-| `export_project` | `project_id`, `export_id`; optional `runner` and declared `assembly_variant`. Create native and purchasing BOMs and applicable Gerber, drill and placement exports. Requires checks and exports capabilities. |
-| `prepare_review` | `project_id`, `release_id`; optional `runner`. Prepare an `engineering_review` candidate for one board from clean committed source. Requires checks and exports capabilities. |
+| Tool                   | Arguments and use                                                                                                                                                                                                            |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `generate_views`       | `view_id`; optional `project_ids`, `product_ids`, `tags`, `exclude_tags` lists. Generate product/variant BOMs, harness schedules and electrical/system review views with `--allow-exports`.                                  |
+| `export_project`       | `project_id`, `export_id`; optional `runner` and declared `assembly_variant`. Create native and purchasing BOMs and applicable Gerber, drill and placement exports. Requires checks and exports capabilities.                |
+| `prepare_review`       | `project_id`, `release_id`; optional `runner`. Prepare an `engineering_review` candidate for one board from clean committed source. Requires checks and exports capabilities.                                                |
 | `prepare_review_scope` | `release_id`, optional `project_ids` and `variants` lists, `portable` artifact path and `runner`. Prepare the shared CLI's multi-project/product-variant engineering review scope. Requires checks and exports capabilities. |
-| `check_release` | `manifest`. Verify the candidate's source and retained evidence. |
-| `package_release` | `manifest`, `package_id`. Verify and package the candidate, including its source Git bundle; requires `--allow-exports`. |
-| `verify_package` | `archive`. Check inventory and hashes and perform a temporary restore without executing restored project scripts. |
-| `restore_package` | `archive`, `restore_id`. Restore into a fresh managed directory and verify retained evidence; requires `--allow-exports`. |
+| `check_release`        | `manifest`. Verify the candidate's source and retained evidence.                                                                                                                                                             |
+| `package_release`      | `manifest`, `package_id`. Verify and package the candidate, including its source Git bundle; requires `--allow-exports`.                                                                                                     |
+| `verify_package`       | `archive`. Check inventory and hashes and perform a temporary restore without executing restored project scripts.                                                                                                            |
+| `restore_package`      | `archive`, `restore_id`. Restore into a fresh managed directory and verify retained evidence; requires `--allow-exports`.                                                                                                    |
 
 `generate_views` projects existing authored product and variant records into review
 outputs without running native KiCad. Its BOMs and harness/system views complement
 the native assembly and purchasing BOMs; they do not replace source-bound native
 validation. It writes `build/views/<view_id>` and returns its directory and files.
 
-Use new IDs for new attempts; existing output destinations are not overwritten.
-Managed destinations are `build/exports/<export_id>`, `build/releases/<release_id>`,
-`build/packages/<package_id>.zip` and `build/restores/<restore_id>`. The export report
-is `build/exports/<export_id>/files/exports.json`; the parent directory retains the
-native runner's command evidence. Contract captures use `build/contract-coach/`; diagnostic runs use `build/diagnostics/`.
-Manifest, archive, BOM and saved native-report inputs are checkout-relative paths.
-Use returned paths for later artifact reads, diagnosis, manifest checks and
-packaging. Some reports preserve the CLI's absolute path fields; remove the
-configured `--root` prefix before supplying those paths to another MCP tool. For
-example, `/checkout/build/diagnostics/run-001` becomes
-`build/diagnostics/run-001` when `--root` is `/checkout`. Keep the rest of the path
-unchanged. The review manifest is `build/releases/<release_id>/manifest.json`.
-Review generated layers, holes, placement origin and rotation, component population
-and BOM identity before relying on the outputs.
+Use new IDs for new attempts; existing output destinations are not overwritten. Managed destinations
+are `build/exports/<export_id>`, `build/releases/<release_id>`, `build/packages/<package_id>.zip`
+and `build/restores/<restore_id>`. The export report is
+`build/exports/<export_id>/files/exports.json`; the parent directory retains the native runner's
+command evidence. Contract captures use `build/contract-coach/`; diagnostic runs use
+`build/diagnostics/`. Manifest, archive, BOM and saved native-report inputs are checkout-relative
+paths. Use returned paths for later artifact reads, diagnosis, manifest checks and packaging. Some
+reports preserve the CLI's absolute path fields; remove the configured `--root` prefix before
+supplying those paths to another MCP tool. For example, `/checkout/build/diagnostics/run-001`
+becomes `build/diagnostics/run-001` when `--root` is `/checkout`. Keep the rest of the path
+unchanged. The review manifest is `build/releases/<release_id>/manifest.json`. Review generated
+layers, holes, placement origin and rotation, component population and BOM identity before relying
+on the outputs.
 
 `prepare_review_scope` accepts explicit project IDs and exact `PRODUCT:VARIANT`
 selectors. A selected scope must share one toolchain and use clean committed
@@ -576,8 +575,8 @@ outside the team. Record the returned package digest when choosing
 
 ## Walk a board from import to review
 
-Use discovered IDs and returned paths throughout this sequence. Enable checks, writes, edits and exports for this complete workflow,
-and authorize only the needed external import directory.
+Use discovered IDs and returned paths throughout this sequence. Enable checks, writes, edits and
+exports for this complete workflow, and authorize only the needed external import directory.
 
 1. Call `list_projects` and `scan_imports`. Pick one source, a new `project_id` and
    its approved toolchain. Call `preview_import` and `diagnose_import`; read the

@@ -142,7 +142,7 @@ jobs:
         env:
           CHECK_SCOPE: ${{ needs.scope.outputs.scope }}
         run: |
-          if [ "$CHECK_SCOPE" = full ] && [ "${{ matrix.os }}" != windows-2022 ]; then
+          if [ "${{ matrix.os }}" != windows-2022 ]; then
             python -m pip install --disable-pip-version-check '.[dev]'
           else
             python -m pip install --disable-pip-version-check .
@@ -158,13 +158,19 @@ jobs:
         run: |
           if [ "$CHECK_SCOPE" = docs ]; then
             python -B -m tools.docs_policy
+            rumdl check . --no-cache
+            python -B -m mdrepo check .
           elif [ "$CHECK_SCOPE" = focused ]; then
             args=()
             read -r -a projects <<< "$CI_PROJECTS"
             test "${#projects[@]}" -gt 0
             for project in "${projects[@]}"; do args+=(--project "$project"); done
             python -B -m tools.ci "${args[@]}" --jobs 4 --output build/portable
-            if [ "$DOCS_CHANGED" = true ]; then python -B -m tools.docs_policy; fi
+            if [ "$DOCS_CHANGED" = true ]; then
+              python -B -m tools.docs_policy
+              rumdl check . --no-cache
+              python -B -m mdrepo check .
+            fi
           else
             test "$CHECK_SCOPE" = full
             python -B -m tools.ci --jobs 4 --output build/portable

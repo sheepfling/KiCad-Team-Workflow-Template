@@ -23,6 +23,8 @@ dev = [
   "nodeenv==1.10.0",
   "ruff==0.16.1",
   "snakemd-stubs==2.4.1.0",
+  "rumdl==0.2.77",
+  "mdrepo @ git+https://github.com/sheepfling/mdrepo.git@78476e0343f6ae3799606c17024d5aa790c6d688",
 ]
 
 [tool.setuptools.packages.find]
@@ -41,3 +43,41 @@ typeCheckingMode = "strict"
 include = ["tools"]
 extraPaths = ["."]
 exclude = ["build"]
+
+[tool.rumdl]
+line-length = 100
+extend-enable = ["MD029", "MD060"]
+exclude = [".github/ISSUE_TEMPLATE/**", ".github/pull_request_template.md"]
+
+[tool.rumdl.MD013]
+line-length = 100
+code-blocks = false
+tables = false
+reflow = true
+
+[tool.rumdl.MD029]
+style = "ordered"
+
+[tool.rumdl.MD060]
+style = "aligned"
+
+[tool.mdrepo]
+include = ["*.md", "**/*.md"]
+exclude = [".github/ISSUE_TEMPLATE/**", ".github/pull_request_template.md"]
+
+[tool.mdrepo.links]
+check-missing-targets = false
+check-case = true
+
+[tool.mdrepo.orphans]
+enabled = true
+roots = [
+  "README.md",
+  "examples/projects/arduino-uno-status-led/README.md",
+  "examples/projects/controller/README.md",
+  "examples/projects/passive-signal-reference/README.md",
+  "examples/projects/raspberry-pi-status-led/README.md",
+  "examples/projects/status-indicator-harness-interface/README.md",
+  "examples/projects/status-indicator-wiring/README.md",
+  "examples/products/status-indicator-system/README.md",
+]

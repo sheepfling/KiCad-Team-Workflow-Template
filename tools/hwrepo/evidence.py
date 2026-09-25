@@ -86,7 +86,8 @@ def verify_portable(root: Path, reference: EvidenceFile, source: SourceState) ->
     verify_source(report.source, source)
     gates = (report.registry, report.repository, report.documentation, report.product,
              report.generation, report.project_tests)
-    commands = (report.ruff, report.pyright, report.unit_tests, *report.project_tests.commands.values())
+    commands = (report.rumdl, report.mdrepo, report.ruff, report.pyright, report.unit_tests,
+                *report.project_tests.commands.values())
     if report.status != "PASS" or any(gate.status != "PASS" for gate in gates) or any(
         command.returncode != 0 or command.error is not None for command in commands
     ):

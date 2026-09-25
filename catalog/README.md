@@ -15,10 +15,10 @@ The initial settings enable the reference examples. Before adding real work, run
 Keep `examples/` for regression tests. `examples/catalog/`
 contains independent reference catalog inputs used by those tests.
 
-[tool-surfaces.json](tool-surfaces.json) tracks public CLI/MCP declarations and
-required core parity and explicit administrative/adapter exceptions. Follow the [surface inventory guide](../docs/workflow/TOOL_SURFACES.md)
-when either interface changes; the unit-test gate rejects untracked drift.
-
+[tool-surfaces.json](tool-surfaces.json) tracks public CLI/MCP declarations and required core parity
+and explicit administrative/adapter exceptions. Follow the
+[surface inventory guide](../docs/workflow/TOOL_SURFACES.md) when either interface changes; the
+unit-test gate rejects untracked drift.
 
 ## Reviewed CAD bindings for the parts picker
 
@@ -27,13 +27,13 @@ remain valid for BOM review, but a picker choice needs a complete reviewed CAD
 binding. Add real part records through engineering review; the training catalog is
 not a preferred-parts library for purchasing.
 
-| CAD field | Meaning |
-| --- | --- |
-| `symbol_id` | Exact saved KiCad library symbol ID, such as `Device:R` |
-| `value` | Exact saved symbol value; matching is case-sensitive and does not infer unit equivalence |
-| `footprint` | Reviewed qualified footprint ID in `library:name` form |
-| `model` | Repository-relative path to the reviewed source 3D model |
-| `digikey_sku` | Optional exact reviewed DigiKey order code, including packaging when relevant |
+| CAD field     | Meaning                                                                                  |
+| ------------- | ---------------------------------------------------------------------------------------- |
+| `symbol_id`   | Exact saved KiCad library symbol ID, such as `Device:R`                                  |
+| `value`       | Exact saved symbol value; matching is case-sensitive and does not infer unit equivalence |
+| `footprint`   | Reviewed qualified footprint ID in `library:name` form                                   |
+| `model`       | Repository-relative path to the reviewed source 3D model                                 |
+| `digikey_sku` | Optional exact reviewed DigiKey order code, including packaging when relevant            |
 
 The enclosing part record must be `approved` and contain real manufacturer/MPN
 identity. Record the selection rationale and check datasheet ratings, pin mapping,

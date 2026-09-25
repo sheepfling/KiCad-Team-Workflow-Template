@@ -5,16 +5,20 @@ work. Fetch/pull current main, then create one issue-linked work branch. Use the
 branch and project path recorded by the adopted repository; do not guess when the
 assignment or starting state is unclear.
 
-Open the `.kicad_pro`, not a detached schematic copy. Edit, synchronize schematic/PCB as needed, run checks, and save. Review the changed source. Commit locally, push, and open a PR. These are four separate actions.
+Open the `.kicad_pro`, not a detached schematic copy. Edit, synchronize schematic/PCB as needed, run
+checks, and save. Review the changed source. Commit locally, push, and open a PR. These are four
+separate actions.
 
-Continue tomorrow on the same branch/PR. Pulling that branch does not automatically merge main. Do not reset, clean, or force-push to resolve uncertainty.
+Continue tomorrow on the same branch/PR. Pulling that branch does not automatically merge main. Do
+not reset, clean, or force-push to resolve uncertainty.
 
 Inspect the Actions review artifact and checked commit. A green run is not a
 substitute for independent approval or configured branch protection. Another
 qualified person reviews; the integrator accepts; then close KiCad, update local
 main and hand back the assignment.
 
-On conflict, missing libraries, new tool versions or unexpected changes: stop, preserve work and ask the maintainer with branch, SHA, status and error. Never guess ours/theirs.
+On conflict, missing libraries, new tool versions or unexpected changes: stop, preserve work and ask
+the maintainer with branch, SHA, status and error. Never guess ours/theirs.
 
 For a first part, run `python -B -m tools.template list --format text` to find
 your board ID, then `python -B -m tools.parts --project <project-id> --assist`.
@@ -59,13 +63,12 @@ python -B -m tools.template doctor --electrical --project-id <id> --format text
 python -B -m tools.verify --project <id> --depth electrical
 ```
 
-Repeat `--model` for includes. Initial sections are pending and cannot pass;
-captured hashes stay UNREVIEWED until the engineer reviews and records the mapping.
-Use `--ngspice /path/to/ngspice` for a simulator outside `PATH`. For focused checks,
-use `tools.electrical --project <id>` or `tools.ci --electrical --project <id> --format text`.
-Text includes project identity and receipt; `--format json` contains every finding.
-Create CSV, PNG and SVG from a saved receipt without rerunning the circuit:
-`python -B -m tools.electrical_charts --receipt build/electrical/<id>-<run>`.
-Install `.[charts]` once for Matplotlib. The manual **Electrical analysis** Action provides the hosted focused gate; normal
-native acceptance still checks ERC/DRC. Follow the
+Repeat `--model` for includes. Initial sections are pending and cannot pass; captured hashes stay
+UNREVIEWED until the engineer reviews and records the mapping. Use `--ngspice /path/to/ngspice` for
+a simulator outside `PATH`. For focused checks, use `tools.electrical --project <id>` or
+`tools.ci --electrical --project <id> --format text`. Text includes project identity and receipt;
+`--format json` contains every finding. Create CSV, PNG and SVG from a saved receipt without
+rerunning the circuit: `python -B -m tools.electrical_charts --receipt build/electrical/<id>-<run>`.
+Install `.[charts]` once for Matplotlib. The manual **Electrical analysis** Action provides the
+hosted focused gate; normal native acceptance still checks ERC/DRC. Follow the
 [electrical quickstart and examples](ELECTRICAL_ANALYSIS.md#quickstart).

@@ -1,7 +1,7 @@
 # Scaffold changelog
 
-These versions describe the reusable workflow, independently of board and product
-revisions. See [versioning](docs/workflow/VERSIONING.md) and [adoption](docs/workflow/TEMPLATE_ADOPTION.md).
+These versions describe the reusable workflow, independently of board and product revisions. See
+[versioning](docs/workflow/VERSIONING.md) and [adoption](docs/workflow/TEMPLATE_ADOPTION.md).
 
 ## Unreleased
 

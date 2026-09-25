@@ -1379,6 +1379,8 @@ class StaticPipelineReport(StrictModel):
     registry: GovernanceLintReport
     repository: RepositoryPolicyReport
     documentation: DocumentationPolicyReport
+    rumdl: CommandEvidence
+    mdrepo: CommandEvidence
     product: ProductPolicyReport
     generation: GenerationReport
     ruff: CommandEvidence

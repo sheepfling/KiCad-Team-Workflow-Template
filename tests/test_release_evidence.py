@@ -72,7 +72,8 @@ class ReleaseEvidenceTests(unittest.TestCase):
                                   started_utc="2026-01-01T00:00:00Z", returncode=0)
         portable = StaticPipelineReport(status="PASS", source=self.source,
                     registry=lint(self.root), repository=check_repository(self.root),
-                    documentation=check_docs(self.root), product=check_product(self.root),
+                    documentation=check_docs(self.root), rumdl=command, mdrepo=command,
+                    product=check_product(self.root),
                     generation=GenerationReport(status="PASS", issues=()),
                     ruff=command, pyright=command, unit_tests=command,
                     project_tests=ProjectTestsReport(status="PASS", commands={}))
