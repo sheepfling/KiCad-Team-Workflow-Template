@@ -66,6 +66,59 @@ class DiagnosticTests(unittest.TestCase):
         self.assertIn("generated export", fixed.findings[0].observed)
         self.assertFalse((reference_root() / "projects/legacy-board").exists())
 
+    def test_import_preview_coaches_missing_3d_model_before_copy(self) -> None:
+        source = self.root / "legacy-model"
+        source.mkdir()
+        project = source / "legacy-model.kicad_pro"
+        project.write_text("{}", encoding="utf-8")
+        (source / "legacy-model.kicad_pcb").write_text(
+            '(kicad_pcb (footprint "Lib:Part" (property "Reference" "U1") '
+            '(model "${KIPRJMOD}/models/Part.step")))', encoding="utf-8",
+        )
+        report = diagnose_import(reference_root(), project, "legacy-model", "kicad-10.0.5")
+        self.assertEqual(report.status, "NEEDS_WORK")
+        problem = next(item for item in report.findings if item.code == "CAD_PATH")
+        self.assertIn("legacy-model.kicad_pcb", problem.location)
+        self.assertIn("Part.step", problem.observed)
+        self.assertIn("original source", problem.action)
+        self.assertIn("tools.template diagnose", report.next_command)
+        self.assertFalse((reference_root() / "projects/legacy-model").exists())
+
+        models = source / "models"
+        models.mkdir()
+        (models / "Part.step").write_text("authored model", encoding="utf-8")
+        repaired = diagnose_import(reference_root(), project, "legacy-model", "kicad-10.0.5")
+        self.assertEqual(repaired.status, "PASS", repaired.findings)
+        self.assertIn("tools.template import-project", repaired.next_command)
+
+    def test_import_preview_checks_copied_library_without_blocking_excluded_cache(self) -> None:
+        source = self.root / "local-library"
+        source.mkdir()
+        project = source / "local-library.kicad_pro"
+        project.write_text("{}", encoding="utf-8")
+        (source / "local-library.kicad_pcb").write_text("(kicad_pcb)", encoding="utf-8")
+        (source / "fp-lib-table").write_text(
+            '(fp_lib_table (lib (name "Local") (type "KiCad") '
+            '(uri "${KIPRJMOD}/Local.pretty") (options "") (descr "")))',
+            encoding="utf-8",
+        )
+        pretty = source / "Local.pretty"
+        pretty.mkdir()
+        footprint = pretty / "Part.kicad_mod"
+        footprint.write_text('(footprint "Part")', encoding="utf-8")
+        (pretty / "fp-info-cache").write_text("local cache", encoding="utf-8")
+        valid = diagnose_import(reference_root(), project, "local-library", "kicad-10.0.5")
+        self.assertEqual(valid.status, "PASS", valid.findings)
+        self.assertFalse(any(row.code == "CAD_PATH" for row in valid.findings))
+        footprint.write_text(
+            '(footprint "Part" (model "${KIPRJMOD}/models/missing.step"))',
+            encoding="utf-8",
+        )
+        broken = diagnose_import(reference_root(), project, "local-library", "kicad-10.0.5")
+        self.assertEqual(broken.status, "NEEDS_WORK")
+        self.assertTrue(any(row.code == "CAD_PATH" and "missing.step" in row.observed
+                            for row in broken.findings))
+
     def test_real_portable_failure_names_dependency_and_repair(self) -> None:
         repository = self.root / "repository"
         shutil.copytree(reference_root(), repository, ignore=shutil.ignore_patterns(".git"))
