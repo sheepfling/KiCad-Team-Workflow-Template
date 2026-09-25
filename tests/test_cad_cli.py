@@ -18,6 +18,7 @@ from tools.hwrepo.models import (
     CadSourceFile,
     CadSourceReport,
     CadSourcingReview,
+    CadStepReport,
 )
 from tools.parts import main
 
@@ -128,6 +129,25 @@ class CadCliTests(unittest.TestCase):
         self.assertEqual(CadSourcingReview.model_validate_json(stdout).import_plan, blocked)
         apply.assert_not_called()
 
+    def test_check_step_uses_exact_source_and_reports_review_or_block(self) -> None:
+        for ready in (True, False):
+            result = CadStepReport(status="REVIEW" if ready else "BLOCKED",
+                project_id="controller", supplier_id="C2040", receipt_directory=str(self.receipt),
+                issues=("Inspect paired views",) if ready else ("No source STEP",))
+            with (self.subTest(ready=ready),
+                  patch("tools.parts.new_receipt", side_effect=[self.receipt, self.plan_receipt]),
+                  patch("tools.hwrepo.cad_source.fetch", return_value=self.source) as fetch,
+                  patch("tools.hwrepo.cad_step.review", return_value=result) as compare,
+                  patch("tools.hwrepo.cad_library.apply") as apply):
+                status, stdout = self.invoke(["--check-step", "C2040", "--expected-mpn", "RP2040",
+                                              "--format", "json"])
+            self.assertEqual(status, 0 if ready else 1)
+            self.assertEqual(CadStepReport.model_validate_json(stdout), result)
+            fetch.assert_called_once_with(self.root, "C2040", self.plan_receipt,
+                                          expected_mpn="RP2040", refresh=False)
+            compare.assert_called_once_with(self.root, "controller", self.source, self.receipt)
+            apply.assert_not_called()
+
     def test_import_uses_only_locked_plan_and_reports_applied_or_blocked_status(self) -> None:
         for applied in (True, False):
             report = CadImportReport(status="APPLIED" if applied else "BLOCKED",
@@ -151,6 +171,7 @@ class CadCliTests(unittest.TestCase):
             ["--expected-mpn", "RP2040"],
             ["--refresh-cad"],
             ["--source-cad", "C2040", "--apply"],
+            ["--check-step", "C2040", "--apply"],
             ["--import-cad", str(self.plan_path)],
             ["--source-cad", "C2040", "--boards", "2"],
             ["--source-cad", "C2040", "--assist"],

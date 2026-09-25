@@ -19,7 +19,9 @@ from .contracts import repo_path
 from .evidence import digest
 from .models import (
     CadImportReport,
+    CadSourceReport,
     CadSourcingReview,
+    CadStepReport,
     DigiKeyHandoffResult,
     PartPickerReport,
     PartSelectionAssignment,
@@ -109,6 +111,8 @@ class Assistant:
     cad_plan: Path | None = None
     sourced_plan: Path | None = None
     sourcing_review_id: str | None = None
+    sourced_source: CadSourceReport | None = None
+    step_assets: dict[str, tuple[Path, str]] = field(default_factory=dict[str, tuple[Path, str]])
     picker: PartPickerReport | None = None
     selection_plan: Path | None = None
     selection_diff: Path | None = None
@@ -120,6 +124,8 @@ class Assistant:
         self.cad_plan = None
         self.sourced_plan = None
         self.sourcing_review_id = None
+        self.sourced_source = None
+        self.step_assets.clear()
         self.picker = None
         self.selection_plan = None
         self.selection_diff = None
@@ -136,6 +142,8 @@ class Assistant:
 
         self.sourced_plan = None
         self.sourcing_review_id = None
+        self.sourced_source = None
+        self.step_assets.clear()
         source = fetch(self.root, supplier_id, new_receipt(self.root, self.project_id, None),
                        expected_mpn=expected_mpn)
         import_plan = None
@@ -148,7 +156,35 @@ class Assistant:
             if import_plan.status == "PLAN" and import_plan.plan_path is not None:
                 self.sourced_plan = Path(import_plan.plan_path)
                 self.sourcing_review_id = review_id
+                self.sourced_source = source
         return CadSourcingReview(source=source, import_plan=import_plan, review_id=review_id)
+
+    def check_step(self, review: str) -> CadStepReport:
+        from .cad_step import review as compare
+
+        if (self.sourcing_review_id is None or self.sourced_source is None
+                or review != self.sourcing_review_id):
+            raise ValueError("Find the exact part again before checking its STEP model")
+        self.step_assets.clear()
+        report = compare(self.root, self.project_id, self.sourced_source,
+                         new_receipt(self.root, self.project_id, None))
+        if report.status == "REVIEW":
+            output = Path(report.receipt_directory)
+            self.step_assets = {
+                name: (output / name, sha) for name, sha in report.artifacts_sha256.items()
+                if name in {"index.html", "index.css", "assembly.step"} or name.endswith(".png")
+            }
+        return report
+
+    def step_asset(self, name: str) -> bytes:
+        if name not in self.step_assets:
+            raise ValueError("Prepare a current STEP comparison before opening its views")
+        path, expected = self.step_assets[name]
+        content = path.read_bytes()
+        if hashlib.sha256(content).hexdigest() != expected:
+            self.step_assets.clear()
+            raise ValueError("STEP review files changed; prepare a fresh comparison")
+        return content
 
     def import_cad(self, review: str) -> CadImportReport:
         from .cad_library import apply
@@ -297,6 +333,8 @@ class Assistant:
             return self.source_cad(supplier_id, expected_mpn)
         if action == "import-cad":
             return self.import_cad(form.review())
+        if action == "check-step":
+            return self.check_step(form.review())
         if action == "select":
             return self.choose(form.assignments())
         if action == "order":
@@ -390,8 +428,8 @@ function receipt(parent, report) {
 let sourcingReview = null;
 let sourcingSource = null;
 function clearSourcingReview() {
-  sourcingReview=null; sourcingSource=null; $('import-cad').disabled=true;
-  $('source-results').replaceChildren();
+  sourcingReview=null; sourcingSource=null; $('import-cad').disabled=true; $('check-step').disabled=true;
+  $('source-results').replaceChildren(); $('step-results').replaceChildren(); $('step-status').hidden=true;
 }
 function renderSourceIdentity(source) {
   const bundle=source && source.bundle;
@@ -452,14 +490,33 @@ $('find-cad').addEventListener('click',async()=> {
   if(plan) renderCadImport(plan);
   else receipt($('source-results'),source);
   renderSourceLimits(source,plan,ready);
-  if(ready) {sourcingReview=review.review_id; sourcingSource=source; $('import-cad').disabled=false;}
+  if(ready) {sourcingReview=review.review_id; sourcingSource=source; $('import-cad').disabled=false; $('check-step').disabled=false;}
+});
+$('check-step').addEventListener('click',async()=> {
+  if(!sourcingReview || busy) return;
+  $('step-results').replaceChildren();
+  const report=await action('check-step','step-status',
+    'Comparing STEP and WRL in the pinned KiCad version. This may take a minute…',
+    new URLSearchParams({review:sourcingReview}));
+  if(!report) return;
+  const ready=report.status==='REVIEW';
+  message('step-status',ready ? 'STEP views and a test assembly are ready to inspect.' :
+    'STEP review could not finish; see the finding below.',ready ? 'good' : 'error');
+  const parent=$('step-results');
+  if(ready) {
+    const link=element('a','Open STEP / WRL comparison','button secondary');
+    link.href='step/index.html'; parent.append(link);
+    parent.append(element('p','Check body, contacts, height and pin-one orientation in every view. This does not add STEP to the project library.','subtle small'));
+  }
+  notes(parent,report.issues); receipt(parent,report);
 });
 $('import-cad').addEventListener('click',async()=> {
   if(!sourcingReview) return;
   const review=sourcingReview, source=sourcingSource; sourcingReview=null; sourcingSource=null; $('import-cad').disabled=true;
   clearOrderView();
   const report=await action('import-cad','source-status','Adding the reviewed CAD library to this project…',new URLSearchParams({review}));
-  invalidateOtherViews(); $('apply-cad').disabled=true;
+  invalidateOtherViews(); $('apply-cad').disabled=true; $('check-step').disabled=true;
+  $('step-results').replaceChildren(); $('step-status').hidden=true;
   $('cad-results').replaceChildren(); message('cad-status','Scan again after updating and saving the board.');
   if(!report) return;
   $('source-results').replaceChildren();
@@ -605,8 +662,9 @@ def render_html(project_id: str, preferences: PurchasingPreferences, nonce: str)
 <h2 id="source-heading">Find CAD for a part</h2><p class="subtle">Enter an exact LCSC part number to get its symbol, footprint and available 3D model. No supplier login is needed.</p></div></div>
 <div class="quantities"><label>LCSC part number<input id="source-id" type="text" placeholder="C2040" maxlength="32" autocomplete="off" spellcheck="false"></label>
 <label>Expected manufacturer part number (optional)<input id="source-mpn" type="text" maxlength="200" autocomplete="off" spellcheck="false"></label></div>
-<div class="actions"><button id="find-cad">Find CAD</button><button id="import-cad" disabled>Add CAD to this project</button></div>
+<div class="actions"><button id="find-cad">Find CAD</button><button id="check-step" class="secondary" disabled>Check STEP alignment</button><button id="import-cad" disabled>Add CAD to this project</button></div>
 <div id="source-status" class="status" role="status" hidden></div><div id="source-results" class="rows"></div>
+<div id="step-status" class="status" role="status" hidden></div><div id="step-results" class="rows"></div>
 <p class="subtle small">Adds a project library for you to choose in KiCad. Existing placed components and connections stay as saved; catalog approval is separate.</p></section>
 <section aria-labelledby="cad-heading"><div class="heading"><span class="step">2</span><div>
 <h2 id="cad-heading">Populate the 3D board</h2><p class="subtle">Find models paired with your existing footprints.
@@ -679,8 +737,8 @@ class AssistantHandler(BaseHTTPRequestHandler):
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("X-Frame-Options", "DENY")
         self.send_header("Content-Security-Policy", "default-src 'none'; connect-src 'self'; "
-            + (f"script-src 'nonce-{nonce}'; style-src 'nonce-{nonce}'; " if nonce else "")
-            + "base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
+            + (f"script-src 'nonce-{nonce}'; style-src 'self' 'nonce-{nonce}'; " if nonce else "style-src 'self'; ")
+            + "img-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
         if filename is not None:
             self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
         self.end_headers()
@@ -706,6 +764,16 @@ class AssistantHandler(BaseHTTPRequestHandler):
                     self.respond(200, state.download(name), "text/csv; charset=utf-8", filename=name)
                 finally:
                     state.lock.release()
+            elif route.startswith("step/"):
+                with state.lock:
+                    name = route.removeprefix("step/")
+                    content = state.step_asset(name)
+                    content_type = ("text/html; charset=utf-8" if name == "index.html" else
+                                    "image/png" if name.endswith(".png") else
+                                    "text/css; charset=utf-8" if name == "index.css" else
+                                    "application/step" if name == "assembly.step" else "application/octet-stream")
+                    self.respond(200, content, content_type,
+                                 filename=name if name == "assembly.step" else None)
             elif route == "selection-diff" and state.selection_diff is not None:
                 self.respond(200, state.selection_diff.read_bytes())
             else:

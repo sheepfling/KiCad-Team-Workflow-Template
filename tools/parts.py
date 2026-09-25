@@ -57,6 +57,7 @@ def main() -> int:
     mode.add_argument("--cad-plan", type=Path, help="Apply a previously reviewed automatic CAD plan")
     mode.add_argument("--source-cad", metavar="LCSC_ID", help="Fetch and check an exact LCSC part, then preview its project-local CAD import")
     mode.add_argument("--import-cad", type=Path, help="Apply a previously reviewed sourced CAD import plan")
+    mode.add_argument("--check-step", metavar="LCSC_ID", help="Prepare pinned KiCad STEP and WRL alignment views for one exact part")
     mode.add_argument("--picker", action="store_true",
                       help="Open the guided catalog choices workflow in a local review page")
     mode.add_argument("--selection", type=Path,
@@ -64,7 +65,7 @@ def main() -> int:
     mode.add_argument("--sync-models", action="store_true",
                       help="Preview model assignments from saved parts after KiCad's F8 update")
     parser.add_argument("--expected-mpn", help="Require the CAD provider to report this exact manufacturer part number")
-    parser.add_argument("--refresh-cad", action="store_true", help="Explicitly fetch a fresh source snapshot with --source-cad")
+    parser.add_argument("--refresh-cad", action="store_true", help="Explicitly fetch a fresh source snapshot with --source-cad or --check-step")
     parser.add_argument("--port", type=count, default=0, help="Local assistant port (default: choose an available port)")
     parser.add_argument("--no-browser", action="store_true", help="Print assistant URL without opening a browser")
     parser.add_argument("--apply", action="store_true",
@@ -76,15 +77,15 @@ def main() -> int:
     parser.add_argument("--output", type=Path, help="Fresh receipt directory below ignored build/")
     parser.add_argument("--format", choices=("text", "json"), default="text")
     args = parser.parse_args()
-    if (args.expected_mpn is not None or args.refresh_cad) and args.source_cad is None:
-        parser.error("--expected-mpn and --refresh-cad require --source-cad")
+    if (args.expected_mpn is not None or args.refresh_cad) and args.source_cad is None and args.check_step is None:
+        parser.error("--expected-mpn and --refresh-cad require --source-cad or --check-step")
     if args.import_cad is not None and not args.apply:
         parser.error("--import-cad requires --apply; inspect the source diff before importing")
     if args.port > 65535:
         parser.error("--port must be 0–65535")
     if not args.assist and (args.port or args.no_browser):
         parser.error("--port and --no-browser require --assist")
-    if args.assist or args.auto_models or args.cad_plan is not None or args.source_cad is not None or args.import_cad is not None:
+    if args.assist or args.auto_models or args.cad_plan is not None or args.source_cad is not None or args.import_cad is not None or args.check_step is not None:
         if any(value is not None for value in (args.native_summary, args.preferences, args.boards, args.spare_percent, args.spare_minimum)) or args.runner != "auto" or args.cli != "kicad-cli":
             parser.error("Assistant and automatic CAD modes manage their own inputs; set order quantities in the assistant")
         if args.assist and (args.output is not None or args.format != "text" or args.apply):
@@ -118,6 +119,23 @@ def main() -> int:
             from .hwrepo.parts_assistant import serve
             serve(root, args.project, port=args.port, open_browser=not args.no_browser)
             return 0
+        if args.check_step is not None:
+            from .hwrepo import cad_source, cad_step
+            output = new_receipt(root, args.project, args.output)
+            source = cad_source.fetch(root, args.check_step,
+                new_receipt(root, args.project, None),
+                expected_mpn=args.expected_mpn, refresh=args.refresh_cad)
+            report = cad_step.review(root, args.project, source, output)
+            if args.format == "json":
+                print(report.model_dump_json(indent=2))
+            else:
+                print(f"{report.status}: STEP alignment review for {report.supplier_id}")
+                for issue in report.issues:
+                    print(issue)
+                if report.status == "REVIEW":
+                    print(f"Open paired views: {output / 'index.html'}")
+                print(f"Receipt: {output}")
+            return 0 if report.status == "REVIEW" else 1
         if args.source_cad is not None or args.import_cad is not None:
             from .hwrepo import cad_library, cad_source
             from .hwrepo.models import CadSourcingReview

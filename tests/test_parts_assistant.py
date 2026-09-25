@@ -6,7 +6,9 @@ import json
 import shutil
 import tempfile
 import threading
+import time
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from unittest.mock import patch
 from urllib.parse import urlencode
@@ -22,6 +24,7 @@ from tools.hwrepo.models import (
     CadSourceBundle,
     CadSourceFile,
     CadSourceReport,
+    CadStepReport,
     DigiKeyHandoffPayload,
     DigiKeyHandoffReply,
     PartCadComponent,
@@ -98,6 +101,7 @@ class FormTests(unittest.TestCase):
         self.assertIn('new URLSearchParams({review:report.receipt_dir})', html)
         self.assertIn('Find CAD for a part', html)
         self.assertIn('Add CAD to this project', html)
+        self.assertIn('Check STEP alignment', html)
         self.assertIn('Expected manufacturer part number (optional)', html)
         self.assertIn("action('source-cad','source-status'", html)
         self.assertIn("action('import-cad','source-status'", html)
@@ -231,6 +235,63 @@ class AssistantHttpTests(unittest.TestCase):
         self.assertEqual(self.state.sourcing_review_id, review["review_id"])
         self.assertNotEqual(review["review_id"], planned.plan_path)
         apply.assert_not_called()
+
+    def test_step_review_serves_only_current_hash_checked_views(self) -> None:
+        self.assertEqual(self.request("POST", "check-step", "review=guessed")[0], 400)
+        current = json.loads(self.source_cad()[2])["review_id"]
+        output = self.root / "build/step-review"
+        output.mkdir()
+        files = {"index.html": b"<h1>Paired views</h1>", "index.css": b"body{color:black}",
+                 "wrl-top.png": b"WRL image", "step-top.png": b"STEP image",
+                 "assembly.step": b"ISO-10303-21;"}
+        hashes: dict[str, str] = {}
+        for name, content in files.items():
+            (output / name).write_bytes(content)
+            hashes[name] = digest(output / name)
+        result = CadStepReport(status="REVIEW", project_id="controller", supplier_id="C2040",
+                               receipt_directory=str(output), artifacts_sha256=hashes)
+        with patch("tools.hwrepo.cad_step.review", return_value=result) as compare:
+            self.assertEqual(self.request("POST", "check-step", "review=wrong")[0], 400)
+            status, _, body = self.request("POST", "check-step", urlencode({"review": current}))
+            self.assertEqual(status, 200)
+            self.assertEqual(json.loads(body)["status"], "REVIEW")
+            compare.assert_called_once()
+            self.assertEqual(compare.call_args.args[:3], (self.root, "controller", self.state.sourced_source))
+        status, headers, content = self.request("GET", "step/index.html")
+        self.assertEqual((status, content), (200, files["index.html"]))
+        self.assertIn("img-src 'self'", headers["Content-Security-Policy"])
+        self.assertIn("style-src 'self'", headers["Content-Security-Policy"])
+        self.assertEqual(self.request("GET", "step/index.css")[2], files["index.css"])
+        self.assertEqual(self.request("GET", "step/step-top.png")[2], files["step-top.png"])
+        self.assertEqual(self.request("GET", "step/unknown.png")[0], 409)
+        (output / "step-top.png").write_bytes(b"changed")
+        self.assertEqual(self.request("GET", "step/step-top.png")[0], 409)
+        self.assertEqual(self.request("GET", "step/index.html")[0], 409)
+
+    def test_gallery_reads_wait_for_each_other_instead_of_dropping_images(self) -> None:
+        output = self.root / "build/parallel-step"
+        output.mkdir(parents=True)
+        for name in ("wrl-top.png", "step-top.png"):
+            path = output / name
+            path.write_bytes(name.encode())
+            self.state.step_assets[name] = (path, digest(path))
+        entered, release = threading.Event(), threading.Event()
+        original = self.state.step_asset
+
+        def slow_read(name: str) -> bytes:
+            entered.set()
+            if not release.wait(2):
+                raise TimeoutError("Timed out waiting for the second image request")
+            return original(name)
+
+        with patch.object(Assistant, "step_asset", side_effect=slow_read), ThreadPoolExecutor(max_workers=2) as pool:
+            first = pool.submit(self.request, "GET", "step/wrl-top.png")
+            self.assertTrue(entered.wait(2))
+            second = pool.submit(self.request, "GET", "step/step-top.png")
+            time.sleep(0.05)
+            release.set()
+            self.assertEqual(first.result()[0], 200)
+            self.assertEqual(second.result()[0], 200)
 
     def test_cad_source_can_omit_expected_mpn(self) -> None:
         with patch("tools.hwrepo.cad_source.fetch", return_value=self.cad_source_report()) as fetch, patch(

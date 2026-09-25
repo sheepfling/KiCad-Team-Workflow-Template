@@ -22,10 +22,14 @@ Replace `my-board` with your registered project ID. In **Find CAD for a part**:
    number, enter it too; a mismatch blocks the fetch.
 2. Select **Find CAD**. Review the provider-reported manufacturer, MPN, package,
    pin/pad checks, model limits and proposed files.
-3. Save and close the design in KiCad before **Add CAD to this project**. The
+3. If the provider supplied STEP, select **Check STEP alignment**. Open the
+   paired WRL/STEP views and compare the body, contacts, pin-one mark, height
+   and pad placement. The gallery includes a disposable STEP assembly; it does
+   not install STEP or approve mechanical fit.
+4. Save and close the design in KiCad before **Add CAD to this project**. The
    importer adds the local libraries, their table entries and the project input
    inventory. It does not replace existing schematic symbols, pads or nets.
-4. Reopen the project. Press **A** in KiCad's schematic editor and choose the exact
+5. Reopen the project. Press **A** in KiCad's schematic editor and choose the exact
    symbol shown by the assistant. Its footprint is already assigned. **Update PCB
    from Schematic (F8)** brings that footprint to the board. Use KiCad to position
    and route it, then inspect the actual 3D view.
@@ -56,8 +60,14 @@ changed source requires a fresh review, and existing library entries are preserv
 The current converter does not apply its WRL placement adjustment to STEP geometry.
 The import therefore includes the paired **WRL visualization model** and keeps STEP
 out of the installed library, preventing KiCad from silently substituting it.
-Mechanical STEP model alignment remains unverified. Do not use this path as proof
-of a complete mechanical STEP assembly. See the
+Use **Check STEP alignment** to generate paired top, turned, bottom and angled
+views from the exact cached WRL and raw STEP in the project's digest-pinned KiCad
+version. It also exports a disposable board assembly and verifies that component
+geometry appears in the STEP file. Open the gallery and inspect the model relative
+to the pads; the command reports `REVIEW`, never automatic alignment approval.
+The source footprint and the installed project library remain unchanged. A valid
+export cannot prove manufacturer dimensions or physical fit. Docker and the pinned
+KiCad image are required. See the
 [converter implementation](https://github.com/uPesy/easyeda2kicad.py/blob/v1.0.1/easyeda2kicad/kicad/export_kicad_3d_model.py).
 
 Source and licensing information travels with the library. The converter's software
@@ -68,14 +78,20 @@ when promoting project-local assets to a shared library.
 ## Scripted use and recovery
 
 ```sh
+python -B -m tools.parts --project my-board --check-step C2040 --expected-mpn RP2040
 python -B -m tools.parts --project my-board --source-cad C2040 --expected-mpn RP2040 --format json
 python -B -m tools.parts --project my-board --import-cad build/parts/REVIEW/cad-import-plan.json --apply --format json
 ```
 
-Use the exact `plan_path` returned by the first command. Receipts and the immutable
+Open `index.html` in the receipt printed by `--check-step`; inspect every paired
+view and the disposable assembly before deciding whether the STEP model can be
+used for mechanical work. `--check-step` has a nonzero exit if the exact source,
+STEP file, pinned KiCad run or output evidence is unavailable.
+
+Use the exact `plan_path` returned by `--source-cad`. Receipts and the immutable
 cache stay under ignored `build/`; applied CAD becomes declared project-local
-source. Add `--refresh-cad` to the first command only when intentionally requesting
-a fresh provider snapshot. It preserves older snapshots and still requires a new
+source. Add `--refresh-cad` to `--source-cad` or `--check-step` only when
+intentionally requesting a fresh provider snapshot. It preserves older snapshots and still requires a new
 preview before import.
 
 If the provider is unavailable, an existing intact cache can still be used. A

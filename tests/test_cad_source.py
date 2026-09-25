@@ -8,6 +8,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 from tools.hwrepo.cad_source import _download, fetch
+from tools.hwrepo.cad_step import review as check_step
+from tools.hwrepo.models import CadBundleCheck
 
 UUID = "a" * 32
 OBJ = b"newmtl body\nendmtl\nv 0 0 0\nv 1 0 0\nv 0 1 0\nusemtl body\nf 1 2 3\n"
@@ -109,6 +111,30 @@ class CadSourceTests(unittest.TestCase):
         self.assertEqual(source.read_bytes(), b"")
         self.assertEqual(self.fetch().status, "READY")
         self.assertEqual(len(self.calls), 3)
+
+    def test_step_review_blocks_missing_step_and_changed_cache_before_kicad(self):
+        self.missing_step = True
+        source = self.fetch()
+        receipt = self.root / "build/step-review-missing"
+        receipt.mkdir()
+        with (patch("tools.hwrepo.cad_step._docker") as docker,
+              patch("tools.hwrepo.cad_step.inspect_bundle",
+                    return_value=CadBundleCheck(status="READY"))):
+            report = check_step(self.root, "controller", source, receipt)
+        self.assertEqual(report.status, "BLOCKED")
+        self.assertIn("no source STEP", " ".join(report.issues))
+        self.assertFalse(report.alignment_verified)
+        docker.assert_not_called()
+        self.missing_step = False
+        fresh = self.fetch(refresh=True)
+        Path(fresh.bundle_directory).joinpath("library/part.3dshapes/Model.wrl").write_bytes(b"changed")
+        receipt = self.root / "build/step-review-changed"
+        receipt.mkdir()
+        with patch("tools.hwrepo.cad_step._docker") as docker:
+            report = check_step(self.root, "controller", fresh, receipt)
+        self.assertEqual(report.status, "BLOCKED")
+        self.assertIn("cache changed", " ".join(report.issues))
+        docker.assert_not_called()
 
     def test_oversized_tampered_cache_blocks_before_reading_content(self):
         first = self.fetch()

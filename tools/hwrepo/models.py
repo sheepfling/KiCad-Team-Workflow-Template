@@ -1738,6 +1738,23 @@ class CadSourceReport(StrictModel):
     receipt_directory: str
 
 
+class CadStepReport(StrictModel):
+    schema_version: Literal["1"] = "1"
+    status: Literal["REVIEW", "BLOCKED"]
+    project_id: Identifier
+    supplier_id: str
+    source_bundle_sha256: Digest | None = None
+    source_step_sha256: Digest | None = None
+    kicad_version: str | None = None
+    image: str | None = None
+    artifacts_sha256: Mapping[RepositoryPath, Digest] = Field(default_factory=dict)
+    commands: Mapping[str, CommandEvidence] = Field(default_factory=dict)
+    issues: tuple[NonEmptyText, ...] = ()
+    receipt_directory: str
+    alignment_verified: Literal[False] = False
+    physical_fit_verified: Literal[False] = False
+
+
 class CadBundleCheck(StrictModel):
     status: Literal["READY", "BLOCKED"]
     symbol_pins: tuple[str, ...] = ()
