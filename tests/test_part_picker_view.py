@@ -4,9 +4,11 @@ from __future__ import annotations
 import re
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
+from tools.hwrepo.contracts import read_model
 from tools.hwrepo.models import (
     PartCadBinding,
     PartCadComponent,
@@ -18,7 +20,7 @@ from tools.hwrepo.models import (
     PartSourceEdit,
     PartStatus,
 )
-from tools.hwrepo.part_picker_view import render_picker, render_selection
+from tools.hwrepo.part_picker_view import render_picker, render_selection, save_selection
 
 
 class PickerViewTests(unittest.TestCase):
@@ -82,6 +84,15 @@ class PickerViewTests(unittest.TestCase):
         self.assertIn('diff-add', page)
         self.assertIn('Update PCB from Schematic (F8)', page)
         self.assertIn('--sync-models', page)
+
+    def test_new_preferences_receipt_preserves_null_before_state(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            report = PartSelectionReport(status='PLAN', project_id='pilot', receipt_dir=temporary,
+                edits=(PartSourceEdit(path='projects/pilot/docs/purchasing.json',
+                                     before=None, after='{}\n'),))
+            save_selection(output, report)
+            self.assertEqual(read_model(output / 'report.json', PartSelectionReport), report)
 
     def test_conflicting_cli_flags_fail_before_creating_receipt(self) -> None:
         root = Path(__file__).resolve().parents[1]

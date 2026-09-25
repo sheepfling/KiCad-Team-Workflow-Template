@@ -230,6 +230,7 @@ def save_picker(output: Path, report: PartPickerReport) -> None:
 
 
 def save_selection(output: Path, report: PartSelectionReport) -> None:
-    write_model(output / 'report.json', report)
+    # New files need an explicit null before-state for the strict edit contract.
+    (output / 'report.json').write_text(report.model_dump_json(indent=2) + '\n', encoding='utf-8')
     (output / 'report.txt').write_text(selection_text(report) + '\n', encoding='utf-8')
     (output / 'index.html').write_text(render_selection(report), encoding='utf-8')
