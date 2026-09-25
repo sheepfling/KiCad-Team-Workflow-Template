@@ -1,6 +1,7 @@
 """Test the checker itself; these unit tests do not stand in for KiCad execution."""
 from __future__ import annotations
 
+import csv
 import json
 import shutil
 import tempfile
@@ -15,13 +16,20 @@ from tools.hwrepo.models import (
     CommandEvidence,
     ComponentIdentity,
     IgnoredChecks,
+    NetlistIdentityReport,
     PcbOnlyValidationContract,
     PcbValidationContract,
     ProjectConfig,
     ProjectKind,
 )
 from tools.hwrepo.scaffold import new_project
-from tools.validate import check_netlist, check_report, hashes, read_netlist, validate
+from tools.validate import (
+    check_netlist,
+    check_report,
+    hashes,
+    read_netlist,
+    validate,
+)
 
 ROOT: Path = reference_root()
 JsonScalar = str | int | float | bool | None
@@ -116,6 +124,70 @@ class ValidationTests(unittest.TestCase):
             "unconnected_items": [],
         }
         self.assertEqual(check_report(self.report(data), "drc", config), 0)
+
+    def test_native_validation_uses_escaped_bom_cells(self) -> None:
+        self.fixture()
+        self.assertIsInstance(self.config.validation, PcbValidationContract)
+        components = dict(self.config.validation.components)
+        components["R1"] = components["R1"].model_copy(
+            update={"value": "=1+1", "footprint": " @unsafe"}
+        )
+        config = self.config.model_copy(update={
+            "validation": self.config.validation.model_copy(update={"components": components}),
+        })
+
+        def run_kicad(argv: tuple[str, ...], _cwd: Path, output: Path, name: str) -> CommandEvidence:
+            if name in {"erc", "drc"}:
+                report: JsonObject = {
+                    "$schema": f"https://schemas.kicad.org/{name}.v1.json",
+                    "kicad_version": config.kicad_version,
+                    "included_severities": ["error", "warning", "exclusion"],
+                    "ignored_checks": [
+                        {"key": key} for key in getattr(config.validation.expected_ignored_checks, name)
+                    ],
+                }
+                if name == "erc":
+                    report["sheets"] = [{"violations": []}]
+                else:
+                    report.update({
+                        "violations": [], "unconnected_items": [], "schematic_parity": [],
+                    })
+                (output / f"{name}.json").write_text(json.dumps(report), encoding="utf-8")
+            elif name == "schematic_svg":
+                directory = output / "schematic"
+                directory.mkdir()
+                (directory / "sheet.svg").write_text(
+                    '<svg xmlns="http://www.w3.org/2000/svg"/>', encoding="utf-8"
+                )
+            elif name == "pcb_svg":
+                (output / "pcb.svg").write_text(
+                    '<svg xmlns="http://www.w3.org/2000/svg"/>', encoding="utf-8"
+                )
+            elif name == "netlist":
+                (output / "netlist.xml").write_text("<export/>", encoding="utf-8")
+            return CommandEvidence(
+                argv=argv, started_utc="2026-01-01T00:00:00+00:00", returncode=0,
+                stdout=f"{config.kicad_version}\n" if name == "version" else "",
+            )
+
+        output = self.root / "native-review"
+        with (
+            patch("tools.validate.load_config", return_value=config),
+            patch("tools.validate.cli_executable", return_value="fake-kicad-cli"),
+            patch("tools.validate.execute", side_effect=run_kicad),
+            patch("tools.validate.check_netlist"),
+            patch("tools.hwrepo.product.check_project_netlist",
+                  return_value=NetlistIdentityReport(status="PASS")),
+        ):
+            result = validate(
+                self.root, output, "fake-kicad-cli",
+                Path("examples/projects/controller/project.json"),
+            )
+        self.assertEqual(result.status, "PASS", result.checks)
+        with (output / "bom.csv").open(newline="", encoding="utf-8") as stream:
+            rows = {row["Reference"]: row for row in csv.DictReader(stream)}
+        self.assertEqual(rows["R1"]["Value"], "'=1+1")
+        self.assertEqual(rows["R1"]["Footprint"], "' @unsafe")
 
     def test_pcb_only_native_lane_runs_board_checks_without_schematic_commands(self) -> None:
         self.fixture()
