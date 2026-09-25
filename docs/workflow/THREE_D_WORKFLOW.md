@@ -141,13 +141,12 @@ python -B -m tools.visualize --project battery-board --format text
 python -B -m tools.visualize --project battery-board --runner container --output build/3d-review-001 --format json
 ```
 
-The command uses an exact local KiCad CLI when available or the project's pinned
-Docker image (`--runner auto`); `--runner local` or `--runner container` makes the
-choice explicit. The report names the fresh ignored receipt and generated files.
-Use `--format text` for a short engineer-facing account and `--format json` for
-the structured agent/script result. Add `--detail full` to expand every model
-finding in text; JSON always contains the complete inventory. The export includes board images for visual
-review, a STEP model for mechanical CAD and a GLB model for 3D viewing. Open the
+The command uses an exact local KiCad CLI when available or the project's pinned Docker image
+(`--runner auto`); `--runner local` or `--runner container` makes the choice explicit. The report
+names the fresh ignored receipt and generated files. Use `--format text` for a short engineer-facing
+account and `--format json` for the structured agent/script result. Add `--detail full` to expand
+every model finding in text; JSON always contains the complete inventory. The export includes board
+images for visual review, a STEP model for mechanical CAD and a GLB model for 3D viewing. Open the
 files and inspect them; a successful command exit only means KiCad produced them.
 
 For a hosted one-board run, open **Actions → KiCad 3D preview → Run workflow** and

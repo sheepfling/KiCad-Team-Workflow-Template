@@ -13,19 +13,19 @@ typed terminals/relationships, and an explicitly unresolved mechanical handoff.
 It does not contain a Raspberry Pi or Arduino host board BOM, an approved mating
 cable, or a complete physical product. The host GPIOs must not be wired together.
 
-| Fact | Authoritative location | Checked/generated view |
-| --- | --- | --- |
-| Internal part identity, manufacturer, MPN, part revision | `catalog/parts.json` | Product memberships, KiCad `PART_ID`, review BOM |
-| PCB electrical connectivity, symbol reference, footprint, PCB geometry | `projects/<id>/kicad/` | Native netlist, ERC/DRC, reference contract |
-| Schematic-only electrical intent and interface review | `projects/<id>/kicad/` | ERC and schematic SVG; no board/netlist/BOM claim |
-| System blockout/wiring review view | `projects/<id>/kicad/` plus typed `products/<id>/product.json` relationship records | Complete relation/terminal/harness/mechanical traceability, ERC, and schematic SVG; a diagram line alone is not electrical truth |
-| Harness-interface review view and schedule | `projects/<id>/kicad/` plus typed `products/<id>/product.json` harness records | Exact electrical conductor/endpoint/harness traceability; generated JSON/CSV schedule for review |
-| Assembly membership and quantity | `products/<id>/product.json` | Expanded variant BOM |
-| Harness terminals and construction assumptions | Product terminals/harness records in this v1 example | Electrical connection JSON; future harness renderer consumes these IDs |
-| Functional, protocol and mechanical relationships | Typed product connections | Generated semantic system view; never exported as electrical continuity |
-| Datum, units, drawing reference, unresolved fit questions | Product mechanical record plus controlled drawing | Reference/units checks; physical fit still reviewed by engineers |
-| Evidence scope and immutable content identity | Product evidence records plus repository files | Claim/type/reference/SHA-256 checks |
-| Human approval and protected-branch enforcement | Actual review and hosting controls | Not established by text fields or this product checker |
+| Fact                                                                   | Authoritative location                                                              | Checked/generated view                                                                                                           |
+| ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Internal part identity, manufacturer, MPN, part revision               | `catalog/parts.json`                                                                | Product memberships, KiCad `PART_ID`, review BOM                                                                                 |
+| PCB electrical connectivity, symbol reference, footprint, PCB geometry | `projects/<id>/kicad/`                                                              | Native netlist, ERC/DRC, reference contract                                                                                      |
+| Schematic-only electrical intent and interface review                  | `projects/<id>/kicad/`                                                              | ERC and schematic SVG; no board/netlist/BOM claim                                                                                |
+| System blockout/wiring review view                                     | `projects/<id>/kicad/` plus typed `products/<id>/product.json` relationship records | Complete relation/terminal/harness/mechanical traceability, ERC, and schematic SVG; a diagram line alone is not electrical truth |
+| Harness-interface review view and schedule                             | `projects/<id>/kicad/` plus typed `products/<id>/product.json` harness records      | Exact electrical conductor/endpoint/harness traceability; generated JSON/CSV schedule for review                                 |
+| Assembly membership and quantity                                       | `products/<id>/product.json`                                                        | Expanded variant BOM                                                                                                             |
+| Harness terminals and construction assumptions                         | Product terminals/harness records in this v1 example                                | Electrical connection JSON; future harness renderer consumes these IDs                                                           |
+| Functional, protocol and mechanical relationships                      | Typed product connections                                                           | Generated semantic system view; never exported as electrical continuity                                                          |
+| Datum, units, drawing reference, unresolved fit questions              | Product mechanical record plus controlled drawing                                   | Reference/units checks; physical fit still reviewed by engineers                                                                 |
+| Evidence scope and immutable content identity                          | Product evidence records plus repository files                                      | Claim/type/reference/SHA-256 checks                                                                                              |
+| Human approval and protected-branch enforcement                        | Actual review and hosting controls                                                  | Not established by text fields or this product checker                                                                           |
 
 Do not introduce a second part catalog under `products/`. An external PLM/PDM
 adapter can later own the same stable identities; choose one authority explicitly.
@@ -135,12 +135,12 @@ The matching generated system view retains every explicit relation kind so a
 renderer cannot silently reinterpret functional or mechanical relationships as
 electrical continuity.
 
-v1 supports integer `each` quantities, up to 64 nesting levels / 10,000 expanded
-instances, and one current revision per part ID. Repeated physical instances that
-need terminal addressing must have separate occurrence refs. Fractional wire stock,
-DNP/alternate-selection reason records beyond native KiCad variants, mixed revisions of one ID, shielding,
-splices, cable drawings and automatic substitution need an explicit schema
-extension plus good/bad fixtures; do not overload the existing fields.
+v1 supports integer `each` quantities, up to 64 nesting levels / 10,000 expanded instances, and one
+current revision per part ID. Repeated physical instances that need terminal addressing must have
+separate occurrence refs. Fractional wire stock, DNP/alternate-selection reason records beyond
+native KiCad variants, mixed revisions of one ID, shielding, splices, cable drawings and automatic
+substitution need an explicit schema extension plus good/bad fixtures; do not overload the existing
+fields.
 
 ## Review snapshots, not releases
 

@@ -20,6 +20,7 @@ from .models import (
     AssemblyKind,
     BomRow,
     ConnectionKind,
+    ElectricalAnalysisContract,
     ElectricalConnectionView,
     ElectricalView,
     HarnessSchedule,
@@ -309,6 +310,7 @@ def expected_outputs(
             "schemas/product-index-v1.schema.json": schema_json_bytes(ProductIndex),
             "schemas/project-manifest-v1.schema.json": schema_json_bytes(ProjectManifest),
             "schemas/project-tests-v1.schema.json": schema_json_bytes(ProjectTestContract),
+            "schemas/electrical-analysis-v1.schema.json": schema_json_bytes(ElectricalAnalysisContract),
             "schemas/release-manifest-v1.schema.json": schema_json_bytes(ReleaseManifest),
             "schemas/release-policies-v1.schema.json": schema_json_bytes(
                 ReleasePoliciesCatalog

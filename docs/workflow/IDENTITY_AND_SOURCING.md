@@ -1,6 +1,7 @@
 # Identity, pinouts, BOMs, and sourcing
 
-KiCad holds electrical design facts; controlled catalogs hold business and supply-chain facts. Link them with stable identifiers rather than copying volatile information into drawing text.
+KiCad holds electrical design facts; controlled catalogs hold business and supply-chain facts. Link
+them with stable identifiers rather than copying volatile information into drawing text.
 
 ## Stable identities
 
@@ -37,7 +38,8 @@ field in a schematic. Each snapshot must state supplier, supplier SKU, quantity
 break, currency, region, lead time/stock observation, timestamp, and source link or
 export reference.
 
-Price and availability are observations, not immutable design facts. The release identity is the Git tag plus the manifest, BOM, toolchain version, library revisions, and evidence hashes.
+Price and availability are observations, not immutable design facts. The release identity is the Git
+tag plus the manifest, BOM, toolchain version, library revisions, and evidence hashes.
 
 When a controlled observation is needed, start from
 `templates/sourcing-snapshot.example.json` and validate it without network access:
@@ -54,7 +56,10 @@ procurement authority.
 
 ## Fixture boundary
 
-The controller project is a synthetic fixture, so its catalog entries are intentionally empty and its registry marks component identity as not required. The Arduino and Raspberry Pi examples exercise the field and catalog links, but their part records deliberately say `UNSPECIFIED` and `do not purchase`; they are not approved sourceable parts.
+The controller project is a synthetic fixture, so its catalog entries are intentionally empty and
+its registry marks component identity as not required. The Arduino and Raspberry Pi examples
+exercise the field and catalog links, but their part records deliberately say `UNSPECIFIED` and
+`do not purchase`; they are not approved sourceable parts.
 
 A real engineering project must use the `production` assurance profile, set
 `component_identity.required` to `true`, declare approved part IDs, link each shared

@@ -1,6 +1,7 @@
 """Typed, strict records for repository inputs, policy outputs and generated views."""
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 from datetime import date
 from enum import Enum
@@ -11,7 +12,9 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    RootModel,
     StringConstraints,
+    field_validator,
     model_validator,
 )
 
@@ -61,6 +64,25 @@ class PartStatus(str, Enum):
     APPROVED = "approved"
 
 
+class PartCadBinding(StrictModel):
+    """Reviewed symbol, value, package and source model for one catalog part."""
+
+    symbol_id: NonEmptyText
+    value: NonEmptyText
+    footprint: Annotated[str, StringConstraints(pattern=r"^[^:\r\n]+:[^:\r\n]+$")]
+    model: RepositoryPath
+    digikey_sku: Annotated[str, StringConstraints(min_length=1)] | None = None
+
+    @model_validator(mode="after")
+    def exact_sku(self) -> PartCadBinding:
+        if self.digikey_sku is not None and (
+            self.digikey_sku != self.digikey_sku.strip()
+            or any(ord(char) < 32 or ord(char) == 127 for char in self.digikey_sku)
+        ):
+            raise ValueError("DigiKey SKU must be exact text without padding or control characters")
+        return self
+
+
 class PartRecord(StrictModel):
     id: Identifier
     revision: Identifier
@@ -73,6 +95,7 @@ class PartRecord(StrictModel):
     lifecycle: NonEmptyText
     status: PartStatus
     approved_alternates: tuple[Identifier, ...] = ()
+    cad: PartCadBinding | None = None
 
 
 class PartsCatalog(StrictModel):
@@ -315,6 +338,7 @@ class ProjectConfig(StrictModel):
     source_roots: tuple[RepositoryPath, ...]
     required_inputs: tuple[RepositoryPath, ...]
     validation: ProjectValidationContract
+    electrical: RepositoryPath | None = None
 
     @model_validator(mode="after")
     def matching_project_kind(self) -> ProjectConfig:
@@ -380,6 +404,7 @@ class ProjectManifest(StrictModel):
 class ProjectTestContract(StrictModel):
     schema_version: Literal["1"] = "1"
     validation: ProjectValidationContract
+    electrical: RepositoryPath | None = None
 
 
 class ProjectScaffoldReport(StrictModel):
@@ -1071,6 +1096,7 @@ class TemplateDoctorReport(StrictModel):
     lane: Literal["TEMPLATE_DOCTOR"] = "TEMPLATE_DOCTOR"
     build_authorized: Literal[False] = False
     native_requested: bool
+    electrical_requested: bool = False
     checks: tuple[EnvironmentCheck, ...]
     status: Literal["PASS", "FAIL"]
     next_actions: tuple[NonEmptyText, ...] = ()
@@ -1091,6 +1117,16 @@ class InventoryProject(StrictModel):
     readiness: Literal["INPUTS_PRESENT", "NEEDS_INPUTS"]
     missing_inputs: tuple[RepositoryPath, ...] = ()
     next_command: NonEmptyText
+
+
+class McpProjectReport(StrictModel):
+    """One project's declared inputs; inspection never authorizes manufacturing."""
+
+    schema_version: Literal["1"] = "1"
+    build_authorized: Literal[False] = False
+    project: InventoryProject
+    manifest: ProjectManifest
+    contract: ProjectTestContract | None
 
 
 class InventoryGroup(StrictModel):
@@ -1343,6 +1379,8 @@ class StaticPipelineReport(StrictModel):
     registry: GovernanceLintReport
     repository: RepositoryPolicyReport
     documentation: DocumentationPolicyReport
+    rumdl: CommandEvidence
+    mdrepo: CommandEvidence
     product: ProductPolicyReport
     generation: GenerationReport
     ruff: CommandEvidence
@@ -1372,7 +1410,7 @@ class ProjectVerificationReport(StrictModel):
     lane: Literal["PROJECT_VERIFY"] = "PROJECT_VERIFY"
     build_authorized: Literal[False] = False
     project_id: Identifier
-    depth: Literal["portable", "native"]
+    depth: Literal["portable", "native", "electrical"]
     runner: Literal["none", "local", "container"] = "none"
     run_directory: NonEmptyText
     portable: ProjectStaticPipelineReport | None = None
@@ -1380,6 +1418,7 @@ class ProjectVerificationReport(StrictModel):
     dependency_command: CommandEvidence | None = None
     native_command: CommandEvidence | None = None
     native: CheckAllSummary | None = None
+    electrical: ElectricalAnalysisReport | None = None
     diagnosis: DiagnosticReport | None = None
     status: Literal["PASS", "FAIL", "ERROR"]
     next_actions: tuple[NonEmptyText, ...] = ()
@@ -1430,3 +1469,1001 @@ class ContractCoachReport(StrictModel):
     next_actions: tuple[NonEmptyText, ...] = ()
     commands: Mapping[Identifier, CommandEvidence] = Field(default_factory=dict)
     receipt_dir: str | None = None
+
+
+class McpArtifactEntry(StrictModel):
+    path: RepositoryPath
+    kind: Literal["file", "directory"]
+    size_bytes: NonNegativeCount | None = None
+    sha256: Digest | None = None
+
+
+class McpArtifactList(StrictModel):
+    schema_version: Literal["1"] = "1"
+    build_authorized: Literal[False] = False
+    directory: RepositoryPath
+    entries: tuple[McpArtifactEntry, ...]
+    offset: NonNegativeCount
+    total_entries: NonNegativeCount
+    truncated: bool
+    next_offset: NonNegativeCount | None = None
+
+
+class McpFileContent(StrictModel):
+    """Bounded Unicode text or metadata; offsets count characters, never bytes."""
+
+    schema_version: Literal["1"] = "1"
+    build_authorized: Literal[False] = False
+    path: RepositoryPath
+    sha256: Digest
+    size_bytes: NonNegativeCount
+    content_kind: Literal["text", "binary", "metadata_only"]
+    text: str | None = None
+    offset: NonNegativeCount
+    total_characters: NonNegativeCount | None = None
+    truncated: bool = False
+    next_offset: NonNegativeCount | None = None
+    note: str | None = None
+
+
+class McpEditPreview(StrictModel):
+    """A proposed exact replacement, without a claim of engineering validation."""
+
+    schema_version: Literal["1"] = "1"
+    build_authorized: Literal[False] = False
+    checks_required: Literal[True] = True
+    project_id: Identifier
+    path: RepositoryPath
+    before_sha256: Digest
+    after_sha256: Digest
+    diff: str
+    validation: Literal["JSON_MODEL", "TEXT_ONLY"]
+    next_command: NonEmptyText
+
+
+class McpEditResult(StrictModel):
+    schema_version: Literal["1"] = "1"
+    build_authorized: Literal[False] = False
+    checks_required: Literal[True] = True
+    status: Literal["APPLIED"] = "APPLIED"
+    project_id: Identifier
+    path: RepositoryPath
+    before_sha256: Digest
+    after_sha256: Digest
+    readback_sha256: Digest
+    next_command: NonEmptyText
+
+
+class McpScopeReport(StrictModel):
+    schema_version: Literal["1"] = "1"
+    build_authorized: Literal[False] = False
+    status: Literal["PASS", "FAIL"]
+    run_directory: NonEmptyText
+    report: StaticPipelineReport | ProjectStaticPipelineReport
+
+
+class McpGenerationReport(StrictModel):
+    schema_version: Literal["1"] = "1"
+    build_authorized: Literal[False] = False
+    status: Literal["PASS"] = "PASS"
+    directory: RepositoryPath
+    files: tuple[RepositoryPath, ...]
+
+
+Resolution = Literal[
+    "source_present", "toolchain_dependent", "embedded_present", "broken",
+]
+InventoryStatus = Literal["READY", "REVIEW", "FAIL"]
+ExportMode = Literal["inspect", "generate"]
+ExportStatus = Literal["PASS", "FAIL", "ERROR"]
+SelectedRunner = Literal["none", "local", "container"]
+
+
+class ModelAssignment(StrictModel):
+    """A raw observed model reference and its static source-resolution finding."""
+
+    # Keep raw paths, including empty/nonportable input, so failed references can
+    # be reported faithfully. Only a resolved source_path is a repository path.
+    path: str
+    line: PositiveCount
+    resolution: Resolution
+    source_path: RepositoryPath | None = None
+    hidden: bool = False
+    reason: str | None = None
+
+
+class FootprintModels(StrictModel):
+    """Observed footprint metadata; malformed identifiers remain diagnosable."""
+
+    reference: str
+    footprint_id: str
+    line: PositiveCount
+    models: tuple[ModelAssignment, ...]
+    candidate_assets: tuple[RepositoryPath, ...]
+    status: InventoryStatus
+
+
+class ModelInventoryReport(StrictModel):
+    """Static model assignments, without native geometry or manufacturing approval."""
+
+    schema_version: Literal["1"] = "1"
+    scope: Literal["static_inventory"] = "static_inventory"
+    build_authorized: Literal[False] = False
+    project_id: Identifier
+    board: RepositoryPath
+    status: InventoryStatus
+    footprints: tuple[FootprintModels, ...]
+    findings: tuple[DiagnosticFinding, ...]
+    next_actions: tuple[NonEmptyText, ...]
+
+
+class ThreeDReport(StrictModel):
+    """A versioned 3D receipt for one board and source snapshot, never an approval."""
+
+    schema_version: Literal["1"] = "1"
+    build_authorized: Literal[False] = False
+    project_id: Identifier
+    mode: ExportMode
+    assembly_variant: NonEmptyText | None = None
+    status: ExportStatus
+    run_directory: NonEmptyText
+    toolchain_id: Identifier | None = None
+    kicad_version: NonEmptyText | None = None
+    runner: SelectedRunner = "none"
+    board: RepositoryPath | None = None
+    source_sha256: Mapping[RepositoryPath, Digest] = Field(default_factory=dict)
+    models: ModelInventoryReport | None = None
+    commands: Mapping[Identifier, CommandEvidence] = Field(default_factory=dict)
+    artifacts_sha256: Mapping[RepositoryPath, Digest] = Field(default_factory=dict)
+    next_actions: tuple[NonEmptyText, ...] = ()
+    error: str | None = None
+
+
+class ModelMapAssignment(StrictModel):
+    """An exact placed-footprint reference mapped to reviewed model source."""
+
+    reference: str = Field(min_length=1)
+    model: str
+    candidate_assets: tuple[RepositoryPath, ...] = ()
+    model_sha256: Digest | None = None
+
+
+class McpModelMapAssignment(StrictModel):
+    """MCP JSON-array input, converted to an immutable assignment at the adapter."""
+
+    reference: str = Field(min_length=1)
+    model: str
+    candidate_assets: list[RepositoryPath] = Field(default_factory=list)
+    model_sha256: Digest | None = None
+
+
+class ModelMap(StrictModel):
+    """Explicit assignments bound to the board bytes that the author reviewed."""
+
+    schema_version: Literal["1"] = "1"
+    project_id: Identifier
+    board_sha256: Digest
+    manifest_sha256: Digest
+    assignments: tuple[ModelMapAssignment, ...] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def unique_references(self) -> ModelMap:
+        references = [item.reference for item in self.assignments]
+        if len(references) != len(set(references)):
+            raise ValueError("Map has duplicate footprint references")
+        return self
+
+
+class ModelPopulationReport(StrictModel):
+    """A model-assignment plan or source edit that still requires engineering checks."""
+
+    schema_version: Literal["1"] = "1"
+    build_authorized: Literal[False] = False
+    checks_required: Literal[True] = True
+    status: Literal["DRAFT", "PLAN", "APPLIED", "FAIL", "ERROR"]
+    project_id: Identifier
+    run_directory: NonEmptyText
+    board: RepositoryPath | None = None
+    manifest: RepositoryPath | None = None
+    board_sha256: Digest | None = None
+    manifest_sha256: Digest | None = None
+    draft_map: str | None = None
+    locked_map: str | None = None
+    model_sha256: Mapping[RepositoryPath, Digest] = Field(default_factory=dict)
+    board_diff: str = ""
+    manifest_diff: str = ""
+    review_notice: NonEmptyText = (
+        "A mapped path does not verify package identity, dimensions, orientation, "
+        "offset or enclosure fit; inspect the generated geometry in KiCad."
+    )
+    next_commands: tuple[NonEmptyText, ...] = ()
+    error: str | None = None
+class PurchasingSchemaModel(StrictModel):
+    schema_version: Literal["1"] = "1"
+
+    @field_validator("schema_version", mode="before")
+    @classmethod
+    def exact_schema_version(cls, value: str) -> str:
+        if type(value) is not str or value != "1":
+            raise ValueError("Unsupported purchasing schema version")
+        return value
+
+
+class PurchasingPreferences(PurchasingSchemaModel):
+    """User-selected quantities and exact supplier IDs; no sourcing authority."""
+
+    boards: PositiveCount = 1
+    spare_percent: Annotated[int, Field(ge=0, le=100)] = 0
+    spare_minimum: NonNegativeCount = 0
+    digikey_skus: Mapping[Identifier, Annotated[str, StringConstraints(min_length=1)]] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def exact_supplier_identifiers(self) -> PurchasingPreferences:
+        for identifier in self.digikey_skus.values():
+            if identifier != identifier.strip() or any(
+                ord(character) < 32 or ord(character) == 127 for character in identifier
+            ):
+                raise ValueError("DigiKey identifiers must be exact text without padding or control characters")
+        return self
+
+
+class PurchasingComponent(StrictModel):
+    reference: Identifier
+    value: str
+    footprint: str
+    part_id: str | None = None
+    dnp: bool = False
+    exclude_from_bom: bool = False
+
+
+class PurchasingLine(StrictModel):
+    part_id: Identifier
+    revision: Identifier
+    manufacturer: NonEmptyText
+    mpn: NonEmptyText
+    footprint: NonEmptyText
+    references: tuple[Identifier, ...]
+    per_board: PositiveCount
+    required: PositiveCount
+    spares: NonNegativeCount
+    quantity: PositiveCount
+    order_number: NonEmptyText
+    order_number_kind: Literal["MPN", "DigiKey"]
+    search_url: NonEmptyText
+
+
+class PurchasingFinding(StrictModel):
+    code: Identifier
+    references: tuple[Identifier, ...] = ()
+    message: NonEmptyText
+    action: NonEmptyText
+
+
+class PurchasingPlan(PurchasingSchemaModel):
+    """Metadata readiness for human ordering review, never electrical approval."""
+
+    schema_version: Literal["1"] = "1"
+    status: Literal["NEEDS_PARTS", "READY_FOR_ORDER_REVIEW"]
+    preferences: PurchasingPreferences
+    components: tuple[PurchasingComponent, ...]
+    lines: tuple[PurchasingLine, ...]
+    findings: tuple[PurchasingFinding, ...]
+    excluded_references: tuple[Identifier, ...] = ()
+    purchase_authorized: Literal[False] = False
+    build_authorized: Literal[False] = False
+
+
+class DigiKeyHandoffQuantity(StrictModel):
+    quantity: PositiveCount
+
+
+class DigiKeyHandoffPart(StrictModel):
+    requested_part_number: NonEmptyText = Field(alias="requestedPartNumber")
+    quantities: Annotated[tuple[DigiKeyHandoffQuantity, ...], Field(min_length=1)]
+    customer_reference: str = Field(alias="customerReference")
+    notes: str
+
+
+class DigiKeyHandoffPayload(RootModel[tuple[DigiKeyHandoffPart, ...]]):
+    """DigiKey's third-party API accepts a root array of order lines."""
+
+    model_config = ConfigDict(strict=True, frozen=True)
+
+
+class DigiKeyHandoffUrl(RootModel[str]):
+    """DigiKey returns a JSON string, validated as an allowed URL by the adapter."""
+
+    model_config = ConfigDict(strict=True, frozen=True)
+
+
+class DigiKeyHandoffReply(StrictModel):
+    single_use_url: Annotated[
+        str, StringConstraints(pattern=r"^https://www\.digikey\.com/short/[a-z0-9]{7,8}$"),
+    ]
+
+
+class DigiKeyHandoffResult(StrictModel):
+    status: Literal["READY", "BLOCKED", "ERROR"]
+    single_use_url: str | None = None
+    issues: tuple[NonEmptyText, ...] = ()
+    purchase_authorized: Literal[False] = False
+
+
+class PurchasingReport(PurchasingSchemaModel):
+    """Source-bound local parts assistant receipt."""
+
+    schema_version: Literal["1"] = "1"
+    lane: Literal["PARTS_TO_ORDER"] = "PARTS_TO_ORDER"
+    project_id: Identifier
+    status: Literal["BLOCKED", "NEEDS_PARTS", "READY_FOR_ORDER_REVIEW"]
+    purchase_authorized: Literal[False] = False
+    build_authorized: Literal[False] = False
+    plan: PurchasingPlan | None = None
+    source_hashes: Mapping[RepositoryPath, Digest] = Field(default_factory=dict)
+    input_hashes: Mapping[RepositoryPath, Digest] = Field(default_factory=dict)
+    netlist_sha256: Digest | None = None
+    native_status: Literal["PASS", "FAIL"] | None = None
+    selected_runner: Literal["local", "container"] | None = None
+    issues: tuple[NonEmptyText, ...] = ()
+    next_actions: tuple[NonEmptyText, ...] = ()
+    receipt_dir: str
+    artifacts: tuple[str, ...] = ()
+    evidence: ContractCoachReport | None = None
+
+
+class McpPurchasingPreferencesResult(StrictModel):
+    schema_version: Literal["1"] = "1"
+    build_authorized: Literal[False] = False
+    purchase_authorized: Literal[False] = False
+    status: Literal["CREATED", "UPDATED"]
+    project_id: Identifier
+    path: RepositoryPath
+    before_sha256: Digest | None = None
+    after_sha256: Digest
+    readback_sha256: Digest
+    preferences: PurchasingPreferences
+
+
+SurfaceAlignment = Literal["aligned", "partial", "cli_only", "mcp_only"]
+
+
+class ToolCliSnapshot(StrictModel):
+    module: NonEmptyText
+    commands: tuple[NonEmptyText, ...] = ()
+    options: tuple[NonEmptyText, ...] = ()
+
+
+class ToolMcpSnapshot(StrictModel):
+    name: Identifier
+    parameters: tuple[Identifier, ...] = ()
+
+
+class ToolSurfaceMapping(StrictModel):
+    id: Identifier
+    cli: tuple[NonEmptyText, ...] = ()
+    mcp: tuple[Identifier, ...] = ()
+    alignment: SurfaceAlignment
+    reason: NonEmptyText
+    scope: Literal["core", "administration", "adapter"]
+    gaps: tuple[NonEmptyText, ...] = ()
+    constraints: tuple[NonEmptyText, ...] = ()
+    exception: NonEmptyText | None = None
+    parity_tests: tuple[NonEmptyText, ...] = ()
+
+
+class ToolSurfacesCatalog(StrictModel):
+    schema_version: Literal["2"] = "2"
+    cli: tuple[ToolCliSnapshot, ...]
+    mcp: tuple[ToolMcpSnapshot, ...]
+    capabilities: tuple[ToolSurfaceMapping, ...]
+
+
+class ToolSurfaceReport(StrictModel):
+    schema_version: Literal["2"] = "2"
+    build_authorized: Literal[False] = False
+    status: Literal["PASS", "FAIL"]
+    coverage_status: Literal["PASS", "FAIL"]
+    parity_status: Literal["PASS", "FAIL"]
+    behavior_verification: Literal["NOT_RUN"] = "NOT_RUN"
+    mcp_verification: Literal["LIVE", "STATIC_ONLY", "UNAVAILABLE"]
+    cli: tuple[ToolCliSnapshot, ...]
+    mcp: tuple[ToolMcpSnapshot, ...]
+    capabilities: tuple[ToolSurfaceMapping, ...]
+    issues: tuple[PolicyIssue, ...] = ()
+    notes: tuple[NonEmptyText, ...] = ()
+
+
+class McpNativeScopeReport(StrictModel):
+    schema_version: Literal["1"] = "1"
+    build_authorized: Literal[False] = False
+    status: Literal["PASS", "FAIL"]
+    run_directory: NonEmptyText
+    report: CheckAllSummary
+
+
+# Electrical analysis uses explicit engineering limits and model-review bindings.
+FiniteMeasure = Annotated[float, Field(allow_inf_nan=False)]
+NonNegativeMeasure = Annotated[float, Field(ge=0, allow_inf_nan=False)]
+ElectricalPositive = Annotated[float, Field(gt=0, allow_inf_nan=False)]
+SpiceExpression = Annotated[
+    str, StringConstraints(pattern=r"^[A-Za-z0-9_().,+*/ ^-]+$", min_length=1),
+]
+
+
+class AnalysisPending(StrictModel):
+    """An unanswered engineering question; this can never supply passing evidence."""
+
+    mode: Literal["pending"] = "pending"
+    reason: NonEmptyText
+
+
+class AnalysisNotApplicable(StrictModel):
+    mode: Literal["not_applicable"]
+    reason: NonEmptyText
+
+
+class GroundDomain(StrictModel):
+    net: NetName
+    pins: Annotated[tuple[Reference, ...], Field(min_length=1)]
+
+
+class GroundingAnalysis(StrictModel):
+    mode: Literal["required"] = "required"
+    basis: NonEmptyText
+    domains: Annotated[tuple[GroundDomain, ...], Field(min_length=1)]
+    exempt_components: Mapping[Identifier, NonEmptyText] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def distinct_domains(self) -> GroundingAnalysis:
+        names = [domain.net for domain in self.domains]
+        pins = [pin for domain in self.domains for pin in domain.pins]
+        if len(set(names)) != len(names) or len(set(pins)) != len(pins):
+            raise ValueError("Ground domains and their pins must be unique")
+        if any(name.startswith("/") for name in names):
+            raise ValueError("Use net names without the leading slash, as in the native contract")
+        return self
+
+
+class PowerLoad(StrictModel):
+    id: Identifier
+    basis: NonEmptyText
+    steady_a: NonNegativeMeasure
+    startup_a: NonNegativeMeasure
+    startup_s: NonNegativeMeasure
+
+
+class PowerRail(StrictModel):
+    id: Identifier
+    basis: NonEmptyText
+    voltage_v: ElectricalPositive
+    continuous_limit_a: ElectricalPositive
+    peak_limit_a: ElectricalPositive
+    peak_duration_limit_s: ElectricalPositive
+    loads: Annotated[tuple[PowerLoad, ...], Field(min_length=1)]
+
+    @model_validator(mode="after")
+    def unique_loads(self) -> PowerRail:
+        if len({load.id for load in self.loads}) != len(self.loads):
+            raise ValueError("Load IDs must be unique within a rail")
+        if self.peak_limit_a < self.continuous_limit_a:
+            raise ValueError("Peak rating cannot be below continuous rating")
+        return self
+
+
+class SimulationMeasure(StrictModel):
+    id: Identifier
+    expression: SpiceExpression
+    statistic: Literal["min", "max", "avg", "rms", "pp"]
+    unit: Literal["V", "A", "W", "dB", "rad", "ratio"]
+    start: NonNegativeMeasure
+    stop: ElectricalPositive
+    minimum: FiniteMeasure | None = None
+    maximum: FiniteMeasure | None = None
+
+    @model_validator(mode="after")
+    def bounded_window(self) -> SimulationMeasure:
+        if self.stop <= self.start:
+            raise ValueError("Measurement stop must exceed start")
+        if self.minimum is None and self.maximum is None:
+            raise ValueError("A measurement needs at least one acceptance limit")
+        if self.minimum is not None and self.maximum is not None and self.minimum > self.maximum:
+            raise ValueError("Measurement minimum exceeds maximum")
+        return self
+
+
+class SimulationModel(StrictModel):
+    id: Identifier
+    basis: NonEmptyText
+    deck: RepositoryPath
+    # All paths are repository-relative. Includes must be explicitly inventoried.
+    model_sha256: Mapping[RepositoryPath, Digest]
+    source_sha256: Mapping[RepositoryPath, Digest]
+    measures: Annotated[tuple[SimulationMeasure, ...], Field(min_length=1)]
+
+    @model_validator(mode="after")
+    def complete_model_binding(self) -> SimulationModel:
+        if self.deck not in self.model_sha256 or not self.source_sha256:
+            raise ValueError("Bind the deck, all model dependencies, and reviewed design sources")
+        if len({item.id for item in self.measures}) != len(self.measures):
+            raise ValueError("Measurement IDs must be unique")
+        return self
+
+
+class TransientAnalysis(SimulationModel):
+    analysis: Literal["tran"] = "tran"
+    step_s: ElectricalPositive
+    stop_s: ElectricalPositive
+
+    @model_validator(mode="after")
+    def transient_windows(self) -> TransientAnalysis:
+        if self.step_s >= self.stop_s:
+            raise ValueError("Transient step must be smaller than stop")
+        for measure in self.measures:
+            if measure.stop > self.stop_s or measure.stop - measure.start < self.step_s:
+                raise ValueError("Transient measurement window is outside the run or below its step")
+        return self
+
+
+class FrequencyAnalysis(SimulationModel):
+    analysis: Literal["ac"] = "ac"
+    start_hz: ElectricalPositive
+    stop_hz: ElectricalPositive
+    points_per_decade: Annotated[int, Field(ge=10, le=10000)] = 100
+
+    @model_validator(mode="after")
+    def frequency_windows(self) -> FrequencyAnalysis:
+        if self.stop_hz <= self.start_hz:
+            raise ValueError("Frequency stop must exceed start")
+        for measure in self.measures:
+            if measure.start < self.start_hz or measure.stop > self.stop_hz:
+                raise ValueError("Frequency measurement window is outside the sweep")
+        return self
+
+
+class PowerAnalysis(StrictModel):
+    mode: Literal["required"] = "required"
+    rails: Annotated[tuple[PowerRail, ...], Field(min_length=1)]
+    startup: Annotated[tuple[TransientAnalysis, ...], Field(min_length=1)]
+    steady_state: Annotated[tuple[TransientAnalysis, ...], Field(min_length=1)]
+
+    @model_validator(mode="after")
+    def unique_rails(self) -> PowerAnalysis:
+        if len({rail.id for rail in self.rails}) != len(self.rails):
+            raise ValueError("Power rail IDs must be unique")
+        for case in self.startup:
+            if not any(m.unit == "A" and m.statistic == "max" for m in case.measures):
+                raise ValueError("Every startup case needs a peak current limit")
+        for case in self.steady_state:
+            if not all(any(m.unit == unit and m.statistic == "avg" for m in case.measures)
+                       for unit in ("A", "W")):
+                raise ValueError("Every steady-state case needs average current and power limits")
+        return self
+
+
+class HighFrequencyAnalysis(StrictModel):
+    mode: Literal["required"] = "required"
+    basis: NonEmptyText
+    frequency_hz: ElectricalPositive
+    rise_time_s: ElectricalPositive
+    sweeps: Annotated[tuple[FrequencyAnalysis, ...], Field(min_length=1)]
+    waveforms: Annotated[tuple[TransientAnalysis, ...], Field(min_length=1)]
+
+
+    @model_validator(mode="after")
+    def waveform_resolution(self) -> HighFrequencyAnalysis:
+        for case in self.waveforms:
+            if case.step_s > min(self.rise_time_s / 10, 1 / (20 * self.frequency_hz)):
+                raise ValueError("Waveform step needs at least 10 samples per rise and 20 per cycle")
+            if case.stop_s < 2 / self.frequency_hz:
+                raise ValueError("Waveform run must cover at least two nominal cycles")
+        return self
+
+
+class ElectricalAnalysisContract(StrictModel):
+    schema_version: Literal["1"] = "1"
+    project_id: Identifier
+    ngspice_version: NonEmptyText
+    grounding: Annotated[GroundingAnalysis | AnalysisNotApplicable | AnalysisPending, Field(discriminator="mode")]
+    power: Annotated[PowerAnalysis | AnalysisNotApplicable | AnalysisPending, Field(discriminator="mode")]
+    high_frequency: Annotated[HighFrequencyAnalysis | AnalysisNotApplicable | AnalysisPending, Field(discriminator="mode")]
+
+    @model_validator(mode="after")
+    def unique_cases(self) -> ElectricalAnalysisContract:
+        cases: list[SimulationModel] = []
+        if isinstance(self.power, PowerAnalysis):
+            cases.extend((*self.power.startup, *self.power.steady_state))
+        if isinstance(self.high_frequency, HighFrequencyAnalysis):
+            cases.extend((*self.high_frequency.sweeps, *self.high_frequency.waveforms))
+        if len({case.id.casefold() for case in cases}) != len(cases):
+            raise ValueError("Simulation IDs must be unique across all lanes")
+        return self
+
+
+class ElectricalCheck(StrictModel):
+    id: NonEmptyText
+    status: Literal["PASS", "FAIL", "NOT_RUN", "NOT_APPLICABLE", "NOT_CONFIGURED"]
+    detail: NonEmptyText
+    observed: FiniteMeasure | None = None
+    unit: str | None = None
+
+
+class ElectricalAnalysisReport(StrictModel):
+    schema_version: Literal["1"] = "1"
+    lane: Literal["ELECTRICAL_ANALYSIS"] = "ELECTRICAL_ANALYSIS"
+    build_authorized: Literal[False] = False
+    project_id: Identifier
+    status: Literal["PASS", "FAIL", "NOT_CONFIGURED"]
+    run_directory: str = ""
+    input_sha256: Mapping[RepositoryPath, Digest] = Field(default_factory=dict)
+    artifacts_sha256: Mapping[RepositoryPath, Digest] = Field(default_factory=dict)
+    commands: Mapping[str, CommandEvidence] = Field(default_factory=dict)
+    checks: tuple[ElectricalCheck, ...]
+    limits: tuple[str, ...] = (
+        "Grounding covers declared schematic pins; copper return paths and physical bonds need review.",
+        "Simulation results apply only to the reviewed models, cases, timestep and frequency grid.",
+        "Power budgets use simultaneous worst-case loads and engineer-supplied derated path ratings.",
+        "Physical startup, thermal behavior, RF/EMC and manufacturing acceptance remain unverified.",
+    )
+
+
+class ElectricalSuiteReport(StrictModel):
+    schema_version: Literal["1"] = "1"
+    build_authorized: Literal[False] = False
+    status: Literal["PASS", "FAIL"]
+    projects: tuple[ElectricalAnalysisReport, ...]
+
+
+class ElectricalSetupReport(StrictModel):
+    schema_version: Literal["1"] = "1"
+    build_authorized: Literal[False] = False
+    status: Literal["CREATED"] = "CREATED"
+    project_id: Identifier
+    contract: RepositoryPath
+    changed: tuple[RepositoryPath, ...]
+    next_actions: tuple[NonEmptyText, ...]
+
+
+class ElectricalInputInventory(StrictModel):
+    schema_version: Literal["1"] = "1"
+    status: Literal["UNREVIEWED"] = "UNREVIEWED"
+    build_authorized: Literal[False] = False
+    project_id: Identifier
+    run_directory: NonEmptyText
+    source_sha256: Mapping[RepositoryPath, Digest]
+    model_sha256: Mapping[RepositoryPath, Digest]
+    next_actions: tuple[NonEmptyText, ...]
+
+
+class PartCadComponent(StrictModel):
+    reference: Identifier
+    symbol_id: str
+    value: str
+    footprint: str
+    part_id: str | None = None
+    source_path: RepositoryPath
+    uuid: NonEmptyText
+    dnp: bool = False
+    exclude_from_bom: bool = False
+
+
+class PartSourceEdit(StrictModel):
+    path: RepositoryPath
+    before: str | None
+    after: str
+
+
+class PartCadChanges(StrictModel):
+    edits: tuple[PartSourceEdit, ...] = ()
+    pending_references: tuple[Identifier, ...] = ()
+    issues: tuple[NonEmptyText, ...] = ()
+
+
+class PartSelectionAssignment(StrictModel):
+    reference: Identifier
+    part_id: Identifier
+
+
+class PartSelectionMap(PurchasingSchemaModel):
+    project_id: Identifier
+    preconditions: Mapping[RepositoryPath, Digest | None]
+    assignments: tuple[PartSelectionAssignment, ...] = ()
+    locked: bool = False
+    after_hashes: Mapping[RepositoryPath, Digest] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def unique_assignments(self) -> PartSelectionMap:
+        references = [item.reference for item in self.assignments]
+        if len(references) != len(set(references)):
+            raise ValueError("Part selection repeats a component reference")
+        return self
+
+
+class PartPickerItem(StrictModel):
+    component: PartCadComponent
+    choice_ids: tuple[Identifier, ...] = ()
+    issues: tuple[NonEmptyText, ...] = ()
+
+
+class PartPickerReport(PurchasingSchemaModel):
+    lane: Literal["PART_PICKER"] = "PART_PICKER"
+    status: Literal["READY", "NEEDS_CATALOG", "BLOCKED"]
+    project_id: Identifier
+    items: tuple[PartPickerItem, ...] = ()
+    choices: tuple[PartRecord, ...] = ()
+    selection_template: PartSelectionMap | None = None
+    issues: tuple[NonEmptyText, ...] = ()
+    receipt_dir: str
+    evidence: ContractCoachReport | None = None
+    purchase_authorized: Literal[False] = False
+    build_authorized: Literal[False] = False
+
+
+class PartSelectionReport(PurchasingSchemaModel):
+    lane: Literal["PART_SELECTION"] = "PART_SELECTION"
+    status: Literal["PLAN", "APPLIED", "APPLIED_NEEDS_PCB_UPDATE", "BLOCKED"]
+    project_id: Identifier
+    edits: tuple[PartSourceEdit, ...] = ()
+    pending_references: tuple[Identifier, ...] = ()
+    locked_map: str | None = None
+    issues: tuple[NonEmptyText, ...] = ()
+    next_commands: tuple[NonEmptyText, ...] = ()
+    receipt_dir: str
+    purchase_authorized: Literal[False] = False
+    build_authorized: Literal[False] = False
+
+
+class AutoCadItem(StrictModel):
+    reference: NonEmptyText
+    footprint: str
+    status: Literal["READY", "ALREADY_PRESENT", "NEEDS_REVIEW"]
+    detail: NonEmptyText
+
+
+class AutoCadPlan(StrictModel):
+    schema_version: Literal["1"] = "1"
+    project_id: Identifier
+    preconditions: dict[RepositoryPath, Digest | None]
+    after_hashes: dict[RepositoryPath, Digest]
+
+
+class AutoCadAsset(StrictModel):
+    source: NonEmptyText
+    sha256: Digest
+    destination: RepositoryPath
+
+
+class AutoCadProvenance(StrictModel):
+    schema_version: Literal["1"] = "1"
+    footprint: NonEmptyText
+    source: NonEmptyText
+    source_sha256: Digest
+    models: tuple[AutoCadAsset, ...]
+    alignment_basis: Literal["matching_pad_geometry_and_authored_model_transforms"] = (
+        "matching_pad_geometry_and_authored_model_transforms"
+    )
+    physical_fit_verified: Literal[False] = False
+
+
+class AutoCadReport(StrictModel):
+    schema_version: Literal["1"] = "1"
+    project_id: Identifier
+    status: Literal["PLAN", "APPLIED", "NEEDS_REVIEW", "BLOCKED"]
+    items: tuple[AutoCadItem, ...] = ()
+    files: tuple[RepositoryPath, ...] = ()
+    issues: tuple[str, ...] = ()
+    plan_path: str | None = None
+    receipt_directory: str
+    diff: str = ""
+    build_authorized: Literal[False] = False
+
+
+class SupplierHandoffPlan(StrictModel):
+    """Reviewed, source-bound BOM payload for one explicit supplier submission."""
+
+    schema_version: Literal["1"] = "1"
+    supplier: Literal["digikey"] = "digikey"
+    project_id: Identifier
+    parts_report: RepositoryPath
+    report_sha256: Digest
+    payload: DigiKeyHandoffPayload
+    payload_sha256: Digest
+    source_hashes: Mapping[RepositoryPath, Digest]
+    preconditions: Mapping[RepositoryPath, Digest | None]
+    purchase_authorized: Literal[False] = False
+    build_authorized: Literal[False] = False
+
+
+class SupplierHandoffReport(StrictModel):
+    schema_version: Literal["1"] = "1"
+    status: Literal["PREPARED", "SENT", "UNCERTAIN", "BLOCKED"]
+    project_id: Identifier
+    supplier: Literal["digikey"] = "digikey"
+    handoff: RepositoryPath
+    handoff_sha256: Digest
+    payload_sha256: Digest
+    attempt_receipt: RepositoryPath | None = None
+    single_use_url: Annotated[
+        str, StringConstraints(pattern=r"^https://www\.digikey\.com/short/[a-z0-9]{7,8}$"),
+    ] | None = None
+    issues: tuple[NonEmptyText, ...] = ()
+    purchase_authorized: Literal[False] = False
+    build_authorized: Literal[False] = False
+
+
+ForeignFormat = Literal["auto", "pads", "altium", "eagle", "cadstar", "fabmaster", "pcad", "solidworks"]
+
+
+class ForeignPcbReport(StrictModel):
+    """Conversion evidence is intentionally weaker than an accepted native design."""
+
+    schema_version: Literal["1"] = "1"
+    status: Literal["PASS", "FAIL"]
+    review_required: Literal[True] = True
+    build_authorized: Literal[False] = False
+    project_id: str
+    toolchain_id: str
+    input_format: str
+    source_file: str
+    source_sha256: Digest | None = None
+    run_directory: str
+    runner: Literal["none", "local", "container"] = "none"
+    commands: Mapping[Identifier, CommandEvidence] = Field(default_factory=dict)
+    native_summary: KiCadForeignImportSummary | None = None
+    board_sha256: Digest | None = None
+    import_preview: ProjectImportReport | None = None
+    next_command: str | None = None
+    next_actions: tuple[str, ...] = ()
+    error: str | None = None
+
+    @model_validator(mode="after")
+    def successful_selection_is_valid(self) -> ForeignPcbReport:
+        if self.status == "PASS" and (
+            re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", self.project_id) is None
+            or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", self.toolchain_id) is None
+            or self.input_format not in ForeignFormat.__args__
+        ):
+            raise ValueError("Successful conversion needs valid project, toolchain and format IDs")
+        return self
+
+
+class ElectricalChartCase(StrictModel):
+    """One chart and numeric export derived from a retained simulation case."""
+
+    id: Identifier
+    status: Literal["PASS", "SKIPPED", "FAIL"]
+    samples: Annotated[int, Field(ge=0)] = 0
+    waveform_sha256: Digest | None = None
+    csv: RepositoryPath | None = None
+    png: RepositoryPath | None = None
+    svg: RepositoryPath | None = None
+    detail: NonEmptyText
+
+
+class ElectricalChartsReport(StrictModel):
+    """Chart output remains secondary evidence bound to an analysis receipt."""
+
+    schema_version: Literal["1"] = "1"
+    lane: Literal["ELECTRICAL_CHARTS"] = "ELECTRICAL_CHARTS"
+    build_authorized: Literal[False] = False
+    project_id: Identifier
+    status: Literal["PASS", "PARTIAL", "FAIL"]
+    source_analysis_status: Literal["PASS", "FAIL", "NOT_CONFIGURED"]
+    source_receipt: NonEmptyText
+    source_report_sha256: Digest
+    run_directory: NonEmptyText
+    cases: tuple[ElectricalChartCase, ...]
+    grounding_csv: RepositoryPath | None = None
+    power_csv: RepositoryPath | None = None
+    artifacts_sha256: Mapping[RepositoryPath, Digest] = Field(default_factory=dict)
+    next_actions: tuple[NonEmptyText, ...] = ()
+
+
+class ElectricalChartsSuiteReport(StrictModel):
+    schema_version: Literal["1"] = "1"
+    lane: Literal["ELECTRICAL_CHARTS_SUITE"] = "ELECTRICAL_CHARTS_SUITE"
+    status: Literal["PASS", "PARTIAL", "FAIL"]
+    run_directory: NonEmptyText
+    reports: tuple[ElectricalChartsReport, ...]
+
+
+class CadProviderIdentity(StrictModel):
+    supplier_id: Annotated[str, StringConstraints(pattern=r"^C[1-9][0-9]*$")]
+    component_supplier_id: Annotated[str, StringConstraints(pattern=r"^C[1-9][0-9]*$")]
+    manufacturer: NonEmptyText
+    mpn: NonEmptyText
+    package: NonEmptyText
+    symbol_name: NonEmptyText
+    model_uuid: Annotated[str, StringConstraints(pattern=r"^[a-f0-9]{32}$")]
+    model_title: str = ""
+
+
+class CadSourceFile(StrictModel):
+    path: RepositoryPath
+    sha256: Digest
+    source_url: str | None = None
+
+
+class CadSourceBundle(StrictModel):
+    schema_version: Literal["1"] = "1"
+    provider: Literal["easyeda"] = "easyeda"
+    supplier_id: Annotated[str, StringConstraints(pattern=r"^C[1-9][0-9]*$")]
+    manufacturer: NonEmptyText
+    mpn: NonEmptyText
+    package: NonEmptyText
+    symbol_file: RepositoryPath
+    symbol_name: NonEmptyText
+    footprint_file: RepositoryPath
+    footprint_name: NonEmptyText
+    model_file: RepositoryPath
+    files: tuple[CadSourceFile, ...]
+    source_url: NonEmptyText
+    source_sha256: Digest
+    retrieved_at: NonEmptyText
+    converter_version: Literal["1.0.1"] = "1.0.1"
+    converter_sha256: Digest | None = None
+    issues: tuple[NonEmptyText, ...] = ()
+
+
+class CadSourceReport(StrictModel):
+    status: Literal["READY", "BLOCKED"]
+    supplier_id: str
+    bundle_directory: str | None = None
+    bundle: CadSourceBundle | None = None
+    cache_hit: bool = False
+    issues: tuple[NonEmptyText, ...] = ()
+    receipt_directory: str
+
+
+class CadStepReport(StrictModel):
+    schema_version: Literal["1"] = "1"
+    status: Literal["REVIEW", "BLOCKED"]
+    project_id: Identifier
+    supplier_id: str
+    source_bundle_sha256: Digest | None = None
+    source_step_sha256: Digest | None = None
+    kicad_version: str | None = None
+    image: str | None = None
+    artifacts_sha256: Mapping[RepositoryPath, Digest] = Field(default_factory=dict)
+    commands: Mapping[str, CommandEvidence] = Field(default_factory=dict)
+    issues: tuple[NonEmptyText, ...] = ()
+    receipt_directory: str
+    alignment_verified: Literal[False] = False
+    physical_fit_verified: Literal[False] = False
+
+
+class CadBundleCheck(StrictModel):
+    status: Literal["READY", "BLOCKED"]
+    symbol_pins: tuple[str, ...] = ()
+    footprint_pads: tuple[str, ...] = ()
+    model_references: tuple[str, ...] = ()
+    issues: tuple[NonEmptyText, ...] = ()
+    physical_fit_verified: Literal[False] = False
+
+
+class CadImportPlan(StrictModel):
+    schema_version: Literal["1"] = "1"
+    project_id: Identifier
+    bundle_dir: str
+    bundle_sha256: Digest
+    preconditions: Mapping[RepositoryPath, Digest | None]
+    after_hashes: Mapping[RepositoryPath, Digest]
+
+
+class CadImportReport(StrictModel):
+    status: Literal["PLAN", "APPLIED", "BLOCKED"]
+    project_id: Identifier
+    symbol_id: str | None = None
+    footprint_id: str | None = None
+    files: tuple[RepositoryPath, ...] = ()
+    issues: tuple[NonEmptyText, ...] = ()
+    check: CadBundleCheck | None = None
+    plan_path: str | None = None
+    receipt_directory: str
+    diff: str = ""
+    build_authorized: Literal[False] = False
+
+
+class CadSourcingReview(StrictModel):
+    source: CadSourceReport
+    import_plan: CadImportReport | None = None
+    review_id: str

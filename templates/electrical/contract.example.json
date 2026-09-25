@@ -1,0 +1,186 @@
+{
+  "schema_version": "1",
+  "project_id": "example-board",
+  "ngspice_version": "47",
+  "grounding": {
+    "mode": "required",
+    "basis": "SYNTHETIC EXAMPLE. Replace all pins/domains from independent board requirements.",
+    "domains": [
+      {
+        "net": "GND",
+        "pins": [
+          "R1.2",
+          "R2.2"
+        ]
+      }
+    ],
+    "exempt_components": {}
+  },
+  "power": {
+    "mode": "required",
+    "rails": [
+      {
+        "id": "supply",
+        "basis": "Synthetic derated supply and path limits",
+        "voltage_v": 5.0,
+        "continuous_limit_a": 0.1,
+        "peak_limit_a": 6.0,
+        "peak_duration_limit_s": 0.002,
+        "loads": [
+          {
+            "id": "load",
+            "basis": "Synthetic worst case",
+            "steady_a": 0.05,
+            "startup_a": 5.0,
+            "startup_s": 0.001
+          }
+        ]
+      }
+    ],
+    "startup": [
+      {
+        "id": "startup",
+        "basis": "SYNTHETIC EXAMPLE ONLY. Synthetic 5 V source ramp into 100 uF through 1 ohm",
+        "deck": "projects/example-board/tests/electrical/startup.cir",
+        "model_sha256": {
+          "projects/example-board/tests/electrical/startup.cir": "0000000000000000000000000000000000000000000000000000000000000000"
+        },
+        "source_sha256": {
+          "projects/example-board/kicad/example-board.kicad_pro": "0000000000000000000000000000000000000000000000000000000000000000",
+          "projects/example-board/kicad/example-board.kicad_sch": "0000000000000000000000000000000000000000000000000000000000000000",
+          "projects/example-board/kicad/example-board.kicad_pcb": "0000000000000000000000000000000000000000000000000000000000000000"
+        },
+        "measures": [
+          {
+            "id": "peak-current",
+            "expression": "-i(vrail)",
+            "statistic": "max",
+            "unit": "A",
+            "start": 0.0,
+            "stop": 0.001,
+            "maximum": 5.1
+          }
+        ],
+        "analysis": "tran",
+        "step_s": 1e-6,
+        "stop_s": 0.005
+      }
+    ],
+    "steady_state": [
+      {
+        "id": "steady-state",
+        "basis": "SYNTHETIC EXAMPLE ONLY. Synthetic 5 V source ramp into 100 uF through 1 ohm",
+        "deck": "projects/example-board/tests/electrical/startup.cir",
+        "model_sha256": {
+          "projects/example-board/tests/electrical/startup.cir": "0000000000000000000000000000000000000000000000000000000000000000"
+        },
+        "source_sha256": {
+          "projects/example-board/kicad/example-board.kicad_pro": "0000000000000000000000000000000000000000000000000000000000000000",
+          "projects/example-board/kicad/example-board.kicad_sch": "0000000000000000000000000000000000000000000000000000000000000000",
+          "projects/example-board/kicad/example-board.kicad_pcb": "0000000000000000000000000000000000000000000000000000000000000000"
+        },
+        "measures": [
+          {
+            "id": "average-current",
+            "expression": "-i(vrail)",
+            "statistic": "avg",
+            "unit": "A",
+            "start": 0.004,
+            "stop": 0.005,
+            "minimum": 0.049,
+            "maximum": 0.051
+          },
+          {
+            "id": "average-power",
+            "expression": "-v(supply)*i(vrail)",
+            "statistic": "avg",
+            "unit": "W",
+            "start": 0.004,
+            "stop": 0.005,
+            "minimum": 0.24,
+            "maximum": 0.26
+          },
+          {
+            "id": "rail-minimum",
+            "expression": "v(out)",
+            "statistic": "min",
+            "unit": "V",
+            "start": 0.004,
+            "stop": 0.005,
+            "minimum": 4.9
+          }
+        ],
+        "analysis": "tran",
+        "step_s": 1e-6,
+        "stop_s": 0.005
+      }
+    ]
+  },
+  "high_frequency": {
+    "mode": "required",
+    "basis": "Synthetic model only",
+    "frequency_hz": 1000000.0,
+    "rise_time_s": 1e-9,
+    "sweeps": [
+      {
+        "id": "passband",
+        "basis": "SYNTHETIC EXAMPLE ONLY. Synthetic 50 ohm/10 pF first-order low-pass",
+        "deck": "projects/example-board/tests/electrical/signal.cir",
+        "model_sha256": {
+          "projects/example-board/tests/electrical/signal.cir": "0000000000000000000000000000000000000000000000000000000000000000"
+        },
+        "source_sha256": {
+          "projects/example-board/kicad/example-board.kicad_pro": "0000000000000000000000000000000000000000000000000000000000000000",
+          "projects/example-board/kicad/example-board.kicad_sch": "0000000000000000000000000000000000000000000000000000000000000000",
+          "projects/example-board/kicad/example-board.kicad_pcb": "0000000000000000000000000000000000000000000000000000000000000000"
+        },
+        "measures": [
+          {
+            "id": "gain",
+            "expression": "db(v(out)/v(in))",
+            "statistic": "min",
+            "unit": "dB",
+            "start": 1000.0,
+            "stop": 1000000.0,
+            "minimum": -0.1,
+            "maximum": 0.0
+          }
+        ],
+        "analysis": "ac",
+        "start_hz": 1000.0,
+        "stop_hz": 1000000000.0,
+        "points_per_decade": 100
+      }
+    ],
+    "waveforms": [
+      {
+        "id": "edges",
+        "basis": "SYNTHETIC EXAMPLE ONLY. Synthetic 1 MHz source with 1 ns rise and fall times",
+        "deck": "projects/example-board/tests/electrical/signal.cir",
+        "model_sha256": {
+          "projects/example-board/tests/electrical/signal.cir": "0000000000000000000000000000000000000000000000000000000000000000"
+        },
+        "source_sha256": {
+          "projects/example-board/kicad/example-board.kicad_pro": "0000000000000000000000000000000000000000000000000000000000000000",
+          "projects/example-board/kicad/example-board.kicad_sch": "0000000000000000000000000000000000000000000000000000000000000000",
+          "projects/example-board/kicad/example-board.kicad_pcb": "0000000000000000000000000000000000000000000000000000000000000000"
+        },
+        "measures": [
+          {
+            "id": "overshoot",
+            "expression": "v(out)",
+            "statistic": "max",
+            "unit": "V",
+            "start": 0.0,
+            "stop": 3e-6,
+            "minimum": 0.99,
+            "maximum": 1.01
+          }
+        ],
+        "analysis": "tran",
+        "step_s": 1e-10,
+        "stop_s": 3e-6
+      }
+    ]
+  }
+}

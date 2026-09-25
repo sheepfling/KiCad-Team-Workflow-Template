@@ -32,8 +32,18 @@ to understand what belongs with each board and what is shared.
    island's README is discovered automatically by docs policy. For board images
    and mechanical exchange files, follow the [3D workflow](THREE_D_WORKFLOW.md).
 
+For grounding requirements, startup and steady-state power, and modeled high-frequency
+response, add [electrical analysis](ELECTRICAL_ANALYSIS.md) to the board workflow.
+
 When an import or check fails, follow [diagnose and repair](DIAGNOSTICS.md) for a
 project-local finding, concrete next action and the relevant source of authority.
+
+When choosing components, run `python -B -m tools.parts --project <id> --assist`.
+The [first-part walkthrough](CAD_SOURCING.md) covers exact CAD lookup, paired
+STEP/WRL views and the KiCad update. For a searchable parts checklist and grouped
+BOM, run `python -B -m tools.parts --project <id>` and follow
+[parts to order](PARTS_TO_ORDER.md). Save board quantity and spare preferences once;
+complete reviewed part identities to generate a DigiKey upload file.
 
 No product model or production governance record is needed to start a standalone
 board. Add shared libraries through explicit dependencies. Add a product only when
@@ -51,14 +61,14 @@ company licenses and nested notices are preserved.
 
 Record actual decisions and evidence before changing a project to `production`:
 
-| Decision | Record |
-| --- | --- |
-| Repository and branch controls | Default branch, required checks and hosted enforcement |
-| Engineering ownership | Electrical/mechanical reviewers and integrator |
-| Toolchain and libraries | Approved versions, installer sources, dependencies and owners |
-| Mechanical handoff | Board-local reviewed interface and fit records |
-| Release authority | Approval roles, exact frozen BOM/package location and retention |
-| Recovery and handoff | Tag, artifact hashes, restore procedure and responsible owner |
+| Decision                       | Record                                                          |
+| ------------------------------ | --------------------------------------------------------------- |
+| Repository and branch controls | Default branch, required checks and hosted enforcement          |
+| Engineering ownership          | Electrical/mechanical reviewers and integrator                  |
+| Toolchain and libraries        | Approved versions, installer sources, dependencies and owners   |
+| Mechanical handoff             | Board-local reviewed interface and fit records                  |
+| Release authority              | Approval roles, exact frozen BOM/package location and retention |
+| Recovery and handoff           | Tag, artifact hashes, restore procedure and responsible owner   |
 
 Use the [production profile](ASSURANCE_PROFILES.md), [GitHub governance](GITHUB_GOVERNANCE.md)
 and [release workflow](VERSIONING.md). Do not fill real-world approvals with template

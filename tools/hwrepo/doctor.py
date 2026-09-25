@@ -59,8 +59,11 @@ def doctor(
     cli: str = "kicad-cli",
     project_id: str | None = None,
     runner: NativeRunner = "auto",
+    electrical: bool = False,
+    ngspice: str = "ngspice",
 ) -> TemplateDoctorReport:
     """Inspect prerequisites for the same project runner selected by tools.verify."""
+    native = native or electrical
     resolved = root.resolve()
     checks: list[EnvironmentCheck] = []
     if runner not in {"auto", "local", "container"}:
@@ -213,9 +216,14 @@ def doctor(
             + f"and use --runner local. Then run {next_verify}.",
         ))
 
+    if electrical:
+        from .electrical_doctor import electrical_checks
+
+        checks.extend(electrical_checks(resolved, project_id, ngspice))
+
     failed = tuple(check for check in checks if check.status == "FAIL")
     return TemplateDoctorReport(
-        native_requested=native,
+        native_requested=native, electrical_requested=electrical,
         checks=tuple(checks),
         status="FAIL" if failed else "PASS",
         next_actions=tuple(dict.fromkeys(check.next_action for check in failed)),

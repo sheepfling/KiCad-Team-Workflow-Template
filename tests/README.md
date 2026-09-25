@@ -52,12 +52,12 @@ test directories need `__init__.py` for unittest discovery. Tests must not depen
 hardware, network access or files on an engineer's desktop; native/physical checks
 belong in their separately declared workflow.
 
-| Change | Useful regression coverage |
-| --- | --- |
-| Policy rule | Valid case plus a mutation rejected with the intended reason |
-| Manifest/contract | Strict parse, unknown/wrong fields, path escape and duplicate ID cases |
-| Generator | Meaningful expected values, deterministic ordering, stale/missing/tampered output and invalid-input rejection |
-| Discovery/runner | A new island appears automatically; a failing local test fails its gate |
+| Change            | Useful regression coverage                                                                                    |
+| ----------------- | ------------------------------------------------------------------------------------------------------------- |
+| Policy rule       | Valid case plus a mutation rejected with the intended reason                                                  |
+| Manifest/contract | Strict parse, unknown/wrong fields, path escape and duplicate ID cases                                        |
+| Generator         | Meaningful expected values, deterministic ordering, stale/missing/tampered output and invalid-input rejection |
+| Discovery/runner  | A new island appears automatically; a failing local test fails its gate                                       |
 
 Ruff checks the shared code/tests; strict Pyright checks shared tools. Project Python
 suites execute automatically. New substantial shared services are also discovered by
@@ -66,3 +66,16 @@ the architecture test. See the [scripting standard](../docs/workflow/SCRIPTING_S
 Existing projects can use the [import workflow](../docs/workflow/IMPORT_WORKFLOW.md).
 Temporary imported projects should exercise source and connectivity mutations in
 their own local suites without adding run reports or imported source to the template.
+
+Electrical workflow coverage lives in `test_electrical.py` and
+`test_electrical_setup.py`: declared ground coverage, power limits, source/model
+bindings, simulator failures, pending setup, review-only hash capture, readiness,
+CLI output and hosted gate wiring. Synthetic decks are shared with the
+[standalone examples](../templates/electrical/README.md); tests never establish
+physical grounding, thermal behavior or RF acceptance.
+
+`test_waveform_data.py`, `test_electrical_plot.py` and `test_electrical_charts.py`
+exercise the receipt-to-chart path: strict real/complex waveform parsing,
+measurement overlays, full precision CSV and tamper rejection. Matplotlib is
+an optional runtime extra (`.[charts]`) and part of the development extra so
+the full quality gate can cover the chart renderer.

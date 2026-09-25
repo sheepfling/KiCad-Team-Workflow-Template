@@ -1,0 +1,5 @@
+* Synthetic RC signal demonstration; no PCB parasitic extraction
+Vstim in 0 DC 0 AC 1 PULSE(0 1 0 1n 1n 499n 1u)
+Rline in out 50
+Cload out 0 10p
+.end

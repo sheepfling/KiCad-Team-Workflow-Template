@@ -37,14 +37,14 @@ audit trail without turning a binary bundle into repository history.
 
 ## What remains eligible for review
 
-KiCad source, project-local libraries, Python, Markdown and authored JSON/YAML
-records remain tracked source. Reproducible BOMs, review views, native manufacturing
-exports and model-derived schemas are ignored and rejected if force-added. Only
-the README files in `generated/` and `schemas/` are source. Keep other derived files
-under `build/`; their extension alone cannot always distinguish an input from an export. PDF, STEP/STP and DXF are not globally
-ignored because a real mechanical handoff may need a reviewed drawing or model.
-When they are used, give them a stable repository path, declare or link them from
-the relevant project/handoff record, and review their source, revision and hash.
+KiCad source, project-local libraries, Python, Markdown and authored JSON/YAML records remain
+tracked source. Reproducible BOMs, review views, native manufacturing exports and model-derived
+schemas are ignored and rejected if force-added. Only the README files in `generated/` and
+`schemas/` are source. Keep other derived files under `build/`; their extension alone cannot always
+distinguish an input from an export. PDF, STEP/STP and DXF are not globally ignored because a real
+mechanical handoff may need a reviewed drawing or model. When they are used, give them a stable
+repository path, declare or link them from the relevant project/handoff record, and review their
+source, revision and hash.
 
 Keep authored PNG, SVG, JPEG, WebP and GIF figures under `docs/assets/`, either at
 the root or within a project/product island. Link them from the relevant document.

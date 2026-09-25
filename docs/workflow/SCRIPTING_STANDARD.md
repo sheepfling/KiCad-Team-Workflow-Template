@@ -26,8 +26,9 @@ use a typed Python name plus an explicit serialization alias.
 
 1. Define serialized contracts in tools/hwrepo/models.py, including schema version,
    closed enums, identifiers, units and nullability.
-2. Decode with read_model(path, Model), never json.loads() in application code. It
-   rejects duplicate keys and non-finite values before Pydantic validates shape.
+2. Decode files with read_model(path, Model), or network response text with
+   parse_model(document, Model), never json.loads() in application code. Both
+   reject duplicate keys and non-finite values before Pydantic validates shape.
 3. Serialize only validated models via model_dump_json(by_alias=True) or typed
    output helpers. Generated JSON schemas come from the Pydantic model, not a
    second handwritten schema evaluator.
@@ -75,8 +76,9 @@ type, unknown field and unsupported-version tests; a semantic negative fixture f
 every engineering rule; deterministic/stale-output tests for each generator; and a
 direct-entry-point test proving a policy check cannot be bypassed.
 
-Run `python -B -m tools.ci`; it invokes Markdown documentation policy, Ruff, Pyright
-and behavior tests before reporting the portable policy result. `python -m tools.ci
+Run `python -B -m tools.ci`; it invokes the local Markdown policy plus pinned `rumdl`
+and `mdrepo`, then Ruff, Pyright and behavior tests before reporting the portable
+policy result. `python -m tools.ci
 --matrix`, `python -m tools.ci --kicad` and `python -m tools.ci --fault-probes`
 are the corresponding GitHub pipeline modes. The pinned runtime and development set
 includes Pydantic 2.13.5, SnakeMD 2.4.1, snakemd-stubs 2.4.1.0, Ruff 0.16.1 and

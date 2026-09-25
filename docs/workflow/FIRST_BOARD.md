@@ -20,10 +20,9 @@ This is the shortest path from a fresh fork to a checked project island. Use
    python -B -m tools.template doctor --native --toolchain kicad-10.0.5 --format text
    ```
 
-   `list` reports the available toolchain IDs before creation. After saving the
-   board, its `INPUTS_PRESENT` state means only that declared files were found;
-   it is not an electrical or manufacturing approval.
-
+   `list` reports the available toolchain IDs before creation. After saving the board, its
+   `INPUTS_PRESENT` state means only that declared files were found; it is not an electrical or
+   manufacturing approval.
 4. Create and save the design under `projects/battery-board/kicad/`. Complete its
    `project.json` and design notes. Before authoring electrical expectations, use
    the exact catalogued KiCad toolchain to capture an **UNREVIEWED** netlist inventory:
@@ -59,32 +58,36 @@ This is the shortest path from a fresh fork to a checked project island. Use
    or the import command. That is a not-for-manufacture capture lane with DRC/layout
    checks; add an authoritative schematic and migrate it to `pcb` before product or
    manufacturing work.
-5. Verify the board. Start with portable checks, then include the pinned native
-   checks after changing KiCad source:
+5. Verify the board. Start with portable checks, then include the pinned native checks after
+   changing KiCad source:
 
    ```sh
    python -B -m tools.verify --project battery-board
    python -B -m tools.verify --project battery-board --depth native
    ```
 
-   Each attempt writes a fresh ignored receipt and prints its path. The native
-   receipt keeps `native/battery-board/summary.json`, ERC/DRC output and command
-   evidence. A failed verification shows repair findings; use `--detail full` or
-   `--format json` and follow [the repair guide](DIAGNOSTICS.md). If the native
-   runner cannot start, use `tools.template doctor --native --project-id battery-board`
-   to diagnose local KiCad or Docker readiness. To compare the
-   native netlist with the authored contract, use the summary in that receipt:
+   Each attempt writes a fresh ignored receipt and prints its path. The native receipt keeps
+   `native/battery-board/summary.json`, ERC/DRC output and command evidence. A failed verification
+   shows repair findings; use `--detail full` or `--format json` and follow
+   [the repair guide](DIAGNOSTICS.md). If the native runner cannot start, use
+   `tools.template doctor --native --project-id battery-board` to diagnose local KiCad or Docker
+   readiness. To compare the native netlist with the authored contract, use the summary in that
+   receipt:
 
    ```sh
    python -B -m tools.contract_coach --project-id battery-board --native-summary "PASTE_RECEIPT_PATH/native/battery-board/summary.json" --format text
    ```
 
-   That command verifies the selected project, netlist artifact and current design
-   hashes before showing differences. Add `--detail full`, `--format json`, or a
-   new `--output build/contract-coach/review-001` receipt when more detail is needed.
-   `tools.ci --kicad --project battery-board` remains available when you need
-   direct control of the lower-level native lane.
+   That command verifies the selected project, netlist artifact and current design hashes before
+   showing differences. Add `--detail full`, `--format json`, or a new
+   `--output build/contract-coach/review-001` receipt when more detail is needed.
+   `tools.ci --kicad --project battery-board` remains available when you need direct control of the
+   lower-level native lane.
 
+   To choose exact components and prepare purchasing quantities, follow
+   [parts to order](PARTS_TO_ORDER.md). Run `python -B -m tools.parts --project battery-board` for a
+   checklist of missing `PART_ID` values, footprints and catalog details, then save build/spare
+   preferences and generate a DigiKey upload file when the metadata is complete.
 6. Commit only authored source, push a short-lived branch and open a pull request.
    Review the exact Actions commit and retained evidence before merging.
 

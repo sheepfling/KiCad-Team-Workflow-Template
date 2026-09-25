@@ -7,7 +7,7 @@ Training pcb project — NOT FOR MANUFACTURE.
 - [Native project](kicad/controller.kicad_pro): open with the exact selected KiCad version.
 - [Test contract](tests/contract.json): independent native expectations.
 
-From the repository root, run `python -B -m tools.ci --project controller`.
-Optional Python tests in this folder run automatically. Native checks use
+From the repository root, run `python -B -m tools.ci --project controller`. Optional Python tests in
+this folder run automatically. Native checks use
 `python -B -m tools.ci --kicad --project controller --output examples/projects/controller/build/review-001`.
 Use a fresh output path each attempt. Keep generated evidence in ignored `build/`.

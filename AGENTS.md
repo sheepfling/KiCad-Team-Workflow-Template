@@ -3,6 +3,12 @@
 This file is for coding agents and engineers using an agent. Start with the
 [workflow guide](docs/workflow/START_HERE.md) and the
 [diagnostic guide](docs/workflow/DIAGNOSTICS.md). Use Python 3.11 syntax.
+The optional [local MCP adapter](docs/workflow/MCP.md) exposes the same services
+for clients without shell integration. Discover projects before selecting an ID.
+Checks execute repository tests and require `--allow-checks`; separate startup
+flags enable new islands, reviewed text edits and export/package outputs. Follow
+the guide's import-to-review loop, preview explicit edits against the read SHA-256,
+and commit reviewed source through normal Git before export preparation.
 
 ## Find the right source
 
@@ -15,14 +21,19 @@ This file is for coding agents and engineers using an agent. Start with the
   Shared policy and automation live under `tools/`, `catalog/` and `tests/`.
   For shared tooling changes, use the [tool map](tools/README.md),
   [test guide](tests/README.md) and [scripting standard](docs/workflow/SCRIPTING_STANDARD.md).
-- For an existing design, preview the import before copying it. Use
-  `python -B -m tools.template diagnose --source <path-to-.kicad_pro> --project-id <id> --toolchain <id>`.
-  Read the import inventory and repair missing sheets or nonportable paths in
-  the original source. Then follow the [import workflow](docs/workflow/IMPORT_WORKFLOW.md).
-  For a directory with several candidates, first run
+- For an existing design, preview the import before copying it. Use the command below:
+
+  ```sh
+  python -B -m tools.template diagnose \
+    --source <path-to-.kicad_pro> --project-id <id> --toolchain <id>
+  ```
+
+  Read the import inventory and repair missing sheets or nonportable paths in the original source.
+  Then follow the [import workflow](docs/workflow/IMPORT_WORKFLOW.md). For a directory with several
+  candidates, first run
   `python -B -m tools.template scan-imports --source-dir <directory> --toolchain <id> --format json`.
-  Review suggested IDs and every exclusion; the command is read-only and does
-  not establish design completeness or electrical correctness.
+  Review suggested IDs and every exclusion; the command is read-only and does not establish design
+  completeness or electrical correctness.
 - For a non-KiCad PCB file, run `python -B -m tools.template convert-pcb
   --source <file> --project-id <id> --toolchain <id> --format json`. Review the
   ignored receipt's `kicad-import-report.json`, converted board geometry and
@@ -62,6 +73,27 @@ This file is for coding agents and engineers using an agent. Start with the
   Action provides a focused hosted run without slowing routine PR lanes.
   For a named KiCad component population, pass `--assembly-variant <name>`;
   the name must already be declared in the project's `.kicad_pro`.
+- For an exact sourced part's STEP model, run
+  `python -B -m tools.parts --project <id> --check-step <LCSC_ID>` or use **Check
+  STEP alignment** after **Find CAD** in the parts assistant. Review the paired
+  native WRL/STEP views and disposable STEP assembly in the ignored receipt.
+  `REVIEW` means visual inspection is required; the command does not install
+  STEP or prove manufacturer dimensions or physical fit. Follow the
+  [CAD sourcing workflow](docs/workflow/CAD_SOURCING.md).
+- For component selection, run `python -B -m tools.parts --project <id> --picker`.
+  Choose only reviewed catalog CAD bindings; `--selection <download>` previews
+  diffs and writes a locked selection for `--selection <locked> --apply`.
+  Missing/different PCB footprints require KiCad F8 and then `--sync-models`;
+  repair existing different model assignments in KiCad. The plain `--project`
+  command reads source to create a purchasing checklist and conditional DigiKey
+  CSV. Never invent part identities, equivalents or catalog approvals. Keep
+  receipts under ignored `build/`, recheck native source after applying, and follow
+  [parts to order](docs/workflow/PARTS_TO_ORDER.md). Purchasing metadata readiness
+  does not establish live stock, price, electrical or physical approval.
+- For grounding, power and high-frequency requirements, follow the
+  [electrical analysis workflow](docs/workflow/ELECTRICAL_ANALYSIS.md). Author independent
+  limits and model bindings, then use `tools.verify --project <id> --depth electrical`.
+  Do not refresh model/source hashes without reviewing the circuit-to-model mapping.
 
 ## Diagnose, repair, verify
 
@@ -91,9 +123,12 @@ This file is for coding agents and engineers using an agent. Start with the
    `python -B -m tools.impact --base <ref> --head <ref> --format json`
    to inspect planned PR scope in a script or agent.
    For a manual hosted lane, run **KiCad template acceptance** in Actions with
-   `focus=project` and `value=<id>` (or select `product` or `tag`). The default
-   `focus=full` rehearses every lane; an optional `exclude_tag` narrows only a
-   focused run. Preview the manual scope with `tools.impact --select-project <id>`.
+   `focus=project` and `value=<id>` (or select `product`, `tag`, or `branch` with
+   a base ref such as `origin/main`). The default `focus=full` rehearses every
+   lane. Optional `shard=INDEX/COUNT` selects a partial project shard, never
+   complete release evidence. Preview it with `tools.impact --select-tag <tag>`
+   `--shard INDEX/COUNT`; run its portable tests with the same selectors on
+   `tools.ci` or MCP `check_scope`. Stage logs live under ignored `build/ci-hosted/`.
 4. Report the project ID, branch and commit, changed source, commands and
    results, receipt path, and any unresolved engineering decision. Keep run
    evidence in ignored `build/`, CI artifacts, or the issue/PR. Keep durable
@@ -118,3 +153,10 @@ for the human review and access rehearsals.
 Project discovery is one level below each configured root, such as
 `projects/<id>/`; nested project folders are not discovered. Use tags or
 registered products to group independent islands.
+
+When changing a CLI command, option or MCP tool, update the reviewed coverage in
+`catalog/tool-surfaces.json` and run `python -B -m tools.surface --require-live-mcp`.
+Read [tool surfaces](docs/workflow/TOOL_SURFACES.md) for required core parity and
+explicit administrative/adapter exceptions. Core gaps fail even when documented;
+update both interfaces and their referenced behavioral tests. Surface inspection
+never runs those tests; the full tools.ci gate does. Neither grants design approval.

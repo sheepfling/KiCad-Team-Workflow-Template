@@ -6,6 +6,7 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
+from .container_git import git_metadata_mounts
 from .contracts import read_model, repo_path, write_model
 from .discovery import load_config, load_registry
 from .evidence import digest, evidence_path, source_state, verify_release_portable
@@ -17,6 +18,8 @@ from .models import (
     InterfacesCatalog,
     LibrariesCatalog,
     PolicyIssue,
+    ProductIndex,
+    ProductRecord,
     ProjectManifest,
     ProjectRecord,
     ProjectStaticPipelineReport,
@@ -77,7 +80,8 @@ def run_native(root: Path, project: ProjectRecord, output: Path, cli: str | None
     argv = ("docker", "run", "--rm", "--platform", "linux/amd64", *user,
                     "--entrypoint", "python3", "-e", "HOME=/tmp/kicad-release",
                     "-e", "PYTHONDONTWRITEBYTECODE=1", "-e", f"PYTHONPATH=/work/{dependencies.as_posix()}",
-                    "-v", f"{root}:/work", "-w", "/work", config.image, "-B", "-m", *command,
+                    "-v", f"{root}:/work", *git_metadata_mounts(root),
+                    "-w", "/work", config.image, "-B", "-m", *command,
                     "--root", "/work", "--output", output.relative_to(root).as_posix())
     started = datetime.now(UTC).isoformat()
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -91,6 +95,67 @@ def run_native(root: Path, project: ProjectRecord, output: Path, cli: str | None
     write_model(log_path, record)
     if record.returncode != 0:
         raise ValueError(f"Pinned container failed for {project.id}; see {log_path}")
+
+
+def resolve_variants(root: Path, values: tuple[str, ...]) -> tuple[ReleaseVariant, ...]:
+    """Resolve explicit PRODUCT:VARIANT choices to current typed revision identities."""
+    if not values:
+        return ()
+    index = read_model(repo_path(root, "catalog/products.json"), ProductIndex)
+    indexed = {entry.id: entry for entry in index.products}
+    if len(indexed) != len(index.products):
+        raise ValueError("catalog/products.json has duplicate product IDs")
+    selections: list[ReleaseVariant] = []
+    for value in values:
+        product_id, separator, variant_id = value.partition(":")
+        if not separator:
+            raise ValueError("Variant selection uses PRODUCT:VARIANT")
+        entry = indexed.get(product_id)
+        if entry is None:
+            raise ValueError(f"Unknown release product {product_id!r} in catalog/products.json")
+        product = read_model(repo_path(root, entry.path), ProductRecord)
+        if product.id != product_id:
+            raise ValueError(f"{entry.path}: product ID differs from catalog/products.json")
+        variant = next((item for item in product.variants if item.id == variant_id), None)
+        if variant is None:
+            raise ValueError(f"Unknown variant {variant_id!r} for product {product_id!r}")
+        selections.append(ReleaseVariant(
+            product=product.id, product_revision=product.revision,
+            variant=variant.id, variant_revision=variant.revision,
+        ))
+    return tuple(selections)
+
+
+def selected_scope(
+    root: Path, candidate: ReleaseManifest,
+) -> tuple[tuple[ProjectRecord, ...], tuple[ProductRecord, ...]]:
+    """Validate release scope and its common toolchain before creating any evidence."""
+    repository = load_release_repository(root, candidate)
+    findings: list[PolicyIssue] = list(repository.issues)
+    products = selected_products(repository, candidate, findings)
+    projects = selected_project_records(repository, products, candidate.projects)
+    if findings or not projects:
+        raise ValueError(f"Invalid release selection: {findings}")
+    if candidate.release_class is not ReleaseClass.ENGINEERING_REVIEW and any(
+        project.assurance_profile != "production" or project.status != "release_candidate"
+        for project in projects
+    ):
+        raise ValueError("Non-review releases require production-profile release_candidate projects")
+    if len(configured_toolchains(root, projects)) != 1:
+        raise ValueError("Prepare separate release candidates for different toolchains")
+    board_variants = selected_board_variants(products, candidate.variants,
+                                             (project.id for project in projects))
+    for project in projects:
+        if project.id in board_variants and read_model(
+            repo_path(root, project.config), ProjectManifest,
+        ).release_exports is None:
+            raise ValueError(f"{project.id} needs release_exports to apply its product KiCad variant")
+    return projects, products
+
+
+def selected_projects(root: Path, candidate: ReleaseManifest) -> tuple[ProjectRecord, ...]:
+    """Return projects only after validating the full release and population scope."""
+    return selected_scope(root, candidate)[0]
 
 
 def prepare(root: Path, release_id: str, project_ids: tuple[str, ...],
@@ -108,26 +173,10 @@ def prepare(root: Path, release_id: str, project_ids: tuple[str, ...],
                                 status=ReleaseStatus.CANDIDATE, source_commit=source.commit,
                                 toolchain_id="pending", projects=project_ids, variants=variants,
                                 libraries=(), interfaces=(), artifacts=())
-    repository = load_release_repository(root, candidate)
-    findings: list[PolicyIssue] = list(repository.issues)
-    products = selected_products(repository, candidate, findings)
-    projects = selected_project_records(repository, products, project_ids)
-    if findings or not projects:
-        raise ValueError(f"Invalid release selection: {findings}")
-    if release_class is not ReleaseClass.ENGINEERING_REVIEW and any(
-        project.assurance_profile != "production" or project.status != "release_candidate" for project in projects
-    ):
-        raise ValueError("Non-review releases require production-profile release_candidate projects")
+    projects, products = selected_scope(root, candidate)
     toolchains = configured_toolchains(root, projects)
-    if len(toolchains) != 1:
-        raise ValueError("Prepare separate release candidates for different toolchains")
     board_variants = selected_board_variants(products, variants,
                                              (project.id for project in projects))
-    for project in projects:
-        if project.id in board_variants and read_model(
-            repo_path(root, project.config), ProjectManifest,
-        ).release_exports is None:
-            raise ValueError(f"{project.id} needs release_exports to apply its product KiCad variant")
     output = repo_path(root, f"build/releases/{release_id}")
     output.mkdir(parents=True, exist_ok=False)
     selected_ids = tuple(project.id for project in projects)

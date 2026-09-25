@@ -7,11 +7,14 @@ from __future__ import annotations
 
 import json
 from pathlib import Path, PurePosixPath, PureWindowsPath
-from typing import TypeVar, cast
+from typing import TYPE_CHECKING, TypeVar, cast
 
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, TypeAdapter
 
 from .models import KiCadForeignImportSummary
+
+if TYPE_CHECKING:
+    from .models import CadProviderIdentity
 
 Model = TypeVar("Model", bound=BaseModel)
 
@@ -29,23 +32,34 @@ def _invalid_number(value: str) -> None:
     raise ValueError(f"Invalid JSON number: {value}")
 
 
+def parse_model_text(document: str, model: type[Model]) -> Model:
+    """Validate in-memory JSON with the same strict rules as a file boundary."""
+    # Fail duplicate keys and non-finite numbers before Pydantic's decoder applies
+    # strict scalar validation while retaining JSON array/enum semantics.
+    json.loads(document, object_pairs_hook=_unique_object, parse_constant=_invalid_number)
+    return model.model_validate_json(document, strict=True)
+
+
+def validate_json_object(document: str) -> None:
+    """Check JSON object shape without returning untyped native-settings data."""
+    decoded: object = json.loads(
+        document, object_pairs_hook=_unique_object, parse_constant=_invalid_number,
+    )
+    if not isinstance(decoded, dict):
+        raise TypeError("JSON document must be an object")
+
+
+def parse_model(document: str, model: type[Model]) -> Model:
+    """Parse one strict serialized contract using the shared JSON boundary."""
+    return parse_model_text(document, model)
+
+
 def read_model(path: Path, model: type[Model]) -> Model:
     """Decode one JSON file and validate it before it reaches application code."""
     document = path.read_text(encoding="utf-8")
-    # This first decode exists solely to fail duplicate keys/non-finite numbers.
-    # Pydantic's JSON decoder then preserves JSON's valid array/enum semantics
-    # while applying strict scalar validation and producing immutable tuples.
     try:
-        json.loads(
-            document,
-            object_pairs_hook=_unique_object,
-            parse_constant=_invalid_number,
-        )
+        return parse_model_text(document, model)
     except ValueError as exc:
-        raise ValueError(f"{path}: {exc}") from exc
-    try:
-        return model.model_validate_json(document, strict=True)
-    except ValidationError as exc:
         raise ValueError(f"{path}: {exc}") from exc
 
 
@@ -177,3 +191,56 @@ def repo_path(root: Path, value: str) -> Path:
     if root not in current.resolve().parents:
         raise ValueError(f"Escaping repository path: {value!r}")
     return current
+
+
+def update_project_manifest_parts(
+    document: str, part_ids: tuple[str, ...], additions: dict[str, set[str]],
+    remove_part_ids: tuple[str, ...] = (),
+) -> str:
+    """Update reviewed identities and model inputs, retaining other authored JSON fields."""
+    from .models import ProjectManifest
+
+    raw = json.loads(document, object_pairs_hook=_unique_object, parse_constant=_invalid_number)
+    manifest = ProjectManifest.model_validate_json(document, strict=True)
+    raw["component_identity"]["part_ids"] = sorted(
+        (set(manifest.component_identity.part_ids) - set(remove_part_ids)) | set(part_ids)
+    )
+    for field in ("required_inputs", "shared_inputs"):
+        if additions[field]:
+            raw[field] = sorted(set(getattr(manifest, field)) | additions[field])
+    updated = json.dumps(raw, indent=2, ensure_ascii=False) + "\n"
+    ProjectManifest.model_validate_json(updated, strict=True)
+    return updated
+
+
+def parse_easyeda_identity(document: str) -> CadProviderIdentity:
+    """Project vendor JSON into the exact fields used by the offline CAD adapter."""
+    from .models import CadProviderIdentity
+
+    raw = json.loads(document, object_pairs_hook=_unique_object, parse_constant=_invalid_number)
+    try:
+        if raw["success"] is not True:
+            raise ValueError("The CAD provider did not return a successful component lookup")
+        result = raw["result"]
+        parameters = result["dataStr"]["head"]["c_para"]
+        shapes = TypeAdapter(list[str]).validate_python(
+            result["packageDetail"]["dataStr"]["shape"], strict=True,
+        )
+        models = [shape.removeprefix("SVGNODE~") for shape in shapes if shape.startswith("SVGNODE~")]
+        if len(models) != 1:
+            raise ValueError("The provider footprint must have exactly one paired 3D model")
+        node = json.loads(models[0], object_pairs_hook=_unique_object, parse_constant=_invalid_number)
+        if not isinstance(node["attrs"], dict):
+            raise TypeError("The provider model attributes have an unsupported format")
+        return CadProviderIdentity.model_validate({
+            "supplier_id": result["lcsc"]["number"],
+            "component_supplier_id": parameters["Supplier Part"],
+            "manufacturer": parameters["Manufacturer"],
+            "mpn": parameters["Manufacturer Part"],
+            "package": parameters["package"],
+            "symbol_name": parameters["name"],
+            "model_uuid": node["attrs"]["uuid"],
+            "model_title": node["attrs"].get("title", ""),
+        }, strict=True)
+    except (KeyError, IndexError, TypeError) as error:
+        raise ValueError("The CAD provider returned incomplete or unsupported component metadata") from error

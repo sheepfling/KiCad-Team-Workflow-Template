@@ -1,6 +1,7 @@
 # Copyable project and workflow records
 
-The easiest start is `python -B -m tools.template new-project --project-id battery-board --kind pcb --toolchain kicad-10.0.5`.
+The easiest start is
+`python -B -m tools.template new-project --project-id battery-board --kind pcb --toolchain kicad-10.0.5`.
 The scaffold contains no circuit. Create the real KiCad design and complete its contract.
 
 For manual creation, copy the appropriate `*-project-config.example.json` to
@@ -33,5 +34,11 @@ want every KiCad file conflict to require deliberate file-level resolution. Revi
 and append it to the root `.gitattributes` only when that matches the team's process.
 
 The template contract and upgrade catalog describe supported adoption steps. See
-[template adoption](../docs/workflow/TEMPLATE_ADOPTION.md), [BOM policy](../docs/workflow/BOM_POLICY.md),
-[sourcing](../docs/workflow/IDENTITY_AND_SOURCING.md) and [library policy](../docs/workflow/LIBRARIES.md).
+[template adoption](../docs/workflow/TEMPLATE_ADOPTION.md),
+[BOM policy](../docs/workflow/BOM_POLICY.md), [sourcing](../docs/workflow/IDENTITY_AND_SOURCING.md)
+and [library policy](../docs/workflow/LIBRARIES.md).
+
+For electrical checks, `tools.electrical --project <id> --init` connects a pending
+sidecar without inventing limits. The [electrical examples](electrical/README.md)
+provide a complete synthetic JSON contract and circuit decks for learning the
+schema. Review real board requirements and capture hashes before using them.

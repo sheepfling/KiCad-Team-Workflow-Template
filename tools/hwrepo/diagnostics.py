@@ -14,6 +14,7 @@ from .contracts import read_model, repo_path
 from .diagnostic_journal import DiagnosticJournal
 from .discovery import load_config, load_registry, settings
 from .importing import import_project
+from .model_inventory import inspect_models
 from .models import (
     DiagnosticFinding,
     DiagnosticReport,
@@ -293,10 +294,18 @@ def portable_findings(
     config = load_config(root, project.config)
     contract_path = repo_path(manifest_path.parent, manifest.checks).relative_to(root).as_posix()
     findings = [
-        finding("BLOCKING", "REGISTRY", "project/catalog", issue,
-                "Correct the named project manifest, inventory, or catalog record; rerun the "
-                "selected check. Do not relax the contract to hide a source problem.", CHECKS_GUIDE)
-        for issue in result.registry.issues
+        finding(
+            "BLOCKING", "ELECTRICAL_SETUP" if ": electrical:" in issue else "REGISTRY",
+            config.electrical or contract_path if ": electrical:" in issue else "project/catalog",
+            issue,
+            ("Complete the pending requirements or review stale model bindings; "
+             f"run tools.template doctor --electrical --project-id {project_id} --format text. "
+             f"Use tools.electrical --project {project_id} --capture-inputs for unreviewed hash candidates; never refresh approvals automatically.")
+            if ": electrical:" in issue else
+            "Correct the named project manifest, inventory, or catalog record; rerun the selected check. "
+            "Do not relax the contract to hide a source problem.",
+            "docs/workflow/ELECTRICAL_ANALYSIS.md" if ": electrical:" in issue else CHECKS_GUIDE,
+        ) for issue in result.registry.issues
     ]
     findings.extend(
         repository_guidance(issue, config.kicad_version.split(".")[0])
@@ -370,6 +379,20 @@ def portable_findings(
                 "Review layer, drill-origin and placement settings, then declare "
                 "release_exports before a manufacturing export.",
                 "docs/workflow/RELEASE_READINESS.md",
+            ))
+    if config.kind in {ProjectKind.PCB, ProjectKind.PCB_ONLY}:
+        try:
+            with journal.stage("model-inventory") if journal is not None else nullcontext():
+                model_inventory = inspect_models(root, config)
+                if journal is not None:
+                    journal.save_model("models", model_inventory)
+                findings.extend(model_inventory.findings)
+        except (OSError, ValueError) as exc:
+            findings.append(finding(
+                "BLOCKING", "MODEL_INVENTORY", project.config, str(exc),
+                "Repair the selected board or its declared model paths, then rerun diagnostics. "
+                "Model inspection does not require a native runner or approve mechanical fit.",
+                "docs/workflow/THREE_D_WORKFLOW.md",
             ))
     return findings
 

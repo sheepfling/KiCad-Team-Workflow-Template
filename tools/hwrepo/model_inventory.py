@@ -11,47 +11,33 @@ import re
 from bisect import bisect_right
 from dataclasses import dataclass
 from pathlib import Path, PureWindowsPath
-from typing import Literal
 
 from .contracts import repo_path
-from .models import DiagnosticFinding, ProjectConfig, ProjectKind, StrictModel
+from .models import (
+    DiagnosticFinding,
+    FootprintModels,
+    InventoryStatus,
+    ModelAssignment,
+    ModelInventoryReport,
+    ProjectConfig,
+    ProjectKind,
+    Resolution,
+)
 from .repository import cad_dependencies
 
-Resolution = Literal[
-    "source_present", "toolchain_dependent", "embedded_present", "broken",
+# Preserve the original service-module import surface for existing consumers.
+__all__ = [
+    "FootprintModels",
+    "InventoryStatus",
+    "ModelAssignment",
+    "ModelInventoryReport",
+    "Resolution",
+    "inspect_models",
 ]
-InventoryStatus = Literal["READY", "REVIEW", "FAIL"]
+
 MODEL_SUFFIXES = frozenset({".step", ".stp", ".wrl", ".idf", ".igs", ".iges"})
 GUIDE = "docs/workflow/LIBRARIES.md"
 
-
-class ModelAssignment(StrictModel):
-    path: str
-    line: int
-    resolution: Resolution
-    source_path: str | None = None
-    hidden: bool = False
-    reason: str | None = None
-
-
-class FootprintModels(StrictModel):
-    reference: str
-    footprint_id: str
-    line: int
-    models: tuple[ModelAssignment, ...]
-    candidate_assets: tuple[str, ...]
-    status: InventoryStatus
-
-
-class ModelInventoryReport(StrictModel):
-    schema_version: Literal["1"] = "1"
-    scope: Literal["static_inventory"] = "static_inventory"
-    project_id: str
-    board: str
-    status: InventoryStatus
-    footprints: tuple[FootprintModels, ...]
-    findings: tuple[DiagnosticFinding, ...]
-    next_actions: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -235,7 +221,8 @@ def inspect_models(root: Path, config: ProjectConfig) -> ModelInventoryReport:
     visual/mechanical review remain separate checks.
     """
     root = root.resolve()
-    board = repo_path(root, config.project).with_suffix(".kicad_pcb")
+    derived = repo_path(root, config.project).with_suffix(".kicad_pcb")
+    board = repo_path(root, derived.relative_to(root).as_posix())
     board_name = board.relative_to(root).as_posix()
     if config.kind not in {ProjectKind.PCB, ProjectKind.PCB_ONLY}:
         raise ValueError("3D model inventory requires a pcb or pcb_only project")

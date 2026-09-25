@@ -55,20 +55,20 @@ endpoint is `UNKNOWN` because the token may lack Administration:read; active
 [branch rules](https://docs.github.com/en/rest/repos/rules#get-rules-for-a-branch)
 can still prove specific controls. The audit checks CODEOWNERS in the supported
 [locations](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners),
-and requires a clean [GitHub CODEOWNERS error report](https://docs.github.com/en/rest/repos/repos#list-codeowners-errors)
-for the default branch before the file check can pass. A malformed entry is
-`NEEDS_SETUP`; an unavailable error report is `UNKNOWN`. A declared handle alone
-does not establish write access or a valid review drill. When a governance record
-is supplied, its authors, reviewers, and integrators must each be populated;
-missing roles are `NEEDS_SETUP` even if other roles list enough distinct people.
-Confirm bypass exceptions, merge permissions, rejected checks, access revocation,
-and release restore with real actors before production adoption.
+and requires a clean
+[GitHub CODEOWNERS error report](https://docs.github.com/en/rest/repos/repos#list-codeowners-errors)
+for the default branch before the file check can pass. A malformed entry is `NEEDS_SETUP`; an
+unavailable error report is `UNKNOWN`. A declared handle alone does not establish write access or a
+valid review drill. When a governance record is supplied, its authors, reviewers, and integrators
+must each be populated; missing roles are `NEEDS_SETUP` even if other roles list enough distinct
+people. Confirm bypass exceptions, merge permissions, rejected checks, access revocation, and
+release restore with real actors before production adoption.
 
 ## Tool access
 
-Use `gh auth status` before trying to read or alter repository settings. A valid token
-with repository-administration scope and the actual reviewer/team identities are
-required to apply this policy; they are intentionally outside this template.
-The read-only audit can inspect active rules with metadata read access, while the
-legacy [branch-protection endpoint](https://docs.github.com/en/rest/branches/branch-protection#get-branch-protection)
+Use `gh auth status` before trying to read or alter repository settings. A valid token with
+repository-administration scope and the actual reviewer/team identities are required to apply this
+policy; they are intentionally outside this template. The read-only audit can inspect active rules
+with metadata read access, while the legacy
+[branch-protection endpoint](https://docs.github.com/en/rest/branches/branch-protection#get-branch-protection)
 requires Administration:read. Missing API access is reported as `UNKNOWN`.
