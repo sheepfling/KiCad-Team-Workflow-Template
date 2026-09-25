@@ -412,12 +412,42 @@ def _board_changes(source: str, selected: Mapping[str, PartRecord],
                 additions.append(f'(property {_quote(name)} {_quote(value)} (at 0 0 0) '
                                  f'(layer "{side}.Fab") (hide yes) '
                                  '(effects (font (size 1 1) (thickness 0.15))))')
-        if not assigned:
-            additions.append(f'(model {_quote(model)} (offset (xyz 0 0 0)) '
-                             '(scale (xyz 1 1 1)) (rotate (xyz 0 0 0)))')
         if additions:
             changes.append(_insertion(source, span, additions))
     return changes, tuple(pending)
+
+
+def _attach_authored_models(root: Path, project_id: str, source: str,
+                            selected: Mapping[str, PartRecord],
+                            model_references: Mapping[str, str],
+                            pending: tuple[str, ...]) -> str:
+    # Local import avoids a cycle with the shared lossless S-expression adapter.
+    from .cad_assets import plan_model_assignment, resolve_footprint
+
+    for reference, part in sorted(selected.items()):
+        if reference in pending:
+            continue
+        parent = _root(source, "kicad_pcb")
+        if _nodes(source, parent, "module"):
+            raise ValueError("Upgrade legacy PCB modules in KiCad before automatic model population")
+        footprint = next(span for span in _nodes(source, parent, "footprint")
+                         if _property(source, _properties(source, span), "Reference") == reference
+                         or any(_atoms(source, item) == ("fp_text", "reference", reference)
+                                for item in _nodes(source, span, "fp_text")))
+        if _nodes(source, footprint, "model"):
+            # Existing user-authored transforms remain unchanged. Their presence
+            # does not establish paired-source alignment or physical fit.
+            continue
+        binding = part.cad
+        assert binding is not None
+        resolved = resolve_footprint(root, project_id, binding.footprint)
+        expected_model = repo_path(root, binding.model)
+        if len(resolved.models) != 1 or resolved.models[0].source_path != expected_model:
+            raise ValueError(f"{reference}: catalog model must match the model paired in the reviewed footprint; "
+                             "update its authored model assignment before selecting this part")
+        source = plan_model_assignment(source, reference, resolved,
+            {resolved.models[0].source_model_reference: model_references[reference]})
+    return source
 
 
 def validate_footprint_binding(root: Path, project_id: str, footprint: str) -> None:
@@ -520,6 +550,7 @@ def preview_cad(root: Path, project_id: str, selected: Mapping[str, PartRecord],
         source = schematic.board.read_bytes().decode("utf-8")
         changes, pending = _board_changes(source, selected, symbols, model_references)
         after = _apply(source, changes, "kicad_pcb")
+        after = _attach_authored_models(root, project_id, after, selected, model_references, pending)
         if after != source:
             edits.append(PartSourceEdit(path=schematic.board.relative_to(root).as_posix(),
                                        before=source, after=after))

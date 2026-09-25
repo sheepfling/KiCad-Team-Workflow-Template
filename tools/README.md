@@ -25,7 +25,10 @@ default full run.
 For a legacy directory with several projects, `tools.template scan-imports`
 previews each candidate without copying it. JSON retains per-file hashes and
 exclusion reasons; import one accepted project at a time.
-For component selection, use `tools.parts --project <id> --picker` to choose
+Start with `tools.parts --project <id> --assist` for one local page that resolves
+paired CAD automatically, reviews source changes, chooses parts and produces order
+files. `--auto-models` exposes automatic CAD previews to scripts.
+For file-based component selection, use `tools.parts --project <id> --picker` to choose
 reviewed catalog parts in a local page. `--selection <download>` previews changes;
 `--selection <locked-file> --apply` applies them. Use `--sync-models` after KiCad's
 PCB update when footprints needed replacing or adding. The plain

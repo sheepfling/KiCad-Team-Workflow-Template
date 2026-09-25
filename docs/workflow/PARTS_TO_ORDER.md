@@ -1,17 +1,48 @@
 # Choose parts and prepare an order
 
-Use `tools.parts` to choose reviewed components, fill their schematic fields and
-3D assignments, and prepare a BOM and DigiKey upload file. The beginner path is:
-**choose parts in the local picker → review changes → apply → update the PCB in
-KiCad → prepare the order**. Each step writes a fresh ignored receipt.
+Open one local page to resolve the models paired with your existing PCB footprints,
+choose reviewed catalog parts, and prepare an order file:
 
-The picker uses your repository's reviewed parts catalog. It does not search for
-new components, infer electrical equivalents or buy anything. The bundled catalog
-contains training placeholders, so it deliberately offers no production choices.
-Your team first adds reviewed components and their CAD bindings as described in
-[the catalog guide](../../catalog/README.md#reviewed-cad-bindings-for-the-parts-picker).
-Once those exist, other board designers can reuse them without retyping each
-footprint, model path and supplier identifier.
+```sh
+python -B -m tools.parts --project my-board --assist
+```
+
+The assistant scans automatically, shows each component and the proposed source
+diff, and lets you add matched models with one button. It uses the assigned
+`library:footprint` identity, the installed KiCad libraries, and the footprint's
+own model references and transforms. When the footprint is absent locally, it
+fetches the exact project's KiCad release from the official libraries. Downloads
+are cached; model files, the source footprint snapshot, license and provenance are copied into the project and
+added to its input inventory automatically. No account or model-map JSON is needed
+for this path. Save and close the board in KiCad before applying source changes.
+
+Before adding a model, the tool compares numbered pad positions, size, rotation
+and drills against the source footprint, including rotated and bottom-side parts.
+It preserves every placed footprint's location, pads and routing. Different pad
+geometry, an altered existing model transform, missing CAD or unsupported custom
+pads remain visible as **Needs review**. It can apply the independent matched
+components while keeping these exceptions unresolved. A matching library pair is
+alignment evidence, not manufacturer package or physical-fit approval. Native
+3D inspection is still required before a manufacturing handoff.
+
+The same page offers reviewed part choices and quantity controls, previews source
+edits, applies them, and creates BOM/DigiKey CSV downloads. It does not make a
+purchase. Source changes after a preview invalidate that plan; rescanning is enough.
+The server listens only on localhost and stops with Ctrl-C. Use `--no-browser`
+when you prefer to open the printed address yourself.
+
+Part identity and CAD availability are different. The catalog picker still needs
+reviewed manufacturer/MPN records; an electrical value such as `1k` cannot identify
+a unique purchasable component. The bundled training catalog deliberately has no
+production approvals. Exact-MPN retrieval from DigiKey, Ultra Librarian or SnapMagic
+is not connected in this implementation: their APIs require account credentials.
+The automatic CAD path uses the already assigned footprint, not a guessed supplier
+package. The [catalog guide](../../catalog/README.md#reviewed-cad-bindings-for-the-parts-picker)
+explains reusable part bindings.
+
+For scripts, `--auto-models --format json` creates the same source-bound preview;
+`--cad-plan <printed-path> --apply` imports it. The older file-based picker commands
+below remain available for automation and offline review.
 
 ## First run
 
@@ -36,11 +67,12 @@ starting map; the browser download contains the choices you actually made.
 
 A choice appears only when an approved, non-placeholder catalog record has a CAD
 binding whose `symbol_id` and `value` exactly match the saved symbol. Its reviewed
-model must be an inventoried repository asset under this project's declared local
+model must be paired by its source footprint and be an inventoried repository asset under this project's declared local
 or shared source roots. Its `library:name` footprint must resolve through the
-project's `fp-lib-table` to a declared repository `.kicad_mod` asset. Installed global
-KiCad libraries alone are unsupported in this first version: copy the reviewed
+project's `fp-lib-table` to a declared repository `.kicad_mod` asset. For this catalog-selection mode, installed global
+KiCad libraries alone do not establish a reviewed repository binding: copy the reviewed
 footprint into a controlled local/shared library and declare it before picking.
+Existing same-path models retain user-authored transforms without establishing alignment.
 Exact matching is a catalog filter; the engineer who adds the part still reviews
 ratings, pin numbering, package and physical fit.
 

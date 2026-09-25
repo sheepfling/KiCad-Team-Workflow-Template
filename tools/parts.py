@@ -38,7 +38,7 @@ def count(value: str) -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, epilog=(
-        "Start: python -B -m tools.parts --project YOUR_PROJECT --picker. "
+        "Start: python -B -m tools.parts --project YOUR_PROJECT --assist. "
         "Choose reviewed parts, preview and apply, then rerun without --picker for an order list."
     ))
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
@@ -51,12 +51,17 @@ def main() -> int:
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--init-preferences", type=Path,
                       help="Create a new preferences JSON under this island's docs/ and exit")
+    mode.add_argument("--assist", action="store_true", help="Open one local page for automatic CAD, parts and ordering")
+    mode.add_argument("--auto-models", action="store_true", help="Automatically resolve paired footprint models and preview their import")
+    mode.add_argument("--cad-plan", type=Path, help="Apply a previously reviewed automatic CAD plan")
     mode.add_argument("--picker", action="store_true",
                       help="Open the guided catalog choices workflow in a local review page")
     mode.add_argument("--selection", type=Path,
                       help="Preview a downloaded selection, or apply the resulting locked map")
     mode.add_argument("--sync-models", action="store_true",
                       help="Preview model assignments from saved parts after KiCad's F8 update")
+    parser.add_argument("--port", type=count, default=0, help="Local assistant port (default: choose an available port)")
+    parser.add_argument("--no-browser", action="store_true", help="Print assistant URL without opening a browser")
     parser.add_argument("--apply", action="store_true",
                         help="Apply exactly a previously previewed, locked --selection map")
     parser.add_argument("--native-summary", type=Path,
@@ -66,6 +71,17 @@ def main() -> int:
     parser.add_argument("--output", type=Path, help="Fresh receipt directory below ignored build/")
     parser.add_argument("--format", choices=("text", "json"), default="text")
     args = parser.parse_args()
+    if args.port > 65535:
+        parser.error("--port must be 0–65535")
+    if not args.assist and (args.port or args.no_browser):
+        parser.error("--port and --no-browser require --assist")
+    if args.assist or args.auto_models or args.cad_plan is not None:
+        if any(value is not None for value in (args.native_summary, args.preferences, args.boards, args.spare_percent, args.spare_minimum)) or args.runner != "auto" or args.cli != "kicad-cli":
+            parser.error("Assistant and automatic CAD modes manage their own inputs; set order quantities in the assistant")
+        if args.assist and (args.output is not None or args.format != "text" or args.apply):
+            parser.error("--assist opens an interactive local server; omit --output, --format and --apply")
+    if args.cad_plan is not None and not args.apply:
+        parser.error("--cad-plan requires --apply; inspect the source diff before applying")
     if args.boards == 0:
         parser.error("--boards must be at least 1")
     if args.spare_percent is not None and args.spare_percent > 100:
@@ -75,8 +91,8 @@ def main() -> int:
     ):
         parser.error("--runner and --cli apply only to fresh capture")
     mutation = args.selection is not None or args.sync_models
-    if args.apply and args.selection is None:
-        parser.error("--apply requires a previously previewed --selection map")
+    if args.apply and args.selection is None and args.cad_plan is None:
+        parser.error("--apply requires a previously previewed --selection map or --cad-plan")
     if args.native_summary is not None and (mutation or args.init_preferences is not None):
         parser.error("--native-summary applies only to the picker or order review")
     if mutation and (args.runner != "auto" or args.cli != "kicad-cli"):
@@ -89,6 +105,30 @@ def main() -> int:
         parser.error("--output applies only to a parts review")
     root = args.root.resolve()
     try:
+        if args.assist:
+            from .hwrepo.parts_assistant import serve
+            serve(root, args.project, port=args.port, open_browser=not args.no_browser)
+            return 0
+        if args.auto_models or args.cad_plan is not None:
+            from .hwrepo import auto_cad
+            output = new_receipt(root, args.project, args.output)
+            if args.auto_models:
+                cad = auto_cad.plan(root, args.project, output)
+            else:
+                assert args.cad_plan is not None
+                cad = auto_cad.apply(root, args.project, args.cad_plan, output)
+            if args.format == "json":
+                print(cad.model_dump_json(indent=2))
+            else:
+                print(f"{cad.status}: automatic CAD for {args.project}")
+                for item in cad.items:
+                    print(f"  {item.reference}: {item.status} — {item.detail}")
+                for issue in cad.issues:
+                    print(issue)
+                print(f"Receipt: {cad.receipt_directory}")
+                if cad.plan_path is not None and not args.apply:
+                    print(f"Review cad.diff, then: python -B -m tools.parts --project {args.project} --cad-plan {cad.plan_path} --apply")
+            return 1 if cad.status in {"BLOCKED", "NEEDS_REVIEW"} or cad.issues else 0
         if args.init_preferences is not None:
             preferences = load_preferences(
                 root, args.project, args.preferences, args.boards,

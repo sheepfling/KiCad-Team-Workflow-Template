@@ -1606,3 +1606,48 @@ class PartSelectionReport(PurchasingSchemaModel):
     receipt_dir: str
     purchase_authorized: Literal[False] = False
     build_authorized: Literal[False] = False
+
+
+class AutoCadItem(StrictModel):
+    reference: NonEmptyText
+    footprint: str
+    status: Literal["READY", "ALREADY_PRESENT", "NEEDS_REVIEW"]
+    detail: NonEmptyText
+
+
+class AutoCadPlan(StrictModel):
+    schema_version: Literal["1"] = "1"
+    project_id: Identifier
+    preconditions: dict[RepositoryPath, Digest | None]
+    after_hashes: dict[RepositoryPath, Digest]
+
+
+class AutoCadAsset(StrictModel):
+    source: NonEmptyText
+    sha256: Digest
+    destination: RepositoryPath
+
+
+class AutoCadProvenance(StrictModel):
+    schema_version: Literal["1"] = "1"
+    footprint: NonEmptyText
+    source: NonEmptyText
+    source_sha256: Digest
+    models: tuple[AutoCadAsset, ...]
+    alignment_basis: Literal["matching_pad_geometry_and_authored_model_transforms"] = (
+        "matching_pad_geometry_and_authored_model_transforms"
+    )
+    physical_fit_verified: Literal[False] = False
+
+
+class AutoCadReport(StrictModel):
+    schema_version: Literal["1"] = "1"
+    project_id: Identifier
+    status: Literal["PLAN", "APPLIED", "NEEDS_REVIEW", "BLOCKED"]
+    items: tuple[AutoCadItem, ...] = ()
+    files: tuple[RepositoryPath, ...] = ()
+    issues: tuple[str, ...] = ()
+    plan_path: str | None = None
+    receipt_directory: str
+    diff: str = ""
+    build_authorized: Literal[False] = False

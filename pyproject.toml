@@ -23,6 +23,9 @@ dev = [
 [tool.setuptools.packages.find]
 include = ["tools", "tools.*"]
 
+[tool.setuptools.package-data]
+"tools.hwrepo" = ["kicad_library_license.txt"]
+
 [tool.ruff]
 target-version = "py311"
 line-length = 100

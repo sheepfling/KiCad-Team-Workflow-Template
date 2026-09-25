@@ -64,6 +64,10 @@ class PartPickerTests(unittest.TestCase):
         self.preferences = self.island / "docs/purchasing.json"
         self.model = self.island / "kicad/test-only.step"
         self.model.write_text("TEST-ONLY GEOMETRY PLACEHOLDER; never a reviewed real model\n", encoding="utf-8")
+        member = self.island / "kicad/Pilot.pretty/R_Test.kicad_mod"
+        member.write_text(member.read_text().rstrip()[:-1]
+            + ' (model "${KIPRJMOD}/test-only.step" (offset (xyz 1.25 0 0.5)) '
+              '(scale (xyz 1 1 1)) (rotate (xyz 0 0 90)))\n)\n')
         manifest = read_model(self.manifest_path, ProjectManifest)
         write_model(self.manifest_path, manifest.model_copy(update={
             "required_inputs": (*manifest.required_inputs, "kicad/test-only.step"),
@@ -265,7 +269,7 @@ class PartPickerTests(unittest.TestCase):
         self.part = self.part.model_copy(update={"cad": self.part.cad.model_copy(update={"footprint": "Pilot:R_New"})})
         self.set_parts(self.part)
         new_footprint = self.island / "kicad/Pilot.pretty/R_New.kicad_mod"
-        new_footprint.write_text('(footprint "R_New" (version 20240108) (generator "test"))', encoding="utf-8")
+        new_footprint.write_text((self.island / "kicad/Pilot.pretty/R_Test.kicad_mod").read_text().replace('(footprint "R_Test"', '(footprint "R_New"'), encoding="utf-8")
         manifest = read_model(self.manifest_path, ProjectManifest)
         write_model(self.manifest_path, manifest.model_copy(update={
             "required_inputs": (*manifest.required_inputs, "kicad/Pilot.pretty/R_New.kicad_mod"),

@@ -146,7 +146,7 @@ independent fixture catalogs. Close KiCad before native checks.
 ## BOMs and releases
 
 For a new user's parts workflow, run
-`python -B -m tools.parts --project battery-board --picker`. Choose reviewed catalog
+`python -B -m tools.parts --project battery-board --assist`. Resolve paired CAD automatically and choose reviewed catalog
 parts in the local page, preview and apply the selection, then update the PCB in
 KiCad. The same command without `--picker` creates the BOM and purchasing checklist.
 Follow [choose parts and prepare an order](docs/workflow/PARTS_TO_ORDER.md) for

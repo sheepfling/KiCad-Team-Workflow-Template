@@ -42,6 +42,19 @@ class PartCadTests(unittest.TestCase):
         self.board = self.schematic.with_suffix(".kicad_pcb")
         self.original_schematic = self.schematic.read_bytes().decode("utf-8")
         self.original_board = self.board.read_bytes().decode("utf-8")
+        model = self.schematic.parent / "models/resistor.step"
+        model.parent.mkdir()
+        model.write_text("TEST-ONLY authored model fixture; not a manufacturer asset\n")
+        member = self.schematic.parent / "Pilot.pretty/R_Test.kicad_mod"
+        source = member.read_text()
+        member.write_text(source.rstrip()[:-1] + f' (model "{MODEL}" '
+                          '(offset (xyz 1.25 0 0.5)) (scale (xyz 1 1 1)) '
+                          '(rotate (xyz 0 0 90)))\n)\n')
+        manifest_path = self.schematic.parent.parent / "project.json"
+        manifest = read_model(manifest_path, ProjectManifest)
+        write_model(manifest_path, manifest.model_copy(update={
+            "required_inputs": (*manifest.required_inputs, "kicad/models/resistor.step"),
+        }))
 
     def node(self, source: str, kind: str, reference: str) -> tuple[int, int]:
         root = _children(source, 0, len(source))[0]
@@ -116,12 +129,36 @@ class PartCadTests(unittest.TestCase):
             self.assertTrue(after[new_start:new_end].startswith(expected_existing))
         self.assertIn('(property "PART_ID" "resistor-reviewed"', schematic.after)
         self.assertIn(f'(model "{MODEL}"', board.after)
+        self.assertIn("(offset (xyz 1.25 0 0.5))", board.after)
+        self.assertIn("(rotate (xyz 0 0 90))", board.after)
         for edit in (schematic, board):
             for name, value in (("Manufacturer", "Vishay"), ("MPN", "MRS25000C1001FCT00"),
                                 ("Datasheet", "https://example.invalid/test-only")):
                 self.assertIn(f'(property "{name}" "{value}"', edit.after)
         self.assertEqual(self.schematic.read_bytes().decode(), self.original_schematic)
         self.assertEqual(self.board.read_bytes().decode(), self.original_board)
+
+    def test_new_model_without_authored_pair_is_refused(self) -> None:
+        member = self.schematic.parent / "Pilot.pretty/R_Test.kicad_mod"
+        source = member.read_text()
+        start = source.index(' (model "')
+        member.write_text(source[:start] + "\n)\n")
+        with self.assertRaisesRegex(ValueError, "no paired 3D model"):
+            self.preview()
+        self.assertEqual(self.board.read_bytes().decode(), self.original_board)
+
+    def test_new_model_refuses_different_pad_spacing_and_catalog_model(self) -> None:
+        self.change_board('(at 10 0)', '(at 9 0)')
+        with self.assertRaisesRegex(ValueError, "numbered pad geometry"):
+            self.preview()
+        self.board.write_text(self.original_board)
+        part = reviewed_part()
+        assert part.cad is not None
+        different = part.model_copy(update={"cad": part.cad.model_copy(update={
+            "model": "examples/projects/controller/kicad/models/other.step",
+        })})
+        with self.assertRaisesRegex(ValueError, "catalog model must match"):
+            self.preview(different)
 
     def test_changed_footprint_is_schematic_only_and_pending_f8(self) -> None:
         self.declare_footprint("Other_Package")
