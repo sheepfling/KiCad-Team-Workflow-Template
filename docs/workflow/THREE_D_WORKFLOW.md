@@ -42,6 +42,55 @@ second editable copy of the design.
    exported picture. Use `tools.template diagnose --project-id battery-board`
    for the broader project repair queue.
 
+If you already have an approved model file under this project's declared source
+root or a declared shared-library root, the CLI can populate an unassigned
+placed footprint without hand-editing its PCB text or `project.json`. First run
+`--check-models --format json` and take the board digest from
+`source_sha256["projects/<id>/kicad/<board>.kicad_pcb"]` (the actual board path is
+also in the report). Create a JSON map in ignored `build/`, for example:
+
+```json
+{
+  "schema_version": "1",
+  "project_id": "battery-board",
+  "board_sha256": "<64-character SHA-256 from the model-check report>",
+  "assignments": [
+    {
+      "reference": "J1",
+      "model": "projects/battery-board/kicad/models/connector.step"
+    }
+  ]
+}
+```
+
+Use the actual reference and repository-relative source model path. The command
+does not copy, download or select a model based on a matching filename. Keep a
+vendor model's origin and redistribution rights review with the source decision.
+The tool accepts STEP/STP/IGS/IGES/WRL, but rejects IDF for this view workflow.
+
+```sh
+python -B -m tools.visualize --project battery-board --map-models build/model-map.json
+# Read board.diff and manifest.diff in the new ignored receipt.
+python -B -m tools.visualize --project battery-board --map-models build/model-map.json --apply
+python -B -m tools.verify --project battery-board --depth native
+python -B -m tools.visualize --project battery-board
+```
+
+The first command is read-only and shows the exact proposed board and manifest
+diff, both in its ignored receipt and in `--format json` stdout. `--apply` requires
+the same board hash and a unique unassigned reference, then inserts the portable
+`${KIPRJMOD}` path in that placed footprint and adds the asset to the proper
+manifest input list. It refuses to replace any existing model assignment, so
+reviewed offsets and rotation cannot be silently lost. If the board changed,
+refresh the model check and review a new map. Applying a path does **not** check
+the model's package identity, dimensions, alignment, side or actual geometry;
+inspect the PCB Editor 3D view and the exported images and STEP before accepting
+the mechanical handoff. The tool uses neutral zero offset/rotation and unit scale,
+so use PCB Editor for a model requiring a fit adjustment. KiCad's
+[PCB Editor guide](https://docs.kicad.org/10.0/en/pcbnew/pcbnew.html) covers 3D
+model settings; the [CLI guide](https://docs.kicad.org/10.0/en/cli/cli.html)
+documents the native export commands.
+
 The pinned KiCad installation may provide its own standard 3D model library.
 Keep references to that library versioned, for example with its
 `KICAD10_3DMODEL_DIR` variable for a KiCad 10 project. A model downloaded to a
