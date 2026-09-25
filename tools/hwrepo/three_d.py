@@ -85,7 +85,7 @@ def _container_prefix(root: Path, output: Path, config: ProjectConfig) -> tuple[
     return (
         "docker", "run", "--rm", "--platform", "linux/amd64", *user,
         "--entrypoint", "kicad-cli", "-e", "HOME=/tmp/kicad-3d",
-        "-v", f"{root}:/work:ro", "-v", f"{output}:/output:rw",
+        "-v", f"{os.fspath(root)}:/work:ro", "-v", f"{os.fspath(output)}:/output:rw",
         "-w", "/work", config.image,
     )
 

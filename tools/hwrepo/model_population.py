@@ -134,6 +134,49 @@ def _validate_shared_roots(root: Path, registry: ProjectRegistry,
         repo_path(root, name)
 
 
+def _require_shared_consumer_inventory(
+    root: Path, registry: ProjectRegistry, selected_config: str,
+    manifest: ProjectManifest, models: set[str],
+) -> None:
+    """Do not introduce a shared asset that another consumer has not inventoried."""
+    if not models:
+        return
+    catalog = read_model(repo_path(root, registry.catalogs.libraries), LibrariesCatalog)
+    library_ids_by_root: dict[str, set[str]] = {}
+    for library in catalog.libraries:
+        library_ids_by_root.setdefault(library.path, set()).add(library.id)
+    model_roots: dict[str, str] = {}
+    for model in models:
+        matches = [
+            source for source in manifest.shared_source_roots
+            if model.startswith(f"{source}/")
+        ]
+        if len(matches) != 1:
+            raise ValueError(f"Shared model has no unique registered library root: {model}")
+        model_roots[model] = matches[0]
+    missing: list[tuple[str, str]] = []
+    for consumer in registry.projects:
+        if consumer.config == selected_config:
+            continue
+        consumer_manifest = read_model(repo_path(root, consumer.config), ProjectManifest)
+        for model, library_root in model_roots.items():
+            consumes_root = library_root in consumer_manifest.shared_source_roots
+            consumes_id = bool(
+                library_ids_by_root[library_root].intersection(consumer_manifest.library_ids)
+            )
+            if (consumes_root or consumes_id) and model not in consumer_manifest.shared_inputs:
+                missing.append((consumer.config, model))
+    if missing:
+        repairs = "\n".join(
+            f"  {config}: add {model} to shared_inputs"
+            for config, model in sorted(missing)
+        )
+        raise ValueError(
+            "Shared model is not inventoried by every consumer of its registered library. "
+            "Update these manifests, then regenerate the model-map plan:\n" + repairs
+        )
+
+
 def _board_edits(source: str, assignments: ModelMap,
                  model_references: dict[str, str]) -> str:
     roots = _children(source, 0, len(source))
@@ -324,6 +367,9 @@ def populate_models(root: Path, project_id: str, map_path: Path, *,
                     )
                 model_hashes[item.model] = digest
                 locked_assignments.append(item.model_copy(update={"model_sha256": digest}))
+            _require_shared_consumer_inventory(
+                root, registry, manifest_name, manifest, additions["shared_inputs"],
+            )
             source = board_before.decode("utf-8")
             manifest_source = manifest_before.decode("utf-8")
             board_after = _board_edits(source, spec, references).encode("utf-8")
@@ -348,6 +394,9 @@ def populate_models(root: Path, project_id: str, map_path: Path, *,
                 for name, digest in model_hashes.items():
                     if _digest(repo_path(root, name).read_bytes()) != digest:
                         raise ValueError(f"Model source changed after planning: {name}")
+                _require_shared_consumer_inventory(
+                    root, registry, manifest_name, manifest, additions["shared_inputs"],
+                )
                 try:
                     _replace_bytes(board_path, board_after)
                     _replace_bytes(manifest_path, manifest_after)

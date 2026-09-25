@@ -15,7 +15,12 @@ second editable copy of the design.
    `projects/<id>/kicad/models/`; the board will reference it with a path such
    as `${KIPRJMOD}/models/connector.step`. For a model reused by several boards,
    put it under a registered `libraries/<library-id>/` directory and declare
-   that library in each consumer's `project.json`. The
+   that library in each consumer's `project.json`. Before mapping a newly added
+   shared model, add its repository-relative path to `shared_inputs` in every
+   **other** consumer's manifest. The map command adds it to the selected
+   board's manifest. If another consumer is missing it, the plan and apply
+   both stop and name each manifest and exact path to add. Run the full
+   `python -B -m tools.ci` gate after the shared-library change. The
    [library policy](LIBRARIES.md) gives the shared-dependency and provenance
    requirements.
 2. Use the draft-map flow below to assign explicit model paths to placed

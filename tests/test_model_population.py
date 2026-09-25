@@ -254,15 +254,53 @@ class ModelPopulationTests(unittest.TestCase):
     def test_shared_model_is_added_to_shared_inventory(self) -> None:
         shared = self.root / "examples/libraries/status-led/Header_1x02.step"
         shared.write_bytes(b"STEP")
-        self.write_map(model=shared.relative_to(self.root).as_posix())
+        shared_name = shared.relative_to(self.root).as_posix()
+        self.write_map(model=shared_name)
+        original_board = self.board.read_bytes()
+        original_manifest = self.manifest.read_bytes()
+        consumer = self.root / "examples/projects/raspberry-pi-status-led/project.json"
+        blocked = populate_models(self.root, PROJECT, self.map)
+        self.assertEqual(blocked.status, "FAIL")
+        self.assertIn("examples/projects/raspberry-pi-status-led/project.json", blocked.error or "")
+        self.assertIn(f"add {shared_name} to shared_inputs", blocked.error or "")
+        self.assertIsNone(blocked.locked_map)
+        self.assertEqual(self.board.read_bytes(), original_board)
+        self.assertEqual(self.manifest.read_bytes(), original_manifest)
+
+        consumer_data = json.loads(consumer.read_text(encoding="utf-8"))
+        consumer_data["shared_inputs"].append(shared_name)
+        consumer.write_text(json.dumps(consumer_data, indent=2) + "\n", encoding="utf-8")
+        consumer_before_apply = consumer.read_bytes()
         result = populate_models(self.root, PROJECT, self.locked_map(), apply=True)
         self.assertEqual(result.status, "APPLIED", result.error)
         manifest = read_model(self.manifest, ProjectManifest)
-        self.assertIn("examples/libraries/status-led/Header_1x02.step", manifest.shared_inputs)
+        self.assertIn(shared_name, manifest.shared_inputs)
+        self.assertEqual(consumer.read_bytes(), consumer_before_apply)
         self.assertIn(
             '${KIPRJMOD}/../../../libraries/status-led/Header_1x02.step',
             self.board.read_text(encoding="utf-8"),
         )
+
+    def test_shared_consumer_inventory_is_rechecked_at_apply(self) -> None:
+        shared = self.root / "examples/libraries/status-led/Header_1x02.step"
+        shared.write_bytes(b"STEP")
+        shared_name = shared.relative_to(self.root).as_posix()
+        consumer = self.root / "examples/projects/raspberry-pi-status-led/project.json"
+        consumer_data = json.loads(consumer.read_text(encoding="utf-8"))
+        consumer_data["shared_inputs"].append(shared_name)
+        consumer.write_text(json.dumps(consumer_data, indent=2) + "\n", encoding="utf-8")
+        self.write_map(model=shared_name)
+        locked = self.locked_map()
+        consumer_data["shared_inputs"].remove(shared_name)
+        consumer.write_text(json.dumps(consumer_data, indent=2) + "\n", encoding="utf-8")
+        original_board = self.board.read_bytes()
+        original_manifest = self.manifest.read_bytes()
+        rejected = populate_models(self.root, PROJECT, locked, apply=True)
+        self.assertEqual(rejected.status, "FAIL")
+        self.assertIn("examples/projects/raspberry-pi-status-led/project.json", rejected.error or "")
+        self.assertIn(f"add {shared_name} to shared_inputs", rejected.error or "")
+        self.assertEqual(self.board.read_bytes(), original_board)
+        self.assertEqual(self.manifest.read_bytes(), original_manifest)
 
 
 if __name__ == "__main__":
