@@ -39,10 +39,13 @@ CHECK_TOOLS = {"check_project", "diagnose_project", "capture_contract", "check_s
 WRITE_TOOLS = {"new_project", "import_project"}
 EXPORT_TOOLS = {"package_release", "restore_package", "generate_views", "prepare_parts", "init_model_map",
                 "capture_electrical_inputs", "prepare_part_picker", "preview_part_selection",
-                "preview_model_sync", "preview_auto_cad", "prepare_supplier_handoff"}
+                "preview_model_sync", "preview_auto_cad", "prepare_supplier_handoff",
+                "export_electrical_charts", "export_electrical_chart_suite", "source_cad",
+                "preview_cad_import"}
 EDIT_TOOLS = {"apply_project_edit", "apply_model_population", "save_parts_preferences",
-              "init_electrical", "apply_part_selection", "apply_auto_cad"}
-NATIVE_EXPORT_TOOLS = {"export_project", "prepare_review", "prepare_review_scope", "export_3d", "convert_pcb"}
+              "init_electrical", "apply_part_selection", "apply_auto_cad",
+              "apply_cad_import"}
+NATIVE_EXPORT_TOOLS = {"export_project", "prepare_review", "prepare_review_scope", "export_3d", "convert_pcb", "check_step_alignment"}
 DOCUMENTS = {
     "start-here": "START_HERE.md",
     "first-board": "FIRST_BOARD.md",
@@ -62,6 +65,7 @@ DOCUMENTS = {
     "parts-to-order": "PARTS_TO_ORDER.md",
     "tool-surfaces": "TOOL_SURFACES.md",
     "electrical-analysis": "ELECTRICAL_ANALYSIS.md",
+    "cad-sourcing": "CAD_SOURCING.md",
 }
 
 
