@@ -111,3 +111,23 @@ def repo_path(root: Path, value: str) -> Path:
     if root not in current.resolve().parents:
         raise ValueError(f"Escaping repository path: {value!r}")
     return current
+
+
+def update_project_manifest_parts(
+    document: str, part_ids: tuple[str, ...], additions: dict[str, set[str]],
+    remove_part_ids: tuple[str, ...] = (),
+) -> str:
+    """Update reviewed identities and model inputs, retaining other authored JSON fields."""
+    from .models import ProjectManifest
+
+    raw = json.loads(document, object_pairs_hook=_unique_object, parse_constant=_invalid_number)
+    manifest = ProjectManifest.model_validate_json(document, strict=True)
+    raw["component_identity"]["part_ids"] = sorted(
+        (set(manifest.component_identity.part_ids) - set(remove_part_ids)) | set(part_ids)
+    )
+    for field in ("required_inputs", "shared_inputs"):
+        if additions[field]:
+            raw[field] = sorted(set(getattr(manifest, field)) | additions[field])
+    updated = json.dumps(raw, indent=2, ensure_ascii=False) + "\n"
+    ProjectManifest.model_validate_json(updated, strict=True)
+    return updated

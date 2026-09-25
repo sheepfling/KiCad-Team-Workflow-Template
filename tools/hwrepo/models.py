@@ -62,6 +62,25 @@ class PartStatus(str, Enum):
     APPROVED = "approved"
 
 
+class PartCadBinding(StrictModel):
+    """Reviewed symbol, value, package and source model for one catalog part."""
+
+    symbol_id: NonEmptyText
+    value: NonEmptyText
+    footprint: Annotated[str, StringConstraints(pattern=r"^[^:\r\n]+:[^:\r\n]+$")]
+    model: RepositoryPath
+    digikey_sku: Annotated[str, StringConstraints(min_length=1)] | None = None
+
+    @model_validator(mode="after")
+    def exact_sku(self) -> PartCadBinding:
+        if self.digikey_sku is not None and (
+            self.digikey_sku != self.digikey_sku.strip()
+            or any(ord(char) < 32 or ord(char) == 127 for char in self.digikey_sku)
+        ):
+            raise ValueError("DigiKey SKU must be exact text without padding or control characters")
+        return self
+
+
 class PartRecord(StrictModel):
     id: Identifier
     revision: Identifier
@@ -74,6 +93,7 @@ class PartRecord(StrictModel):
     lifecycle: NonEmptyText
     status: PartStatus
     approved_alternates: tuple[Identifier, ...] = ()
+    cad: PartCadBinding | None = None
 
 
 class PartsCatalog(StrictModel):
@@ -1508,3 +1528,81 @@ class PurchasingReport(PurchasingSchemaModel):
     receipt_dir: str
     artifacts: tuple[str, ...] = ()
     evidence: ContractCoachReport | None = None
+
+
+class PartCadComponent(StrictModel):
+    reference: Identifier
+    symbol_id: str
+    value: str
+    footprint: str
+    part_id: str | None = None
+    source_path: RepositoryPath
+    uuid: NonEmptyText
+    dnp: bool = False
+    exclude_from_bom: bool = False
+
+
+class PartSourceEdit(StrictModel):
+    path: RepositoryPath
+    before: str | None
+    after: str
+
+
+class PartCadChanges(StrictModel):
+    edits: tuple[PartSourceEdit, ...] = ()
+    pending_references: tuple[Identifier, ...] = ()
+    issues: tuple[NonEmptyText, ...] = ()
+
+
+class PartSelectionAssignment(StrictModel):
+    reference: Identifier
+    part_id: Identifier
+
+
+class PartSelectionMap(PurchasingSchemaModel):
+    project_id: Identifier
+    preconditions: Mapping[RepositoryPath, Digest | None]
+    assignments: tuple[PartSelectionAssignment, ...] = ()
+    locked: bool = False
+    after_hashes: Mapping[RepositoryPath, Digest] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def unique_assignments(self) -> PartSelectionMap:
+        references = [item.reference for item in self.assignments]
+        if len(references) != len(set(references)):
+            raise ValueError("Part selection repeats a component reference")
+        return self
+
+
+class PartPickerItem(StrictModel):
+    component: PartCadComponent
+    choice_ids: tuple[Identifier, ...] = ()
+    issues: tuple[NonEmptyText, ...] = ()
+
+
+class PartPickerReport(PurchasingSchemaModel):
+    lane: Literal["PART_PICKER"] = "PART_PICKER"
+    status: Literal["READY", "NEEDS_CATALOG", "BLOCKED"]
+    project_id: Identifier
+    items: tuple[PartPickerItem, ...] = ()
+    choices: tuple[PartRecord, ...] = ()
+    selection_template: PartSelectionMap | None = None
+    issues: tuple[NonEmptyText, ...] = ()
+    receipt_dir: str
+    evidence: ContractCoachReport | None = None
+    purchase_authorized: Literal[False] = False
+    build_authorized: Literal[False] = False
+
+
+class PartSelectionReport(PurchasingSchemaModel):
+    lane: Literal["PART_SELECTION"] = "PART_SELECTION"
+    status: Literal["PLAN", "APPLIED", "APPLIED_NEEDS_PCB_UPDATE", "BLOCKED"]
+    project_id: Identifier
+    edits: tuple[PartSourceEdit, ...] = ()
+    pending_references: tuple[Identifier, ...] = ()
+    locked_map: str | None = None
+    issues: tuple[NonEmptyText, ...] = ()
+    next_commands: tuple[NonEmptyText, ...] = ()
+    receipt_dir: str
+    purchase_authorized: Literal[False] = False
+    build_authorized: Literal[False] = False
