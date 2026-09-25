@@ -5,7 +5,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from .hwrepo.model_population import populate_models, render_population_text
+from .hwrepo.model_population import init_model_map, populate_models, render_population_text
 from .hwrepo.three_d import generate, render_text
 
 
@@ -16,6 +16,8 @@ def main() -> int:
     parser.add_argument("--check-models", action="store_true", help="Inspect model coverage without KiCad")
     parser.add_argument("--map-models", type=Path,
                         help="Explicit reviewed model-map JSON; preview exact source edits by default")
+    parser.add_argument("--init-model-map", type=Path,
+                        help="Write an unapproved draft map under ignored build/ with current hashes")
     parser.add_argument("--apply", action="store_true", help="Apply a reviewed --map-models plan")
     parser.add_argument("--runner", choices=("auto", "local", "container"), default="auto",
                         help="Exact local CLI or project digest-pinned Docker image")
@@ -27,9 +29,10 @@ def main() -> int:
     args = parser.parse_args()
     if args.apply and args.map_models is None:
         parser.error("--apply requires --map-models")
-    if args.map_models is not None and args.check_models:
-        parser.error("--map-models and --check-models are separate operations")
-    if args.map_models is not None and args.runner != "auto":
+    if sum((args.map_models is not None, args.init_model_map is not None,
+            args.check_models)) > 1:
+        parser.error("--map-models, --init-model-map and --check-models are separate operations")
+    if (args.map_models is not None or args.init_model_map is not None) and args.runner != "auto":
         parser.error("--runner is used only when generating 3D exports")
     if args.check_models and args.runner != "auto":
         parser.error("--runner is used only when generating 3D exports")
@@ -41,7 +44,13 @@ def main() -> int:
                                      apply=args.apply, output=args.output)
             print(mapped.model_dump_json(indent=2) if args.format == "json"
                   else render_population_text(mapped))
-            return 0 if mapped.status in {"PLAN", "APPLIED"} else (2 if mapped.status == "ERROR" else 1)
+            return 0 if mapped.status in {"DRAFT", "PLAN", "APPLIED"} else (2 if mapped.status == "ERROR" else 1)
+        if args.init_model_map is not None:
+            mapped = init_model_map(args.root, args.project, args.init_model_map,
+                                    output=args.output)
+            print(mapped.model_dump_json(indent=2) if args.format == "json"
+                  else render_population_text(mapped))
+            return 0 if mapped.status in {"DRAFT", "PLAN", "APPLIED"} else (2 if mapped.status == "ERROR" else 1)
         report = generate(args.root, args.project, check_models=args.check_models,
                           runner=args.runner, cli=args.cli, output=args.output,
                           detail=args.detail)

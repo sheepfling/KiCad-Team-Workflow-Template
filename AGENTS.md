@@ -46,8 +46,11 @@ This file is for coding agents and engineers using an agent. Start with the
 - For a PCB's 3D handoff, run
   `python -B -m tools.visualize --project <id> --check-models --format json`
   to inspect placed-footprint model coverage and candidate repository assets.
-  Repair paths and assign reviewed models in the authoritative KiCad source;
-  then run `python -B -m tools.visualize --project <id>` to produce top/angled
+  For unassigned footprints, use `--init-model-map build/model-map.json` to
+  create a hash-bound draft, enter explicit reviewed source-model paths, then
+  use `--map-models build/model-map.json` to inspect the board/manifest diff
+  before `--apply`. Repair existing assignments in KiCad. Then run
+  `python -B -m tools.visualize --project <id>` to produce top/angled
   PNGs, STEP and GLB in a fresh ignored receipt. A successful export can still
   have `models.status=REVIEW`; inspect the actual geometry and follow the
   [3D workflow](docs/workflow/THREE_D_WORKFLOW.md). The manual **KiCad 3D preview**
