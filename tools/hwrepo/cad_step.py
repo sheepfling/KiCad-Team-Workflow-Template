@@ -8,7 +8,6 @@ from __future__ import annotations
 import hashlib
 import os
 import re
-import sys
 from html import escape
 from pathlib import Path
 
@@ -96,7 +95,7 @@ def _docker(output: Path, image: str, entrypoint: str, arguments: tuple[str, ...
             timeout: int = 180) -> CommandEvidence:
     if _IMAGE.fullmatch(image) is None:
         raise ValueError("STEP review requires the project's digest-pinned KiCad image")
-    user: tuple[str, ...] = () if sys.platform == "win32" else (
+    user: tuple[str, ...] = () if os.name == "nt" else (
         "--user", f"{os.getuid()}:{os.getgid()}",
     )
     command = ("docker", "run", "--rm", "--platform", "linux/amd64", "--network", "none",
