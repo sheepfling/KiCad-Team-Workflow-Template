@@ -19,6 +19,7 @@ from . import mcp_checks as checks
 from . import mcp_conversion as conversion
 from . import mcp_electrical as electrical
 from . import mcp_files as files
+from . import mcp_new_workflows as new_workflows
 from . import mcp_parts as parts
 from . import mcp_parts_extensions as part_tools
 from . import mcp_planning as planning
@@ -31,9 +32,14 @@ from .importing import import_project as import_design
 from .inventory import inventory
 from .models import (
     AutoCadReport,
+    CadImportReport,
+    CadSourcingReview,
+    CadStepReport,
     ContractCoachReport,
     DiagnosticReport,
     ElectricalAnalysisReport,
+    ElectricalChartsReport,
+    ElectricalChartsSuiteReport,
     ElectricalInputInventory,
     ElectricalSetupReport,
     ElectricalSuiteReport,
@@ -84,6 +90,7 @@ DocumentName = Literal[
     "contributor-guide", "checks-and-ci", "mcp", "bom-policy", "release-readiness",
     "release-storage", "project-kinds", "libraries", "authority-model", "assurance-profiles",
     "three-d-workflow", "parts-to-order", "tool-surfaces", "electrical-analysis",
+    "cad-sourcing",
 ]
 DOCUMENTS: Mapping[DocumentName, str] = {
     "start-here": "docs/workflow/START_HERE.md",
@@ -104,6 +111,7 @@ DOCUMENTS: Mapping[DocumentName, str] = {
     "parts-to-order": "docs/workflow/PARTS_TO_ORDER.md",
     "tool-surfaces": "docs/workflow/TOOL_SURFACES.md",
     "electrical-analysis": "docs/workflow/ELECTRICAL_ANALYSIS.md",
+    "cad-sourcing": "docs/workflow/CAD_SOURCING.md",
 }
 READ_ONLY = ToolAnnotations(
     read_only_hint=True, destructive_hint=False, idempotent_hint=True, open_world_hint=False,
@@ -740,6 +748,24 @@ def create_server(
 
         server.tool(annotations=CREATE_ONLY)(capture_electrical_inputs)
 
+        def export_electrical_charts(view_id: str, receipt: str) -> ElectricalChartsReport:
+            """Export charts and full precision CSV from a saved, hashed electrical receipt.
+
+            This does not rerun simulation or approve physical behavior.
+            Missing or failed waveforms remain explicit in the report.
+            """
+            with service_operation(operation):
+                return new_workflows.export_electrical_charts(root, view_id, receipt)
+
+        server.tool(annotations=CREATE_ONLY)(export_electrical_charts)
+
+        def export_electrical_chart_suite(view_id: str, suite: str) -> ElectricalChartsSuiteReport:
+            """Export charts for every project in a saved electrical suite receipt."""
+            with service_operation(operation):
+                return new_workflows.export_electrical_chart_suite(root, view_id, suite)
+
+        server.tool(annotations=CREATE_ONLY)(export_electrical_chart_suite)
+
     if allow_checks:
         def analyze_electrical(
             project_id: str, view_id: str, native_summary: str | None = None,
@@ -836,6 +862,51 @@ def create_server(
 
         server.tool(annotations=EXECUTION if allow_downloads else CREATE_ONLY)(preview_auto_cad)
 
+        def source_cad(
+            project_id: str, view_id: str, supplier_id: str,
+            expected_mpn: str | None = None, refresh: bool = False,
+        ) -> CadSourcingReview:
+            """Check an exact LCSC identity, freeze CAD and preview project import.
+
+            Without --allow-downloads, only an intact verified cache may be used.
+            A provider response or internal pin match is not a part approval.
+            """
+            with service_operation(operation):
+                return new_workflows.source_cad(
+                    root, project_id, view_id, supplier_id, expected_mpn, refresh,
+                    allow_downloads=allow_downloads,
+                )
+
+        server.tool(annotations=EXECUTION if allow_downloads else CREATE_ONLY)(source_cad)
+
+        def preview_cad_import(project_id: str, view_id: str,
+                               source_report: str) -> CadImportReport:
+            """Preview source changes from a saved exact-part CAD cache receipt."""
+            with service_operation(operation):
+                return new_workflows.preview_cad_import(root, project_id, view_id, source_report)
+
+        server.tool(annotations=CREATE_ONLY)(preview_cad_import)
+
+        if allow_checks:
+            def check_step_alignment(
+                project_id: str, view_id: str, supplier_id: str,
+                expected_mpn: str | None = None, refresh: bool = False,
+                source_report: str | None = None,
+            ) -> CadStepReport:
+                """Render paired WRL/STEP views with pinned KiCad for visual review.
+
+                A saved source_report reuses an exact frozen part. Network fetches
+                require host --allow-downloads. REVIEW requires human inspection;
+                STEP is not installed and physical fit is not approved.
+                """
+                with service_operation(operation):
+                    return new_workflows.check_step_alignment(
+                        root, project_id, view_id, supplier_id, expected_mpn, refresh,
+                        source_report, allow_downloads=allow_downloads,
+                    )
+
+            server.tool(annotations=EXECUTION)(check_step_alignment)
+
         def prepare_supplier_handoff(
             project_id: str, view_id: str, parts_report: str,
         ) -> SupplierHandoffReport:
@@ -876,6 +947,19 @@ def create_server(
                 )
 
         server.tool(annotations=EXECUTION if allow_downloads else EDIT)(apply_auto_cad)
+
+        def apply_cad_import(
+            project_id: str, view_id: str, plan: str, expected_sha256: str,
+        ) -> CadImportReport:
+            """Import project-local CAD from the exact reviewed plan bytes.
+
+            Current source, cached assets and planned edits are rechecked before
+            applying. Placed components are not altered or electrically approved.
+            """
+            with service_operation(operation):
+                return new_workflows.apply_cad_import(root, project_id, view_id, plan, expected_sha256)
+
+        server.tool(annotations=EDIT)(apply_cad_import)
 
     if allow_supplier_submissions:
         def submit_supplier_handoff(handoff: str, expected_sha256: str) -> SupplierHandoffReport:

@@ -9,7 +9,7 @@ import json
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import TYPE_CHECKING, TypeVar, cast
 
-from pydantic import BaseModel, TypeAdapter, ValidationError
+from pydantic import BaseModel, TypeAdapter
 
 from .models import KiCadForeignImportSummary
 

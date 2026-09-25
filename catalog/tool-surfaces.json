@@ -100,6 +100,17 @@
       ]
     },
     {
+      "module": "tools.electrical_charts",
+      "commands": [],
+      "options": [
+        "--format",
+        "--output",
+        "--receipt",
+        "--root",
+        "--suite"
+      ]
+    },
+    {
       "module": "tools.fault_probe",
       "commands": [],
       "options": [
@@ -206,9 +217,12 @@
         "--auto-models",
         "--boards",
         "--cad-plan",
+        "--check-step",
         "--cli",
+        "--expected-mpn",
         "--expected-sha256",
         "--format",
+        "--import-cad",
         "--init-preferences",
         "--native-summary",
         "--no-browser",
@@ -218,10 +232,12 @@
         "--preferences",
         "--prepare-handoff",
         "--project",
+        "--refresh-cad",
         "--root",
         "--runner",
         "--save-preferences",
         "--selection",
+        "--source-cad",
         "--spare-minimum",
         "--spare-percent",
         "--submit-handoff",
@@ -377,6 +393,15 @@
       ]
     },
     {
+      "name": "apply_cad_import",
+      "parameters": [
+        "expected_sha256",
+        "plan",
+        "project_id",
+        "view_id"
+      ]
+    },
+    {
       "name": "apply_model_population",
       "parameters": [
         "plan",
@@ -460,6 +485,17 @@
       ]
     },
     {
+      "name": "check_step_alignment",
+      "parameters": [
+        "expected_mpn",
+        "project_id",
+        "refresh",
+        "source_report",
+        "supplier_id",
+        "view_id"
+      ]
+    },
+    {
       "name": "convert_pcb",
       "parameters": [
         "input_format",
@@ -501,6 +537,20 @@
         "assembly_variant",
         "project_id",
         "runner",
+        "view_id"
+      ]
+    },
+    {
+      "name": "export_electrical_chart_suite",
+      "parameters": [
+        "suite",
+        "view_id"
+      ]
+    },
+    {
+      "name": "export_electrical_charts",
+      "parameters": [
+        "receipt",
         "view_id"
       ]
     },
@@ -670,6 +720,14 @@
       ]
     },
     {
+      "name": "preview_cad_import",
+      "parameters": [
+        "project_id",
+        "source_report",
+        "view_id"
+      ]
+    },
+    {
       "name": "preview_import",
       "parameters": [
         "project_id",
@@ -760,6 +818,16 @@
       "parameters": [
         "source_directory",
         "toolchain_id"
+      ]
+    },
+    {
+      "name": "source_cad",
+      "parameters": [
+        "expected_mpn",
+        "project_id",
+        "refresh",
+        "supplier_id",
+        "view_id"
       ]
     },
     {
@@ -1614,6 +1682,85 @@
       ],
       "parity_tests": [
         "tests.test_parts_extensions.PartsExtensionsTests.test_supplier_prepare_and_submit_cli_protocol_parity"
+      ]
+    },
+    {
+      "id": "electrical-chart-exports",
+      "cli": [
+        "tools.electrical_charts"
+      ],
+      "mcp": [
+        "export_electrical_charts",
+        "export_electrical_chart_suite"
+      ],
+      "alignment": "aligned",
+      "reason": "Both export charts and full precision CSV from retained, hashed individual or suite electrical analysis receipts.",
+      "scope": "core",
+      "gaps": [],
+      "constraints": [
+        "MCP requires exports and checkout build receipts; the CLI accepts an explicit fresh output path. Matplotlib is an optional pinned charts dependency."
+      ],
+      "parity_tests": [
+        "tests.test_new_workflow_parity.NewWorkflowParityTests.test_saved_electrical_charts_and_suite_match_cli"
+      ]
+    },
+    {
+      "id": "exact-cad-sourcing",
+      "cli": [
+        "tools.parts"
+      ],
+      "mcp": [
+        "source_cad"
+      ],
+      "alignment": "aligned",
+      "reason": "Both check an exact LCSC identity, retain a frozen source bundle and preview a project-local CAD import.",
+      "scope": "core",
+      "gaps": [],
+      "constraints": [
+        "MCP requires exports; live community-provider downloads also require allow-downloads. Verified cached assets remain usable without network."
+      ],
+      "parity_tests": [
+        "tests.test_new_workflow_parity.NewWorkflowParityTests.test_exact_cad_lookup_preview_and_apply_match_cli",
+        "tests.test_new_workflow_parity.NewWorkflowParityTests.test_network_permission_and_step_review_match_cli"
+      ]
+    },
+    {
+      "id": "sourced-cad-import",
+      "cli": [
+        "tools.parts"
+      ],
+      "mcp": [
+        "preview_cad_import",
+        "apply_cad_import"
+      ],
+      "alignment": "aligned",
+      "reason": "Both preview and apply source-bound project-local symbol, footprint and paired WRL imports from exact CAD bundles.",
+      "scope": "core",
+      "gaps": [],
+      "constraints": [
+        "MCP requires exports for preview, edits and an exact reviewed plan digest for apply; paths are confined to this checkout."
+      ],
+      "parity_tests": [
+        "tests.test_new_workflow_parity.NewWorkflowParityTests.test_exact_cad_lookup_preview_and_apply_match_cli"
+      ]
+    },
+    {
+      "id": "cad-step-alignment",
+      "cli": [
+        "tools.parts"
+      ],
+      "mcp": [
+        "check_step_alignment"
+      ],
+      "alignment": "aligned",
+      "reason": "Both run pinned KiCad WRL and STEP comparison views for an exact sourced part and preserve REVIEW instead of physical-fit approval.",
+      "scope": "core",
+      "gaps": [],
+      "constraints": [
+        "MCP requires checks and exports; a fresh provider lookup also requires allow-downloads unless the exact source is cached. Saved source reports can be reused."
+      ],
+      "parity_tests": [
+        "tests.test_new_workflow_parity.NewWorkflowParityTests.test_network_permission_and_step_review_match_cli"
       ]
     },
     {

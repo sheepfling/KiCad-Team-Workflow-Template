@@ -303,7 +303,7 @@ def _build(parent: Path, supplier_id: str, expected_mpn: str | None, receipt: Pa
 
 
 def fetch(root: Path, supplier_id: str, output: Path, *, expected_mpn: str | None = None,
-          refresh: bool = False) -> CadSourceReport:
+          refresh: bool = False, allow_downloads: bool = True) -> CadSourceReport:
     """Freeze one exact supplier part; never place it or approve an electrical design."""
     root = root.resolve()
     output = output if output.is_absolute() else root / output
@@ -327,6 +327,8 @@ def fetch(root: Path, supplier_id: str, output: Path, *, expected_mpn: str | Non
             destination = repo_path(parent, key)
             bundle = _cached(destination, supplier_id, expected_mpn)
         else:
+            if not allow_downloads:
+                raise ValueError("CAD source is not cached; reconnect MCP with --allow-downloads to fetch it")
             destination, bundle = _build(parent, supplier_id, expected_mpn, output)
             with tempfile.NamedTemporaryFile(mode="w", encoding="ascii",
                                              prefix=".current-", dir=parent, delete=False) as stream:

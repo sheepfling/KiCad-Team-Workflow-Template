@@ -16,7 +16,10 @@ python -m pip install -e '.[mcp]'
 ```
 
 Install `.[dev]` when enabling checks or developing the adapter; it includes the
-pinned MCP SDK and repository quality tools. The base installation keeps MCP
+pinned MCP SDK, chart renderer and repository quality tools. Install `.[charts]`
+for electrical chart export in a smaller runtime. Exact-part community CAD lookup
+needs `.[cad]` when a new bundle must be converted; saved intact bundles can be
+reviewed without that optional converter. The base installation keeps MCP
 optional. Clients with shell access can also use the CLIs directly.
 
 Configure the client to launch the checkout's virtual-environment interpreter.
@@ -64,11 +67,11 @@ operation; enabling project creation does not enable edits to an existing design
 | --- | --- | --- |
 | Default | Discovery, tool-surface inventory, impact planning, sourcing inspection, guidance, source/artifact reads, import scanning and preview, edit preview, saved contract inspection, model-population preview, rescue and import diagnosis, release/package verification | Reads bounded repository data. Model-population preview, rescue and import diagnosis create ignored diagnostic receipts. Package verification temporarily restores the archive. |
 | `--allow-writes` | `new_project`, `import_project` | Creates a new project island; refuses an existing destination. |
-| `--allow-edits` | `apply_project_edit`, `apply_model_population`, `save_parts_preferences`, `init_electrical`, `apply_part_selection`, `apply_auto_cad` | Creates pending electrical requirements or applies reviewed source/preferences changes with stale-write protection. |
+| `--allow-edits` | `apply_project_edit`, `apply_model_population`, `save_parts_preferences`, `init_electrical`, `apply_part_selection`, `apply_auto_cad`, `apply_cad_import` | Creates pending electrical requirements or applies reviewed source/preferences changes with stale-write protection. |
 | `--allow-checks` | `check_project`, `diagnose_project`, `capture_contract`, `check_scope`, `check_native_scope`, `analyze_electrical`, `check_electrical_scope` | Executes repository checks and creates ignored receipts. Native work also runs KiCad or Docker. |
-| `--allow-exports` | `generate_views`, `init_model_map`, `prepare_parts`, `package_release`, `restore_package`, `capture_electrical_inputs`, `prepare_part_picker`, `preview_part_selection`, `preview_model_sync`, `preview_auto_cad`, `prepare_supplier_handoff` | Creates generated review views, model-map drafts, purchasing receipts from saved evidence and new package/restore outputs in the checkout's ignored build area. Fresh parts capture also requires checks. |
-| Both `--allow-checks` and `--allow-exports` | `export_project`, `export_3d`, `prepare_review`, `prepare_review_scope`, `convert_pcb` | Executes checks/native tooling and creates fresh exports, 3D views or an engineering review candidate. |
-| `--allow-downloads` | Allows official CAD fetches within enabled `preview_auto_cad` / `apply_auto_cad` | Without this additional flag, repository, installed and verified cached assets may be reused, but missing downloads remain unresolved. |
+| `--allow-exports` | `generate_views`, `init_model_map`, `prepare_parts`, `package_release`, `restore_package`, `capture_electrical_inputs`, `prepare_part_picker`, `preview_part_selection`, `preview_model_sync`, `preview_auto_cad`, `source_cad`, `preview_cad_import`, `prepare_supplier_handoff`, `export_electrical_charts`, `export_electrical_chart_suite` | Creates generated review views, model-map drafts, purchasing receipts from saved evidence and new package/restore outputs in the checkout's ignored build area. Fresh parts capture also requires checks. |
+| Both `--allow-checks` and `--allow-exports` | `export_project`, `export_3d`, `prepare_review`, `prepare_review_scope`, `convert_pcb`, `check_step_alignment` | Executes checks/native tooling and creates fresh exports, 3D views or an engineering review candidate. |
+| `--allow-downloads` | Allows official CAD fetches in `preview_auto_cad` / `apply_auto_cad` and exact-part community-provider fetches in `source_cad` / `check_step_alignment` | Without this additional flag, intact cached assets may be reused, but missing downloads remain unresolved. A tool argument cannot enable network access. |
 | `--allow-supplier-submissions` | `submit_supplier_handoff` | Sends one reviewed BOM to DigiKey for matching and returns a review link; never places an order. |
 
 Checks execute trusted repository code, including project and product tests.
@@ -120,7 +123,8 @@ Workflow documents are also resources at `kicad://docs/{name}`, for example
 `kicad://docs/first-board`. Available names are `start-here`, `first-board`,
 `diagnostics`, `import-workflow`, `contributor-guide`, `checks-and-ci`, `mcp`,
 `bom-policy`, `release-readiness`, `release-storage`, `project-kinds`, `libraries`,
-`authority-model`, `assurance-profiles`, `three-d-workflow`, `parts-to-order`, `tool-surfaces` and `electrical-analysis`.
+`authority-model`, `assurance-profiles`, `three-d-workflow`, `parts-to-order`,
+`tool-surfaces`, `electrical-analysis` and `cad-sourcing`.
 
 ## Scan, preview and import existing designs
 
@@ -338,6 +342,8 @@ nor claims schematic/electrical completeness. See [import workflow](IMPORT_WORKF
 | `capture_electrical_inputs` | `project_id`, `view_id`; optional repository-relative `models` list. Captures unreviewed source/model hashes in ignored build output. Requires exports. |
 | `analyze_electrical` | `project_id`, `view_id`; optional source-bound `native_summary` and `runner`. Runs declared grounding, power and frequency analysis with fixed KiCad/ngspice commands. Requires checks. |
 | `check_electrical_scope` | Optional `project_ids`, `product_ids`, `tags`, `exclude_tags`. Uses the same union/exclusion selection as `tools.ci --electrical`. Requires checks. |
+| `export_electrical_charts` | `view_id`, saved `receipt` directory or `electrical.json`. Exports PNG/SVG and full precision CSV from retained waveforms; requires exports and the pinned charts extra. |
+| `export_electrical_chart_suite` | `view_id`, saved electrical `suite` JSON. Exports each project from the retained suite; requires exports and the pinned charts extra when waveforms exist. |
 
 Start with the [electrical guide](ELECTRICAL_ANALYSIS.md). Review requirements and
 model assumptions independently; captured hashes remain `UNREVIEWED`. Use
@@ -347,6 +353,12 @@ and project-owned model files. Then call `doctor` with `electrical: true` and
 summary. `NOT_CONFIGURED`, pending requirements and failed checks remain visible.
 Simulation results do not prove real ground paths, physical startup, RF/EMC or
 manufacturing acceptance.
+
+The two chart tools run the same saved-receipt service as `tools.electrical_charts`.
+They reread the analysis report and its recorded hashes, keep partial or failed
+waveforms visible, and write a fresh `build/electrical-charts/<view_id>` receipt.
+Use `read_artifact` for the CSV and report, then open PNG/SVG charts for visual
+review. A chart does not rerun a simulation or create new electrical evidence.
 
 ## Review parts and paired CAD changes
 
@@ -358,6 +370,18 @@ manufacturing acceptance.
 | `preview_model_sync` | `project_id`, `view_id`. Replans model assignments after the engineer updates PCB footprints in KiCad. |
 | `preview_auto_cad` | `project_id`, `view_id`. Plans paired CAD imports, preserving source hashes and geometry assumptions. Missing official assets need host downloads capability. |
 | `apply_auto_cad` | `project_id`, `view_id`, retained `plan`, `expected_sha256`. Applies exact reviewed CAD changes; requires edits, plus downloads if fetching missing assets. |
+| `source_cad` | `project_id`, `view_id`, exact LCSC `supplier_id`; optional `expected_mpn` and `refresh`. Freezes a provider bundle and previews project-local import. Requires exports; a new fetch additionally needs downloads. |
+| `preview_cad_import` | `project_id`, `view_id`, saved `source_report` (`cad-source.json`). Rechecks the bundle and writes an import diff and plan; requires exports. |
+| `apply_cad_import` | `project_id`, `view_id`, saved `plan` (`cad-import-plan.json`), `expected_sha256`. Applies exactly the reviewed plan bytes if the source and cached assets still match; requires edits. |
+| `check_step_alignment` | `project_id`, `view_id`, exact `supplier_id`; optional `expected_mpn`, `refresh`, saved `source_report`. Renders paired WRL/STEP views with pinned KiCad; requires checks and exports, plus downloads for a new lookup. |
+
+The exact-part path follows [CAD sourcing](CAD_SOURCING.md): enter a supplier ID,
+check the reported manufacturer and MPN, inspect `cad-import.diff`, then apply the
+returned plan with its artifact SHA-256. Source reports and plans stay under
+`build/cad-sourcing/` or `build/cad-imports/`. `source_cad` and
+`check_step_alignment` can reuse an intact cached part with downloads disabled;
+`refresh` requests a new fetch and needs the download capability. STEP review
+returns `REVIEW` until the paired views and actual package fit are inspected.
 
 The preview tools require exports. Inspect retained diffs and read the locked
 artifact's SHA-256 before applying. CAD filenames and paired geometry do not verify

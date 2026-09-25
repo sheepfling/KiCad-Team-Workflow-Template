@@ -75,6 +75,23 @@ license does not establish rights to every supplier CAD asset; no shared-library
 or manufacturing approval is granted by import. Follow the [library policy](LIBRARIES.md)
 when promoting project-local assets to a shared library.
 
+## Agent use through MCP
+
+Connect to this checkout using [the MCP setup](MCP.md). Enable exports to call
+`source_cad(project_id, view_id, supplier_id, expected_mpn)`; the response contains
+the exact frozen source and an import preview. A new provider fetch additionally
+requires `--allow-downloads` at server startup. Without that flag, an intact
+verified cached bundle remains available and a missing bundle returns `BLOCKED`.
+
+Read the retained `cad-import.diff` and `cad-import-plan.json`. Use
+`apply_cad_import(project_id, view_id, plan, expected_sha256)` with edits enabled
+after reviewing the plan's SHA-256. `preview_cad_import` can make a fresh plan from
+a saved `cad-source.json`. `check_step_alignment` accepts the same exact supplier
+ID and can reuse a saved source report; it needs checks and exports and produces
+paired views with the pinned KiCad image. Its `REVIEW` result requires visual
+inspection. None of these tools chooses an electrical substitute or installs raw
+STEP as the approved footprint model.
+
 ## Scripted use and recovery
 
 ```sh

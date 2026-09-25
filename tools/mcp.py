@@ -19,7 +19,7 @@ def main() -> int:
     parser.add_argument("--allow-exports", action="store_true",
                         help="Expose packaging/restore; native export and review also need --allow-checks")
     parser.add_argument("--allow-downloads", action="store_true",
-                        help="Allow official CAD downloads during enabled parts preview/apply tools")
+                        help="Allow official and exact-part community CAD downloads in enabled tools")
     parser.add_argument("--allow-supplier-submissions", action="store_true",
                         help="Expose explicit reviewed BOM submission to DigiKey; never places an order")
     parser.add_argument("--import-root", type=Path, action="append", default=[],

@@ -287,3 +287,9 @@ high-frequency measurements and physical grounding acceptance remain separate wo
 The simulator behavior is documented in the
 [ngspice manual](https://ngspice.sourceforge.io/docs.html) and the
 [KiCad simulator guide](https://docs.kicad.org/10.0/en/eeschema/eeschema.html#simulator).
+
+The local MCP adapter exposes `export_electrical_charts(view_id, receipt)` and
+`export_electrical_chart_suite(view_id, suite)` for the same saved analysis receipts.
+Both require exports capability and write fresh ignored outputs. Install the pinned
+`charts` extra for waveform plots; CSV tables keep the original numeric precision.
+The chart status preserves missing or failed simulation evidence.

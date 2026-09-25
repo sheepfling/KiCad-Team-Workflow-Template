@@ -36,6 +36,8 @@ CORE_WORKFLOWS = frozenset({
     "supplier-snapshots", "foreign-board-conversion", "electrical-setup",
     "electrical-input-capture", "electrical-analysis", "electrical-scope-checks",
     "reviewed-part-selection", "paired-cad-import", "supplier-review-handoff",
+    "electrical-chart-exports", "exact-cad-sourcing", "sourced-cad-import",
+    "cad-step-alignment",
 })
 
 

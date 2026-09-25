@@ -30,7 +30,8 @@ portable and grouped native checks, contract inspection, model draft/population 
 3D export, parts/preferences, supplier snapshots, impact planning, scoped review
 views, native fabrication export, engineering-review preparation and package recovery.
 Newly integrated core scope also includes foreign-board conversion, electrical
-setup/input capture and analysis, reviewed part selection, paired CAD imports and
+setup/input capture and analysis, saved electrical chart exports, reviewed part
+selection, paired and exact sourced CAD imports, pinned STEP alignment review, and
 explicit supplier handoff. Downloads and submissions have separate MCP startup
 capabilities; these authority constraints are recorded without hiding functional gaps.
 The required core IDs are pinned in the policy code. Deleting a row or calling it
