@@ -27,7 +27,8 @@ to understand what belongs with each board and what is shared.
    the island. Add `--depth native` after KiCad source changes, then review source
    and exported evidence. Use the full gate when shared tooling or policy changes;
    PR CI chooses affected project lanes, and main receives full coverage. A new
-   island's README is discovered automatically by docs policy.
+   island's README is discovered automatically by docs policy. For board images
+   and mechanical exchange files, follow the [3D workflow](THREE_D_WORKFLOW.md).
 
 When an import or check fails, follow [diagnose and repair](DIAGNOSTICS.md) for a
 project-local finding, concrete next action and the relevant source of authority.

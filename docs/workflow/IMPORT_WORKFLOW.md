@@ -95,6 +95,8 @@ portability before invoking KiCad and writes evidence only to a fresh output pat
 Old library variables, machine-specific paths and missing assets require reviewed
 migration. Embedded 3D-model references are local to their containing native file;
 static policy checks record presence, while native KiCad owns decoding.
+After import, use the [3D workflow](THREE_D_WORKFLOW.md) to inventory assigned
+models, make their paths portable and generate review views from the registered PCB.
 
 Development/production contracts cannot whitelist disabled ERC/DRC checks. Existing
 KiCad projects may have disabled defaults: enable the applicable checks, rerun and

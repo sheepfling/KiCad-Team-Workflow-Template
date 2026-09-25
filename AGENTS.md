@@ -43,6 +43,18 @@ This file is for coding agents and engineers using an agent. Start with the
   project identity, source hashes and netlist artifact evidence; its components
   and nets are explicitly `UNREVIEWED`. It never edits `tests/contract.json` or
   establishes electrical coverage. Keep optional receipts under ignored `build/`.
+- For a PCB's 3D handoff, run
+  `python -B -m tools.visualize --project <id> --check-models --format json`
+  to inspect placed-footprint model coverage and candidate repository assets.
+  For unassigned footprints, use `--init-model-map build/model-map.json` to
+  create a hash-bound draft, enter explicit reviewed source-model paths, then
+  use `--map-models build/model-map.json` to inspect the board/manifest diff
+  before `--apply`. Repair existing assignments in KiCad. Then run
+  `python -B -m tools.visualize --project <id>` to produce top/angled
+  PNGs, STEP and GLB in a fresh ignored receipt. A successful export can still
+  have `models.status=REVIEW`; inspect the actual geometry and follow the
+  [3D workflow](docs/workflow/THREE_D_WORKFLOW.md). The manual **KiCad 3D preview**
+  Action provides a focused hosted run without slowing routine PR lanes.
 
 - For component selection or purchasing preparation, run
   `python -B -m tools.parts --project <id> --format json` to capture exact native

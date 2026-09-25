@@ -12,8 +12,10 @@ from unittest.mock import patch
 
 from tests.support import initialize_git, reference_root
 from tools.hwrepo.contracts import read_model, write_model
-from tools.hwrepo.discovery import load_registry
+from tools.hwrepo.diagnostics import repository_guidance
+from tools.hwrepo.discovery import load_config, load_registry
 from tools.hwrepo.importing import import_project
+from tools.hwrepo.model_inventory import inspect_models
 from tools.hwrepo.models import (
     ComponentIdentity,
     PcbOnlyValidationContract,
@@ -172,6 +174,54 @@ class ImportTests(unittest.TestCase):
         self.assertEqual(cad_dependencies(self.base, board, self.source, "10", frozenset(), frozenset()), [])
         board.write_text('(kicad_pcb (model "kicad-embed://part.step"))')
         self.assertIn("missing embedded model", cad_dependencies(self.base, board, self.source, "10", frozenset(), frozenset())[0])
+
+    def test_import_preserves_all_local_3d_source_formats_and_references(self) -> None:
+        models = self.source / "models"
+        models.mkdir()
+        names = ("Part.step", "Part.stp", "Part.wrl", "Part.igs", "Part.iges")
+        for name in names:
+            (models / name).write_text(f"authored {name}", encoding="utf-8")
+        paths = "\n".join(f'(model "${{KIPRJMOD}}/models/{name}")' for name in names)
+        self.project.with_suffix(".kicad_pcb").write_text(
+            f'(kicad_pcb (footprint "Lib:Part" (property "Reference" "U1") {paths}))',
+            encoding="utf-8",
+        )
+        preview = self.run_import(True)
+        self.assertEqual(preview.status, "PASS", preview.issues)
+        for name in names:
+            self.assertIn(f"models/{name}", preview.copied_sha256)
+        imported = self.run_import()
+        self.assertEqual(imported.status, "PASS", imported.issues)
+        config = load_config(self.root, "projects/battery-board/project.json")
+        board = self.root / "projects/battery-board/kicad/Old board.kicad_pcb"
+        self.assertEqual(cad_dependencies(
+            self.root, board, board.parent, "10",
+            frozenset(config.required_inputs), frozenset(config.source_roots),
+        ), [])
+        inventory = inspect_models(self.root, config)
+        self.assertEqual(inventory.status, "READY", inventory.findings)
+        self.assertEqual(len(inventory.footprints[0].models), len(names))
+        self.assertEqual(len(inventory.footprints[0].candidate_assets), len(names))
+
+    def test_missing_3d_asset_remains_a_named_repair_after_import(self) -> None:
+        self.project.with_suffix(".kicad_pcb").write_text(
+            '(kicad_pcb (footprint "Lib:Part" (property "Reference" "U1") '
+            '(model "${KIPRJMOD}/models/Missing.step")))', encoding="utf-8",
+        )
+        imported = self.run_import()
+        self.assertEqual(imported.status, "PASS", imported.issues)
+        config = load_config(self.root, "projects/battery-board/project.json")
+        board = self.root / "projects/battery-board/kicad/Old board.kicad_pcb"
+        issues = cad_dependencies(
+            self.root, board, board.parent, "10",
+            frozenset(config.required_inputs), frozenset(config.source_roots),
+        )
+        self.assertEqual(len(issues), 1)
+        self.assertIn("Missing.step", issues[0])
+        guidance = repository_guidance(issues[0], "10")
+        self.assertEqual(guidance.code, "CAD_PATH")
+        self.assertIn("intended asset", guidance.action)
+        self.assertEqual(inspect_models(self.root, config).status, "FAIL")
 
 
 if __name__ == "__main__":
