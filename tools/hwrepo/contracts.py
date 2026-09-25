@@ -55,6 +55,23 @@ def write_model(path: Path, model: BaseModel) -> None:
     )
 
 
+def update_project_manifest_inputs(document: str, additions: dict[str, set[str]]) -> str:
+    """Add reviewed source inputs while preserving a manifest's other JSON fields."""
+    from .models import ProjectManifest
+
+    raw = json.loads(
+        document, object_pairs_hook=_unique_object, parse_constant=_invalid_number,
+    )
+    manifest = ProjectManifest.model_validate_json(document, strict=True)
+    for field in ("required_inputs", "shared_inputs"):
+        added = additions[field]
+        if added:
+            raw[field] = sorted(set(getattr(manifest, field)) | added)
+    updated = json.dumps(raw, indent=2, ensure_ascii=False) + "\n"
+    ProjectManifest.model_validate_json(updated, strict=True)
+    return updated
+
+
 def repo_path(root: Path, value: str) -> Path:
     """Require a portable, exact-case path that stays inside root."""
     if not value or "\\" in value or ":" in value:

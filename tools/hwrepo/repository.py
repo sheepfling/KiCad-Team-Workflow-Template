@@ -196,6 +196,7 @@ def cad_dependencies(
     root: Path, file: Path, project_dir: Path, major: str,
     inventoried_inputs: frozenset[str],
     source_roots: frozenset[str],
+    exposed_inputs: frozenset[str] | None = None,
 ) -> list[str]:
     issues: list[str] = []
     text = file.read_text(encoding="utf-8")
@@ -245,12 +246,17 @@ def cad_dependencies(
                     for source in source_roots
                 ):
                     raise ValueError("library directory is outside this project's source_roots")
-                exposed = {
-                    child.relative_to(root).as_posix()
-                    for child in dependency.rglob("*")
-                    if child.is_file() and child.suffix != ".kicad_prl"
-                    and child.name != "fp-info-cache"
-                }
+                exposed = (
+                    {
+                        child.relative_to(root).as_posix()
+                        for child in dependency.rglob("*")
+                        if child.is_file() and child.suffix != ".kicad_prl"
+                        and child.name != "fp-info-cache"
+                    }
+                    if exposed_inputs is None else {
+                        name for name in exposed_inputs if name.startswith(f"{relative}/")
+                    }
+                )
                 if not exposed:
                     raise ValueError("library directory has no inventoried inputs for this project")
                 if unlisted := exposed - inventoried_inputs:

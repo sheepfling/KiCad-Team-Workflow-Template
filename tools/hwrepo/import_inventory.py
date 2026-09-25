@@ -54,7 +54,7 @@ def scan_imports(root: Path, source_directory: Path,
             source_project=str(path), suggested_project_id=project_id,
             kind=source_kind(path), preview=preview,
             next_command=(
-                "python -B -m tools.template import-project "
+                "python -B -m tools.template diagnose "
                 f"--source {shlex.quote(str(path))} "
                 f"--project-id {project_id} --toolchain {toolchain_id} --format text"
             ),
