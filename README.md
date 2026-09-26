@@ -6,6 +6,10 @@ Each project keeps its KiCad source, documentation, test expectations and releas
 records together. A battery board and a PWM board can be checked and released
 independently; an optional product describes how they work together.
 
+The tooling coaches a team through onboarding, triage, verification, BOM preparation,
+plots and 3D review evidence. Its checks report their scope and findings; they do not
+approve electrical design, part selection, physical fit, purchasing or manufacturing.
+
 ```text
 projects/<id>/
   README.md
