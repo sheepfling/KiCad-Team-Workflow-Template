@@ -2,7 +2,7 @@
   "schema_version": "1",
   "branch": "main",
   "required_status_checks": [
-    "Template acceptance"
+    "Verification / Template acceptance"
   ],
   "authors": [
     "REPLACE-WITH-ENGINEERING-AUTHOR"
