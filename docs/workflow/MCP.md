@@ -6,6 +6,12 @@ the same repository services as the command-line tools and returns their typed
 reports. Start with the result's status, findings and next actions; a completed MCP
 call can contain a failing engineering or environment result.
 
+The server works on saved project data. `preview_project_edit` and
+`apply_project_edit` support reviewed, hash-bound changes to project files; they do
+not control or edit a live KiCad desktop session. Coordinate file ownership when
+the same source is open in KiCad. Live editor integration is outside the current
+tooling scope.
+
 ## Install and connect
 
 Use a trusted checkout and complete the [Python environment setup](../../README.md#first-run-setup):
