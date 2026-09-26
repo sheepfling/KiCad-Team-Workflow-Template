@@ -11,14 +11,15 @@ release assurance floors. `team-policy.json` configures review separation and ex
 required status checks. Do not store generated BOMs here.
 
 The initial settings enable the reference examples. Before adding real work, run
-`tools.template init --project-id my-hardware` to initialize empty live catalogs.
-Keep `examples/` for regression tests. `examples/catalog/`
-contains independent reference catalog inputs used by those tests.
+`kicad-team template init --project-id my-hardware` to initialize empty live catalogs.
+Keep `examples/` for training and acceptance rehearsal. `examples/catalog/`
+contains independent reference catalog inputs used by those fixtures.
 
-[tool-surfaces.json](tool-surfaces.json) tracks public CLI/MCP declarations and required core parity
-and explicit administrative/adapter exceptions. Follow the
-[surface inventory guide](../docs/workflow/TOOL_SURFACES.md) when either interface changes; the
-unit-test gate rejects untracked drift.
+The tooling package’s
+[surface catalog](https://github.com/sheepfling/KiCad-Tooling/blob/codex/tooling-split/kicad_tooling/tool-surfaces.json)
+tracks public CLI/MCP declarations and required core parity and explicit administrative/adapter
+exceptions. Follow the [surface inventory guide](../docs/workflow/TOOL_SURFACES.md) when either
+interface changes; the tooling repository’s regression gate rejects untracked drift.
 
 ## Reviewed CAD bindings for the parts picker
 
@@ -59,5 +60,5 @@ unavailable in another until that project declares the reviewed dependency.
 
 Use the [parts-to-order workflow](../docs/workflow/PARTS_TO_ORDER.md) to capture a
 picker, review downloaded choices, apply locked edits and prepare a BOM. Review
-catalog changes with the full `python -B -m tools.ci` gate; applying a part to a board
+catalog changes with the full `kicad-team ci` gate; applying a part to a board
 also needs that board's native checks and actual geometry review.

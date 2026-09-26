@@ -1,7 +1,7 @@
 # Copyable project and workflow records
 
 The easiest start is
-`python -B -m tools.template new-project --project-id battery-board --kind pcb --toolchain kicad-10.0.5`.
+`kicad-team template new-project --project-id battery-board --kind pcb --toolchain kicad-10.0.5`.
 The scaffold contains no circuit. Create the real KiCad design and complete its contract.
 
 For manual creation, copy the appropriate `*-project-config.example.json` to
@@ -27,7 +27,7 @@ from `toolchain_id`, so they are not duplicated in project files.
 
 Catalog examples describe shared identities. [Mechanical handoff](mechanical-handoff.production.md)
 and governance examples become board-local reviewed records. The typed release-manifest
-example illustrates the checker schema. Use `tools.release prepare` to populate
+example illustrates the checker schema. Use `kicad-team release prepare` to populate
 real source, dependency and evidence hashes automatically; placeholders cannot pass.
 `OPTIONAL_NO_AUTO_MERGE.gitattributes` is an opt-in policy fragment for teams that
 want every KiCad file conflict to require deliberate file-level resolution. Review
@@ -38,7 +38,7 @@ The template contract and upgrade catalog describe supported adoption steps. See
 [BOM policy](../docs/workflow/BOM_POLICY.md), [sourcing](../docs/workflow/IDENTITY_AND_SOURCING.md)
 and [library policy](../docs/workflow/LIBRARIES.md).
 
-For electrical checks, `tools.electrical --project <id> --init` connects a pending
+For electrical checks, `kicad-team electrical --project <id> --init` connects a pending
 sidecar without inventing limits. The [electrical examples](electrical/README.md)
 provide a complete synthetic JSON contract and circuit decks for learning the
 schema. Review real board requirements and capture hashes before using them.

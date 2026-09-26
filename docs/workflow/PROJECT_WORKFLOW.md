@@ -4,7 +4,7 @@
 
 1. Confirm the project assignment, branch, and exact approved KiCad version. The template catalog
    currently includes exact KiCad 10.0.0 and 10.0.5 pins; run
-   `python -m tools.check_toolchain --toolchain <toolchain-id>`. A failure means do not save or
+   `kicad-team check-toolchain --toolchain <toolchain-id>`. A failure means do not save or
    convert.
 2. Close KiCad before switching branches. Record `git status --short` and preserve every existing
    change.

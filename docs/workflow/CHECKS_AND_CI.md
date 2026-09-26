@@ -3,57 +3,58 @@
 The same shared runner checks project islands locally and in hosted CI.
 If a selected project fails, use the [diagnostic command](DIAGNOSTICS.md) to pair
 portable, native and BOM findings with specific repair steps.
-Add `--format text` to `tools.ci` for a short terminal summary or keep its default
-JSON for complete structured results and CI. `tools.template diagnose` defaults
+Add `--format text` to `kicad-team ci` for a short terminal summary or keep its default
+JSON for complete structured results and CI. `kicad-team template diagnose` defaults
 to a short repair queue; `--detail full` expands it, and `--format json` emits
-the complete typed diagnostic report. Other `tools.template` commands default
+the complete typed diagnostic report. Other `kicad-team template` commands default
 to JSON and accept `--format text` for a human summary. Exit status remains
 nonzero on a failed check in either format.
 
-| Check scope                                                        | What runs                                                                                                                                                                         |
-| ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `python -B -m tools.verify --project <id>`                         | Selected portable project checks; fresh ignored receipt and repair guidance                                                                                                       |
-| `python -B -m tools.verify --project <id> --depth native`          | Selected portable checks followed by native validation with an exact local CLI or the project's digest-pinned Docker image                                                        |
-| `python -B -m tools.ci`                                            | Live discovery/registry, dependency/source hygiene, product policy, fresh generation, Markdown, Ruff, strict tool types, shared unit tests and every project/product Python suite |
-| `python -B -m tools.ci --project <id>`                             | Selected project inputs, shared dependency policy, products declaring that project, fresh applicable views and its project/dependent-product Python suites                        |
-| `python -B -m tools.ci --product <id>`                             | All projects registered as members of that product, plus their applicable product tests and policy checks                                                                         |
-| `python -B -m tools.ci --tag <tag>`                                | Projects carrying that manifest tag and their applicable product tests and policy checks                                                                                          |
-| `python -B -m tools.ci --matrix`                                   | One native lane per discovered manifest, using its catalogued toolchain                                                                                                           |
-| `python -B -m tools.ci --kicad --project <id> --output <new-path>` | Native checks for the selected board, after registry, dependency/source hygiene and product preflight                                                                             |
+| Check scope                                                | What runs                                                                                                                                                  |
+| ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `kicad-team verify --project <id>`                         | Selected portable project checks; fresh ignored receipt and repair guidance                                                                                |
+| `kicad-team verify --project <id> --depth native`          | Selected portable checks followed by native validation with an exact local CLI or the project's digest-pinned Docker image                                 |
+| `kicad-team ci`                                            | Live discovery/registry, dependency/source hygiene, product policy, fresh generation, Markdown and every project/product Python suite                      |
+| `kicad-team ci --project <id>`                             | Selected project inputs, shared dependency policy, products declaring that project, fresh applicable views and its project/dependent-product Python suites |
+| `kicad-team ci --product <id>`                             | All projects registered as members of that product, plus their applicable product tests and policy checks                                                  |
+| `kicad-team ci --tag <tag>`                                | Projects carrying that manifest tag and their applicable product tests and policy checks                                                                   |
+| `kicad-team ci --matrix`                                   | One native lane per discovered manifest, using its catalogued toolchain                                                                                    |
+| `kicad-team ci --kicad --project <id> --output <new-path>` | Native checks for the selected board, after registry, dependency/source hygiene and product preflight                                                      |
 
-Portable checks do not execute KiCad. The selected portable lane omits shared-tool
-unit tests, Ruff, Pyright and repository-wide Markdown policy; use the full command
-when changing shared tooling or policy. Native checks do not replace Python suites
-or physical engineering tests.
+Portable checks do not execute KiCad. Selected lanes omit repository-wide Markdown policy;
+use the full command when changing catalogs, requirements pins or repository-wide policy.
+Shared implementation regressions, Ruff, Pyright and CLI/MCP behavioral comparisons run in
+the tooling repository. Project checks consume that installed package. Native checks do not
+replace project Python suites or physical engineering tests.
 
 For required ground-pin connectivity, startup/steady-state budgets and ngspice
 waveform checks, follow [electrical analysis](ELECTRICAL_ANALYSIS.md).
-`tools.verify --project <id> --depth electrical` runs native checks followed by the
-configured simulations. `tools.ci --electrical` exposes the separate electrical gate.
+`kicad-team verify --project <id> --depth electrical` runs native checks followed by the
+configured simulations. `kicad-team ci --electrical` exposes the separate electrical gate.
 
 ## Daily commands
 
 ```sh
-python -B -m tools.verify --project raspberry-pi-status-led
-python -B -m tools.verify --project raspberry-pi-status-led --depth native
-python -B -m tools.verify --project raspberry-pi-status-led --depth native --runner container
-python -B -m tools.ci --project raspberry-pi-status-led --format text
-python -B -m tools.ci --product status-indicator-system --format text
-python -B -m tools.ci --tag status-led --format text
-python -B -m tools.ci --tag legacy --format text
-python -B -m tools.ci --tag training --shard 1/3 --jobs 4 --format text
-python -B -m tools.ci --tag status-led --exclude-tag legacy --format text
-python -B -m tools.ci --exclude-tag legacy --format text
-python -B -m tools.ci --format text
-python -B -m tools.ci --jobs 4 --output build/portable-review --format text
-python -B -m tools.ci --matrix --format text
-python -B -m tools.ci --matrix --product status-indicator-system --format text
-python -B -m tools.ci --kicad --project controller --output examples/projects/controller/build/review-001 --format text
-python -B -m tools.hardware generate --format text
-python -B -m tools.template doctor --format text
-python -B -m tools.template doctor --native --project-id raspberry-pi-status-led --format text
-python -B -m tools.template preflight --format text
-python -B -m tools.docs_policy
+kicad-team verify --project raspberry-pi-status-led
+kicad-team verify --project raspberry-pi-status-led --depth native
+kicad-team verify --project raspberry-pi-status-led --depth native --runner container
+kicad-team ci --project raspberry-pi-status-led --format text
+kicad-team ci --product status-indicator-system --format text
+kicad-team ci --tag status-led --format text
+kicad-team ci --tag legacy --format text
+kicad-team ci --tag training --shard 1/3 --jobs 4 --format text
+kicad-team ci --tag status-led --exclude-tag legacy --format text
+kicad-team ci --exclude-tag legacy --format text
+kicad-team ci --format text
+kicad-team ci --jobs 4 --output build/portable-review --format text
+kicad-team ci --matrix --format text
+kicad-team ci --matrix --product status-indicator-system --format text
+kicad-team ci --kicad --project controller --output examples/projects/controller/build/review-001 --format text
+kicad-team hardware generate --format text
+kicad-team template doctor --format text
+kicad-team template doctor --native --project-id raspberry-pi-status-led --format text
+kicad-team template preflight --format text
+kicad-team docs-policy
 ```
 
 `--project`, `--product` and `--tag` may each be repeated. They select the union
@@ -72,13 +73,13 @@ A shard is always a partial focused result, including when no tag is supplied.
 It never claims full acceptance or release coverage. Every shard must contain a
 project; invalid or empty selections fail. Run every shard and then the full
 gate before using complete repository evidence. The same `shard` option is
-available in `tools.impact`, MCP `plan_impact` and MCP `check_scope`.
+available in `kicad-team impact`, MCP `plan_impact` and MCP `check_scope`.
 
 `--jobs <n>` runs up to that many independent project/product Python suites at
 once, with deterministic per-island results. The default is one for local runs;
 hosted portable jobs use four. Project tests must keep their temporary work in
 their own island or a private temporary directory rather than a shared path.
-See [test extension](../../tests/README.md).
+See [test extension](PROJECT_TESTS.md).
 
 Native output directories and review snapshots are write-once. Use a fresh path each
 attempt and close KiCad first. PCB projects receive ERC, DRC/parity, netlist identity
@@ -87,7 +88,7 @@ remain not for manufacture until an authoritative schematic makes full electrica
 validation possible. Schematic projects receive ERC and schematic SVG; wiring and
 harness views also receive their typed relationship coverage checks.
 All native kinds protect declared source hashes.
-`tools.verify` creates a fresh path under ignored
+`kicad-team verify` creates a fresh path under ignored
 `build/diagnostics/<project>-.../`. Its default terminal view is brief; use
 `--detail full` for every diagnosed finding or `--format json` for a typed agent
 result. The receipt contains `events.log`, `run.json`, `verification.json`,
@@ -100,9 +101,9 @@ An optional `--output build/<new-name>` chooses a fresh ignored receipt path.
 ## Adding and sharing projects
 
 Create `projects/<id>/project.json` and its local source/contract files, or use
-`tools.template new-project` or the [import command](IMPORT_WORKFLOW.md). Do not edit a list of CI
-lanes. `catalog/projects.json` selects discovery roots and shared catalogs; each manifest owns its
-metadata. Unregistered native files, duplicate IDs and misplaced project folders fail.
+`kicad-team template new-project` or the [import command](IMPORT_WORKFLOW.md). Do not edit a list of
+CI lanes. `catalog/projects.json` selects discovery roots and shared catalogs; each manifest owns
+its metadata. Unregistered native files, duplicate IDs and misplaced project folders fail.
 
 Each shared-library consumer declares the exact shared files it needs. A change
 to a declared shared asset selects its consumers for hosted project and native
@@ -114,25 +115,25 @@ a product record for cross-board integration instead of a second directory level
 
 ## Which scope to run
 
-The quick local loop is `tools.verify --project <id>`; add `--depth native`
+The quick local loop is `kicad-team verify --project <id>`; add `--depth native`
 when native inputs change. `--runner auto` uses an installed exact-version CLI
 first, then the project's digest-pinned Docker image. `--runner local` or
 `--runner container` makes that choice explicit.
-`tools.template doctor --native --project-id <id> --runner <choice>` checks the
+`kicad-team template doctor --native --project-id <id> --runner <choice>` checks the
 same runner readiness. An explicit `--runner local|container` requires
 `--native`; portable doctor checks alone cannot establish native readiness.
-The lower-level `tools.ci --kicad` remains useful in CI
+The lower-level `kicad-team ci --kicad` remains useful in CI
 or when you manage the
 evidence path yourself; it does not choose Docker automatically. A tag or
 product selects a larger group without naming each member.
 When passing `--cli ./path/to/kicad-cli`, the relative path is resolved from
 the directory where you invoke the command, even if `--root` points to another
 repository directory. An executable name without a slash is found on `PATH`.
-`tools.ci --matrix --project <id>` previews just the selected native job.
-Use `tools.ci` without a selector for a full portable rehearsal, especially
+`kicad-team ci --matrix --project <id>` previews just the selected native job.
+Use `kicad-team ci` without a selector for a full portable rehearsal, especially
 after changing shared tooling, catalog policy, or release behavior.
 
-`tools.impact --base <ref> --head <ref> --format text` previews the PR scope
+`kicad-team impact --base <ref> --head <ref> --format text` previews the PR scope
 from changed Git paths; use `--format json` for an agent or script. It reports
 which projects are selected and why. Direct project changes select that island,
 product changes select its member projects, and declared shared-library changes
@@ -141,66 +142,65 @@ An engineer can therefore verify a board without rerunning unrelated historical
 projects on each edit, while still seeing when a change has broad impact.
 
 To preview a manual focused run, use
-`python -B -m tools.impact --select-project battery-board --format text`,
+`kicad-team impact --select-project battery-board --format text`,
 `--select-product <product-id>` or `--select-tag <tag>`. Add
 `--exclude-tag <tag>` to remove a cohort or `--shard INDEX/COUNT` to preview one
 partial shard; an empty or unknown selection fails.
-`python -B -m tools.impact --full --format text` previews full acceptance. The
+`kicad-team impact --full --format text` previews full acceptance. The
 impact CLI prints a typed JSON plan by default for automation. Each manual
-selector chooses one project, product or tag; the local `tools.ci` command can
+selector chooses one project, product or tag; the local `kicad-team ci` command can
 combine multiple selectors when needed.
 
 ## Hosted execution
 
-Actions installs dependencies from `pyproject.toml`. Pull requests that change only project/product
-inputs run selected portable checks on Ubuntu and native validation only for affected projects in
-their digest-pinned KiCad images. If a focused PR also edits Markdown, it runs the Markdown policy
-as well. Documentation-only PRs run only that policy. Markdown explicitly referenced by a project or
-product contract is an engineering input and selects its affected native lanes even when it lives in
-`docs/`. Changes to common tools, catalogs, workflow configuration or unrecognized paths receive
-full portable coverage on Linux and macOS, a Windows smoke lane, and all native lanes. The Linux
-full lane also type-checks the Windows target. Pushes to main always receive that full scope. In
-GitHub Actions, open **KiCad template acceptance** and choose **Run workflow** on the desired
-branch. The `focus` input defaults to `full`. For a fast hosted check, choose `project`, `product`
-or `tag`, enter its ID or tag in `value`, and optionally set `exclude_tag` or a partial `shard` such
-as `1/3`. Choose `branch` and set `value=origin/main` to check the selected workflow branch against
-that base ref. A shard converts even a full plan into a focused partial run; it never rehearses full
-acceptance. A focused manual run uses Ubuntu portable checks and selected native lanes; a full
-manual run uses Linux/macOS portable checks, Windows smoke, every native lane and the release
-rehearsal. The controller's native fault probes run only for its known reference path when that
-project is in scope. Manual runs use distinct concurrency groups, so starting a focused check cannot
-cancel a main-branch full acceptance run or another engineer's manual check. The template pins its
-direct runtime and development-tool dependencies in `pyproject.toml`; each direct dependency selects
-its published compatible transitive requirements. Update direct pins as a reviewed change and rerun
-the portable/native acceptance lanes. Dependabot opens bounded monthly Python and GitHub Actions
-update pull requests; these change common dependencies or workflow files and receive full
-acceptance. The final acceptance check requires the jobs scheduled for its declared scope to pass; a
-skipped native lane is acceptable only when no project is in scope. Full runs with projects also
-require a standalone release/restore rehearsal. The rehearsal commits a disposable reference
-checkout, exports using pinned KiCad, prepares an engineering-review manifest, packages it and
-verifies an actual restore. It does not approve hardware. Native jobs start after impact planning
-and run alongside the portable OS jobs; the full-scope release rehearsal starts after native jobs,
-without waiting for Windows. The Windows smoke installs the policy package, inventories projects
-through the CLI, and exercises subprocess entry points, path validation, PowerShell quoting and
-container command construction on a real Windows runner. It does not rerun the shared unit suite,
-project suites, or generated exports. Linux and macOS run the full portable gate; Linux also runs
-Pyright against the Windows target to catch Windows-specific typing errors. Adding projects
-increases the cost of a full run. A project-only PR adds work for its affected projects and their
-dependents, not every historical board. Native jobs can run concurrently subject to hosted runner
-capacity, so elapsed time need not grow one-for-one with project count; total CI compute and queue
-time can still grow. Portable jobs use a pip download cache keyed by `pyproject.toml`, Python and
-runner OS; installation and each job's planned checks still run on every job. Their project Python
-suites run with four bounded workers. Full portable jobs have a separate pipeline step timeout so
-evidence upload can still run after a timed-out check. The Windows smoke has its own shorter timeout
-and uploads its inventory and test log. The Actions YAML now declares scheduling, runner choice and
-artifact uploads; `tools.ci_hosted` owns planning, lane commands, native setup, release rehearsal
-and the final fail-closed outcome rules. It writes stage events and separate command stdout/stderr
-under ignored `build/ci-hosted/<lane>/`, including failures. Documentation-only jobs retain these
-logs as artifacts too. Run
-`python -B -m tools.ci_hosted plan --focus tag --value legacy` locally to inspect the same hosted
-selection, or use `--focus branch --value origin/main` to plan a branch diff.
-`tools.ci --tag legacy` or `tools.ci --project <id>` executes the portable tests directly; MCP
-`check_scope` offers the same tag/project/shard selection and bounded `jobs` concurrency.
+Actions installs the reviewed tooling pin from `requirements-tooling.txt`. Pull requests that
+change only project/product inputs run selected portable checks on Ubuntu and native validation
+for affected projects in their digest-pinned KiCad images. A focused PR that also changes Markdown
+runs documentation policy; documentation-only PRs run that policy. Markdown referenced by a project
+or product contract is an engineering input and selects affected native lanes even under `docs/`.
+Shared catalogs, dependency pins, workflow configuration and unrecognized paths receive full
+portable coverage on Linux/macOS, Windows project-policy checks and all applicable native lanes.
+Pushes to main always receive the full scope. The separate tooling repository owns package
+regressions and type/lint checks.
+
+In Actions, open **KiCad template acceptance** and choose **Run workflow**. The `focus` input
+is `full` by default. For a focused run choose `project`, `product` or `tag`, set `value` to its
+ID/tag, and optionally set `exclude_tag` or a partial `shard` such as `1/3`. Choose `branch` with
+`value=origin/main` to compare the selected branch with that base. Shards are partial runs and
+never establish full acceptance. Focused runs use Ubuntu portable checks and selected native
+lanes; full runs add all portable platform lanes and the release/restore rehearsal.
+
+The final acceptance check requires the jobs scheduled for its declared scope. A skipped native
+lane is acceptable only when no project is in scope. Full runs with projects also require a
+standalone release/restore rehearsal: a disposable reference checkout is committed, checked and
+exported with pinned KiCad, prepared as an engineering-review candidate, packaged and restored.
+This does not approve hardware. The controller's native fault probes run only for its known
+reference path when that project is selected.
+
+Native jobs run alongside portable platform jobs after impact planning. The release rehearsal
+follows native jobs. Manual runs have distinct concurrency groups, so they do not cancel main
+acceptance or another engineer's manual run. More projects increase full-run cost; focused checks
+select affected islands and dependents. Native parallelism depends on hosted runner capacity.
+Portable jobs cache downloads by requirements pin, Python and OS while still installing and
+checking every run. Project suites use four bounded workers in hosted portable runs.
+
+The Actions YAML declares scheduling, runner choice and artifact uploads; installed
+`kicad-team ci-hosted` owns planning, lane commands, native setup, release rehearsal and final
+outcome rules. It writes stage events and separate command output under ignored
+`build/ci-hosted/<lane>/`, including failed and documentation-only runs. Windows inventories the
+installed CLI and checks project policy; it does not duplicate the tooling package's regression
+suite. Run the same plan locally:
+
+```sh
+kicad-team ci-hosted plan --focus tag --value legacy
+kicad-team ci-hosted plan --focus branch --value origin/main
+```
+
+`kicad-team ci --tag legacy` or `kicad-team ci --project <id>` executes project checks directly;
+MCP `check_scope` shares project/tag/shard selection and bounded `jobs` concurrency.
+Update tooling pins through review and rerun affected portable/native acceptance. Configure
+hosted dependency updates around the committed requirements and workflow files; an updated pin
+or configured workflow is not evidence that a hosted run has passed.
 
 An initialized fork with no projects emits an empty matrix. The final check still
 requires applicable policy success and states that no hardware was validated.
@@ -212,7 +212,7 @@ evidence, portable reports and the rehearsed package. Focused CI retains selecte
 native review evidence. Reports record the observed source commit and file hashes. Dirty local
 reports remain useful for development but cannot supply release evidence. Configure artifact
 retention and required branch checks during [adoption](START_HERE.md); a configured workflow is not
-evidence of a hosted run. When `tools.ci --output <new-directory>` is used, `events.jsonl` and
+evidence of a hosted run. When `kicad-team ci --output <new-directory>` is used, `events.jsonl` and
 `run.json` appear as phases start, and each completed phase gets its own JSON report before the
 final `portable.json` is written. The same stage progress appears in terminal and Actions logs. A
 missing `portable.json` means the gate did not finish; partial phase evidence is for diagnosis only,
@@ -221,7 +221,7 @@ never release acceptance.
 ## Replaying a native CI lane locally
 
 The one-command route is
-`python -B -m tools.verify --project <id> --depth native --runner container`.
+`kicad-team verify --project <id> --depth native --runner container`.
 It resolves the exact image from that project's
 catalog record, prepares container-compatible wheels, runs only that board, and
 retains the attempted commands in a fresh ignored receipt. Run `--runner local`
@@ -233,19 +233,20 @@ Linked Git worktrees are supported: the Python validation and release/export
 runners mount shared Git metadata read-only and retain the worktree's own commit
 and index. Docker needs access to both the worktree and its shared Git directory.
 
-The official pinned images do not include pip. `tools.native_deps` probes the image's
-Python version and uses host pip to prepare compatible Linux x86 wheels from
-`pyproject.toml` in an ignored directory. The image itself remains unchanged.
+The official pinned images do not include pip. `kicad-team native-deps` probes the image's
+Python version, creates a standard native virtual environment, and uses host pip to prepare
+compatible Linux x86 dependencies in its site-packages alongside the installed tooling.
+The image itself remains unchanged; no project directory is added to Python's import path.
 Install the repository's Python environment first, then use the image string from
 `catalog/toolchains.json` for the selected project. On a macOS/Linux Docker host:
 
 ```sh
 # Set KICAD_IMAGE to the exact image selected by the project's toolchain.
-python -B -m tools.native_deps --image "$KICAD_IMAGE" --output build/policy-deps
+kicad-team native-deps --image "$KICAD_IMAGE" --output build/policy-deps
 docker run --rm --platform linux/amd64 --user "$(id -u):$(id -g)" --entrypoint sh \
   -e HOME=/tmp/kicad-template -e PYTHONDONTWRITEBYTECODE=1 \
-  -e PYTHONPATH=/work/build/policy-deps -v "$PWD:/work" -w /work "$KICAD_IMAGE" \
-  -ec 'python3 -m tools.ci --kicad --project battery-board --output build/review-001'
+  -v "$PWD:/work" -w /work "$KICAD_IMAGE" \
+  -ec '/work/build/policy-deps/bin/python -I -B -m kicad_tooling.ci --kicad --project battery-board --output build/review-001'
 ```
 
 Use a new dependency directory for a different image/runtime and a fresh evidence
@@ -254,3 +255,14 @@ x86 image can run under Docker emulation on Apple Silicon; native Windows execut
 of these shell examples is not provided. CI keeps dependency wheels out of review
 artifacts. Its hosted job scheduling, permissions and upload remain separate from a
 local container rehearsal.
+
+## Declared electrical requirements in hosted lanes
+
+Each selected native project lane runs its declared electrical contract after KiCad checks.
+Failure blocks acceptance and retains the simulator and command evidence. An undeclared contract
+is reported NOT_CONFIGURED, never electrical PASS. The Python orchestration chooses the exact
+simulator from the project contract; Actions only installs prerequisites and retains artifacts.
+Use `kicad-team ci-hosted electrical --project <id>` for a focused reproduction, or
+`kicad-team verify --project <id> --depth electrical` for combined local checks.
+See [electrical analysis](ELECTRICAL_ANALYSIS.md) for version/source pins and
+[release readiness](RELEASE_READINESS.md) for automatic retention and replay.

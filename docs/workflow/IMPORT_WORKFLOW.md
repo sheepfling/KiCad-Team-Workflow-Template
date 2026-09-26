@@ -5,6 +5,39 @@ separate temporary copy of the candidate repository; keep the external designs
 untracked there. Run the commands from the candidate repository with its Python
 development environment installed.
 
+## Keep a reusable practice library
+
+For repeated experiments, keep a local `KiCad-Rehearsal/` folder outside both the
+project template and tooling repositories. Use `DUMP/` for original incoming
+archives, `sources/` for extracted snapshots and their provenance, `runs/` for
+disposable initialized project copies, and `reports/` for findings. Preserve
+licenses and source hashes. Do not edit the downloaded originals or commit
+practice projects to the template.
+
+Install the template's tooling pin into a normal Python environment. A developer
+testing a tooling update can use a separately installed wheel; record its version
+and hash so that the tested code is clear. The acquisition kit's older `tools.*`
+commands belong to the combined repository and should not be used with this split
+template. Use `kicad-team` or `python -I -m kicad_tooling` from the installed package.
+
+Point `--root` at the disposable project copy and `--source-dir` or `--source` at
+the extracted snapshot. MCP uses the same arrangement: start `kicad-team-mcp`
+with `--root /path/to/disposable-project` and
+`--import-root /path/to/extracted-snapshot`. Add `--allow-writes` for import,
+`--allow-checks` for verification and `--allow-exports` for parts and 3D evidence.
+The rehearsal library itself is not an MCP project root.
+
+Record import, portability, electrical checks, plots, parts and 3D results
+separately. A copied project can pass portability checks while diagnosis still
+asks for independent electrical requirements. Missing part identities block a
+purchasing BOM; missing models limit an otherwise successful 3D export. Keep those
+findings visible instead of turning a successful import into a design approval.
+
+The tooling repository owns the reusable corpus runner and its regression tests.
+Each run should identify both repository revisions, the installed tooling version,
+the selected source pins and the fresh receipt locations. Use a new run directory
+when comparing tooling versions so earlier evidence stays intact.
+
 ## Convert a foreign PCB before native import
 
 For a non-KiCad board file supported by KiCad's `pcb import` command (PADS,
@@ -12,7 +45,7 @@ Altium, Eagle, CADSTAR, Fabmaster, P-CAD or SolidWorks), convert it into an
 ignored, per-run review receipt with the exact catalogued KiCad version:
 
 ```sh
-python -B -m tools.template convert-pcb --source "/path/to/vendor-board.brd" --project-id battery-board --toolchain kicad-10.0.5 --input-format auto --format text
+kicad-team template convert-pcb --source "/path/to/vendor-board.brd" --project-id battery-board --toolchain kicad-10.0.5 --input-format auto --format text
 ```
 
 Use `--format json` for a typed receipt containing the source hash, runner,
@@ -36,7 +69,7 @@ or establish schematic parity, electrical truth or manufacturing readiness.
 For a directory containing several designs, first inventory it without copying:
 
 ```sh
-python -B -m tools.template scan-imports --source-dir "/path/to/old boards" --toolchain kicad-10.0.5 --format text
+kicad-team template scan-imports --source-dir "/path/to/old boards" --toolchain kicad-10.0.5 --format text
 ```
 
 The text view lists each `.kicad_pro`, suggested island ID, project kind, copied
@@ -48,10 +81,10 @@ run each accepted import separately. A clean inventory does not prove an archive
 is complete or a circuit is correct.
 
 ```sh
-python -B -m tools.template diagnose --source "/path/to/Old board.kicad_pro" --project-id battery-board --toolchain kicad-10.0.5 --format text
-python -B -m tools.template import-project --source "/path/to/Old board.kicad_pro" --project-id battery-board --toolchain kicad-10.0.5 --format text
-python -B -m tools.template diagnose --project-id battery-board
-python -B -m tools.verify --project battery-board
+kicad-team template diagnose --source "/path/to/Old board.kicad_pro" --project-id battery-board --toolchain kicad-10.0.5 --format text
+kicad-team template import-project --source "/path/to/Old board.kicad_pro" --project-id battery-board --toolchain kicad-10.0.5 --format text
+kicad-team template diagnose --project-id battery-board
+kicad-team verify --project battery-board
 ```
 
 `--root` selects a different candidate repository. The source argument names the
@@ -89,17 +122,17 @@ expectations in `tests/contract.json`.
 Native net names can include supply signs, buses and hierarchy; an unassigned
 footprint can be represented but still receives KiCad's own checks. An empty PCB
 contract cannot pass native validation. Add local `test_*.py` files for requirements
-that need executable assertions; see [test extension](../../tests/README.md).
+that need executable assertions; see [test extension](PROJECT_TESTS.md).
 
 After authoring those expectations, run the selected board through its exact
-native toolchain. `tools.verify` retains an ignored receipt and gives repair
+native toolchain. `kicad-team verify` retains an ignored receipt and gives repair
 guidance when a check fails:
 
 ```sh
-python -B -m tools.verify --project battery-board --depth native
+kicad-team verify --project battery-board --depth native
 ```
 
-Use `python -B -m tools.ci --matrix --format text` only to preview the native
+Use `kicad-team ci --matrix --format text` only to preview the native
 lanes that CI will schedule; it does not validate the board.
 
 When the source has a `.kicad_pcb` but no matching `.kicad_sch`, import creates a

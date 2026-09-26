@@ -115,6 +115,20 @@
         "Review release evidence for every product project declared in catalog/products.json. Keep spreadsheet-safe CSV handling in generated review and purchasing BOMs, and remove any component-identity requirement from pcb_only islands until they have an authoritative schematic.",
         "Run the full portable and applicable pinned native gates, verify hosted acceptance, then update template-adoption.json to 1.3.2 after review."
       ]
+    },
+    {
+      "id": "template-1.3.2-to-1.4.0",
+      "from_version": "1.3.2",
+      "to_version": "1.4.0",
+      "breaking": true,
+      "steps": [
+        "Preserve projects, reviewed contracts, catalogs, company terms and template-adoption.json on a migration branch; do not run init or adopt on an established project repository.",
+        "Install the exact shared tooling pin from requirements-tooling.txt in a Python 3.11 or newer virtual environment. Use a separate editable tooling checkout only for deliberate paired development.",
+        "Remove the upstream tools/ implementation and shared root regression tests after preserving any project-specific customizations. Move reusable Python changes to KiCad-Tooling; keep board firmware and design-specific tests in their project islands.",
+        "Update CLI commands to kicad-team and MCP launch configuration to kicad-team-mcp with an absolute trusted project root and explicit permission flags. Use the updated AGENTS.md and first-project guidance.",
+        "Retain pyproject.toml only for repository documentation configuration. Update hosted workflows to install requirements-tooling.txt; project CI verifies project policy and native lanes, while the tooling repository validates shared Python.",
+        "Run project inventory, doctor, the full project portable gate, applicable native lanes and a release restore. Play-test the MCP guided loop locally, review the exact tooling pin, then update template-adoption.json to 1.4.0 after acceptance."
+      ]
     }
   ]
 }

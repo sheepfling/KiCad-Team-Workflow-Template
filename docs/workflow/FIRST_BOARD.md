@@ -3,21 +3,31 @@
 This is the shortest path from a fresh fork to a checked project island. Use
 [Start here](START_HERE.md) when adopting company licensing or production controls.
 
-1. Install Python 3.11+, create a virtual environment and install `.[dev]` as shown
-   in the [root setup](../../README.md#first-run-setup).
+Before choosing a circuit, name the electrical owner and mechanical reviewer. Record the
+intended function, interfaces, limits and open questions in the board's local notes. Electrical
+requirements must come from reviewed intent; enclosure dimensions, origin, mounting and fit
+assumptions need a mechanical owner. An agent can guide the sequence and inspect evidence using
+the [MCP tools](MCP.md), but a scaffold cannot supply those decisions. Use the
+[mechanical handoff checklist](MECHANICAL_HANDOFF.md) when establishing the board interface.
+Use the [quality-gate checklist](QUALITY_GATES.md) to track connectivity, grounding, power,
+transients, frequency, parts, CAD, BOM and revision evidence. The first portable PASS does not
+mean those engineering reviews have been completed.
+
+1. Install Python 3.11+, create a virtual environment and install `requirements-tooling.txt` as
+   shown in the [root setup](../../README.md#first-run-setup).
 2. Check the workstation and initialize the fresh repository:
 
    ```sh
-   python -B -m tools.template doctor --format text
-   python -B -m tools.template adopt --project-id my-hardware --format text
+   kicad-team template doctor --format text
+   kicad-team template adopt --project-id my-hardware --format text
    ```
 
 3. Create the first standalone board and check native-runner availability:
 
    ```sh
-   python -B -m tools.template list --format text
-   python -B -m tools.template new-project --project-id battery-board --kind pcb --toolchain kicad-10.0.5 --format text
-   python -B -m tools.template doctor --native --toolchain kicad-10.0.5 --format text
+   kicad-team template list --format text
+   kicad-team template new-project --project-id battery-board --kind pcb --toolchain kicad-10.0.5 --format text
+   kicad-team template doctor --native --toolchain kicad-10.0.5 --format text
    ```
 
    `list` reports the available toolchain IDs before creation. After saving the board, its
@@ -28,7 +38,7 @@ This is the shortest path from a fresh fork to a checked project island. Use
    the exact catalogued KiCad toolchain to capture an **UNREVIEWED** netlist inventory:
 
    ```sh
-   python -B -m tools.contract_coach --project-id battery-board --capture --format text
+   kicad-team contract-coach --project-id battery-board --capture --format text
    ```
 
    The command creates a fresh ignored `build/contract-coach/` receipt. `--runner auto`
@@ -62,34 +72,38 @@ This is the shortest path from a fresh fork to a checked project island. Use
    changing KiCad source:
 
    ```sh
-   python -B -m tools.verify --project battery-board
-   python -B -m tools.verify --project battery-board --depth native
+   kicad-team verify --project battery-board
+   kicad-team verify --project battery-board --depth native
    ```
 
    Each attempt writes a fresh ignored receipt and prints its path. The native receipt keeps
    `native/battery-board/summary.json`, ERC/DRC output and command evidence. A failed verification
    shows repair findings; use `--detail full` or `--format json` and follow
    [the repair guide](DIAGNOSTICS.md). If the native runner cannot start, use
-   `tools.template doctor --native --project-id battery-board` to diagnose local KiCad or Docker
-   readiness. To compare the native netlist with the authored contract, use the summary in that
-   receipt:
+   `kicad-team template doctor --native --project-id battery-board` to diagnose local KiCad or
+   Docker readiness. To compare the native netlist with the authored contract, use the summary in
+   that receipt:
 
    ```sh
-   python -B -m tools.contract_coach --project-id battery-board --native-summary "PASTE_RECEIPT_PATH/native/battery-board/summary.json" --format text
+   kicad-team contract-coach --project-id battery-board --native-summary "PASTE_RECEIPT_PATH/native/battery-board/summary.json" --format text
    ```
 
    That command verifies the selected project, netlist artifact and current design hashes before
    showing differences. Add `--detail full`, `--format json`, or a new
    `--output build/contract-coach/review-001` receipt when more detail is needed.
-   `tools.ci --kicad --project battery-board` remains available when you need direct control of the
-   lower-level native lane.
+   `kicad-team ci --kicad --project battery-board` remains available when you need direct control of
+   the lower-level native lane.
 
    To choose exact components and prepare purchasing quantities, follow
-   [parts to order](PARTS_TO_ORDER.md). Run `python -B -m tools.parts --project battery-board` for a
+   [parts to order](PARTS_TO_ORDER.md). Run `kicad-team parts --project battery-board` for a
    checklist of missing `PART_ID` values, footprints and catalog details, then save build/spare
    preferences and generate a DigiKey upload file when the metadata is complete.
 6. Commit only authored source, push a short-lived branch and open a pull request.
    Review the exact Actions commit and retained evidence before merging.
+
+Before calling the board electrically evaluated, complete the
+[electrical setup and combined check](QUALITY_GATES.md#make-electrical-coverage-deliberate).
+Record any unassessed gate and its owner in the board notes.
 
 The first passing check establishes a development baseline. Promotion to a prototype,
 pilot or production release requires [release readiness](RELEASE_READINESS.md), real

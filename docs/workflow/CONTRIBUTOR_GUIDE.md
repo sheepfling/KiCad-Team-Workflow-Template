@@ -22,7 +22,7 @@ git pull --ff-only origin main
 ```
 
 Find your assigned project and its approved toolchain with
-`python -B -m tools.template list --format text`. A fresh adopted repository
+`kicad-team template list --format text`. A fresh adopted repository
 has no live project yet; follow [First board](FIRST_BOARD.md) to create one.
 Adoption removes reference examples from live project discovery. To rehearse
 the `controller` fixture, use a separate **uninitialized template checkout**
@@ -60,8 +60,8 @@ checks until its design inputs are present.
 Save and close KiCad before running the selected verifier from the repository root:
 
 ```sh
-python -B -m tools.verify --project battery-board
-python -B -m tools.verify --project battery-board --depth native
+kicad-team verify --project battery-board
+kicad-team verify --project battery-board --depth native
 ```
 
 Replace `battery-board` with the assigned project ID in every command and path.

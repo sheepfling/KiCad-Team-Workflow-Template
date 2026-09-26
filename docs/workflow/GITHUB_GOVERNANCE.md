@@ -36,8 +36,8 @@ conflict handoff, access revocation, and release restore before relying on it.
 From an adopted repository with GitHub CLI access, run:
 
 ```sh
-python -B -m tools.governance_audit --format text
-python -B -m tools.governance_audit --repo OWNER/REPO --record projects/board/releases/governance.json --format json
+kicad-team governance-audit --format text
+kicad-team governance-audit --repo OWNER/REPO --record projects/board/releases/governance.json --format json
 ```
 
 The first command detects the current GitHub repository. Use `--repo` to inspect

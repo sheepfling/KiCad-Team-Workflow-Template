@@ -10,11 +10,11 @@ and CAD coverage are not a vendor service guarantee.
 ## First part: run the assistant
 
 Complete [first-run Python setup](../../README.md#first-run-setup) from the
-repository root. The `cad` extra is required; the README's `.[dev,cad]` command
+repository root. CAD conversion support is required; the pinned requirements installation
 installs it. You also need a registered board. Find its exact ID with:
 
 ```sh
-python -B -m tools.template list --format text
+kicad-team template list --format text
 ```
 
 If that command lists no projects, [create a board](FIRST_BOARD.md) or
@@ -22,7 +22,7 @@ If that command lists no projects, [create a board](FIRST_BOARD.md) or
 with the listed ID. Start the local page with one command:
 
 ```sh
-python -B -m tools.parts --project my-board --assist
+kicad-team parts --project my-board --assist
 ```
 
 The page opens in your browser. If it does not, open the loopback URL printed
@@ -121,7 +121,7 @@ STEP as the approved footprint model.
 For a source-bound STEP comparison without opening the assistant:
 
 ```sh
-python -B -m tools.parts --project my-board --check-step C2040 --expected-mpn RP2040
+kicad-team parts --project my-board --check-step C2040 --expected-mpn RP2040
 ```
 
 The command prints the fresh ignored `build/parts/` receipt and its `index.html`
@@ -133,7 +133,7 @@ for `alignment_verified` and `physical_fit_verified`.
 To preview a project-library import from a terminal, run:
 
 ```sh
-python -B -m tools.parts --project my-board --source-cad C2040 --expected-mpn RP2040
+kicad-team parts --project my-board --source-cad C2040 --expected-mpn RP2040
 ```
 
 Read its exact source diff and run the `Then:` command it prints to apply the
@@ -142,16 +142,16 @@ normal lookup reuses an intact frozen cache when available. Use `--refresh-cad`
 with `--source-cad` or `--check-step` only when intentionally requesting a fresh
 provider snapshot; it preserves older snapshots and requires another review.
 
-| If you see                                 | Next step                                                                                                                   |
-| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
-| No project ID in `tools.template list`     | Create or import a board; this command needs a registered island.                                                           |
-| `Find CAD` reports a converter setup issue | Activate the repository Python environment and install `.[dev,cad]` from the root.                                          |
-| Exact LCSC/MPN mismatch or missing model   | Check the chosen part number against its manufacturer data. The tool will not substitute another part or invent geometry.   |
-| STEP review reports no source STEP         | Use the WRL model for visualization if its library plan is ready; obtain a reviewed STEP model before a mechanical handoff. |
-| Pinned KiCad command fails                 | Run `docker info`, start Docker if needed, and open the named `*.command.json` in the printed receipt.                      |
-| A source or cache changed after review     | Find the exact part again, inspect the new report, and repeat the review.                                                   |
+| If you see                                  | Next step                                                                                                                   |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| No project ID in `kicad-team template list` | Create or import a board; this command needs a registered island.                                                           |
+| `Find CAD` reports a converter setup issue  | Activate the repository Python environment and run `python -m pip install -r requirements-tooling.txt` from the root.       |
+| Exact LCSC/MPN mismatch or missing model    | Check the chosen part number against its manufacturer data. The tool will not substitute another part or invent geometry.   |
+| STEP review reports no source STEP          | Use the WRL model for visualization if its library plan is ready; obtain a reviewed STEP model before a mechanical handoff. |
+| Pinned KiCad command fails                  | Run `docker info`, start Docker if needed, and open the named `*.command.json` in the printed receipt.                      |
+| A source or cache changed after review      | Find the exact part again, inspect the new report, and repeat the review.                                                   |
 
-After importing, run `python -B -m tools.verify --project my-board --depth native`.
+After importing, run `kicad-team verify --project my-board --depth native`.
 Run it again after placing the part on the PCB, and inspect the actual board's
 new BOM and 3D outputs. Keep run receipts under ignored `build/` and
 durable design decisions under the project's `docs/` directory.

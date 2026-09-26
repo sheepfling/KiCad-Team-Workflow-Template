@@ -9,7 +9,7 @@ production readiness is separate from creating a project folder.
 | `development` | Real, unreleased engineering work  | Engineering status, NOT FOR MANUFACTURE, all applicable ERC/DRC rules enabled; release/governance paperwork is not required yet |
 | `production`  | Reviewed production-level controls | Approved identities/libraries, mechanical handoff, governance record and no disabled applicable checks                          |
 
-`tools.template new-project` starts in `development`. Native sources and independent
+`kicad-team template new-project` starts in `development`. Native sources and independent
 contracts must still be completed before checks pass. The profile does not permit
 missing dependencies, malformed data or inconsistent electrical expectations.
 

@@ -4,7 +4,7 @@
 
 Use one branch and PR per logical change. Commit board source with the local library
 revision and test contracts it needs. `catalog/toolchains.json` owns approved exact
-KiCad versions. Run `tools.check_toolchain --toolchain <id>` before editing; a version
+KiCad versions. Run `kicad-team check-toolchain --toolchain <id>` before editing; a version
 or project-format change belongs in a dedicated migration.
 
 ## Release versions
@@ -14,11 +14,15 @@ owns its integration revision and selected variants independently. The scaffold'
 version describes workflow compatibility, not a board revision.
 
 The [scaffold changelog](../../CHANGELOG.md) names each baseline and its adoption impact.
-The Python package, `tools.hwrepo.__version__` and template contract carry the same
-version. Candidate metadata alone does not publish a release: the accepted baseline
-gets an annotated `v<version>` source tag after review and passing hosted checks.
-Retain its acceptance links and source commit with the release notes. Never move a
-published tag; corrections receive a new version and applicable migration guidance.
+The template contract is versioned independently from the installed tooling package and its
+legacy policy version. `kicad-team --version` reports the tooling package's SCM-derived version;
+`requirements-tooling.txt` records the exact selected Git commit. Follow the
+[tooling migration guide](TOOLING_SPLIT.md) when changing that pin.
+
+Candidate metadata alone does not publish a release. An accepted template or tooling baseline
+gets its own reviewed source tag in its owning repository after its acceptance checks. Retain
+acceptance links and the source commit in release notes. Never move a published tag; corrections
+receive a new version and applicable migration guidance.
 
 Commit reviewed source first, prepare and review generated evidence, then create an
 annotated tag pointing to that source commit. The generated manifest is written
@@ -32,7 +36,7 @@ tag alone does not preserve the exact manufactured BOM or fabrication outputs.
 
 ## Restoring and handing off
 
-Use `tools.release restore` into a new directory. It checks the archive inventory,
+Use `kicad-team release restore` into a new directory. It checks the archive inventory,
 restores the source commit and verifies its retained evidence. Preserve the package
 in the approved release storage; short-lived CI artifacts are review evidence.
 

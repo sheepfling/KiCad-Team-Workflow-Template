@@ -6,11 +6,11 @@ KiCad toolchain. Different toolchains produce separate candidates.
 
 ## Prepare from committed source
 
-Install `.[dev]`, start Docker, close KiCad, and commit the reviewed source. Then:
+Install `requirements-tooling.txt`, start Docker, close KiCad, and commit the reviewed source. Then:
 
 ```sh
-python -B -m tools.release prepare --project battery-board --release-id battery-review-001
-python -B -m tools.release check --manifest build/releases/battery-review-001/manifest.json
+kicad-team release prepare --project battery-board --release-id battery-review-001
+kicad-team release check --manifest build/releases/battery-review-001/manifest.json
 ```
 
 The command runs portable policy, generation and project/product tests for exactly
@@ -19,13 +19,27 @@ native checks in each project's pinned image. It does not spend time validating
 unrelated legacy islands. Use `--cli /path/to/kicad-cli` to use an installed exact
 version instead. The retained `portable.json` names its selected projects and
 hashes the entire clean source commit, so it cannot be mistaken for a full gate.
-Run `python -B -m tools.ci --format text` and the hosted full CI gate separately
+Run `kicad-team ci --format text` and the hosted full CI gate separately
 for repository-wide acceptance.
+
+Every declared electrical contract also runs during preparation. Install the exact approved
+ngspice on PATH, or pass `--ngspice /path/to/ngspice`. MCP uses the simulator available in its
+startup environment. Missing, pending, failed or stale declared evidence blocks the candidate.
+`review.md` lists each project's electrical coverage. Build releases require an explicit contract
+for schematic-backed boards; a section may be not applicable only with a reviewed reason.
+Engineering-review candidates without electrical contracts explicitly show NOT_CONFIGURED.
+
+The candidate retains electrical requirements, generated decks, command logs and waveforms.
+Check and restore re-evaluate the required measurements and waveform coverage, grounding against
+the retained native netlist, and source/model hashes. This verifies recorded evidence without
+rerunning the simulator or executing project scripts. Existing candidates with declared electrical
+requirements but no retained electrical evidence must be prepared again from their source commit.
 
 For a hosted rehearsal of one registered project, open **Actions → Selected release
 candidate → Run workflow** and enter its registered project ID (see
-`python -B -m tools.template list --format text`). This manually triggered job
-prepares, checks, packages and verifies an `engineering_review` candidate from
+`kicad-team template list --format text`). This manually triggered job
+uses `kicad-team ci-hosted candidate --project <id> --release-id <fresh-id>` to
+prepare, check, package and verify an `engineering_review` candidate from
 the selected GitHub commit. It fetches full source history for the restorable
 Git bundle and retains its ignored evidence as a 30-day CI
 artifact. It adds no time to ordinary PR checks. Review the artifact and the
@@ -35,7 +49,7 @@ substitute for the team's separate approval and long-term storage decisions.
 
 Use `--portable build/portable/portable.json` only to reuse a full passing report
 or a passing release-scoped report covering **exactly** this selection from the
-same clean commit. A plain `tools.ci --project` report has no release source
+same clean commit. A plain `kicad-team ci --project` report has no release source
 binding and is not reusable release evidence. Dirty, stale, missing, mismatched
 or partial evidence fails.
 Project discovery still parses every project manifest, so malformed metadata
@@ -107,14 +121,14 @@ members. Represent a component that is not fitted in both the KiCad design
 variant and the product variant's occurrence `exclude` list (for example
 `"UNO.R1"`). A different component identity needs a separately reviewed
 product/part schema choice; the exporter will not silently substitute a part.
-Run `tools.release export --project battery-board
+Run `kicad-team release export --project battery-board
 --output build/battery-export --assembly-variant 'Pilot A'` to exercise a single
 board directly from clean committed source.
 
-Exporter options follow the [KiCad 10 CLI](https://docs.kicad.org/10.0/en/cli/cli.html).
-Extend typed settings and the exporter table in `tools/hwrepo/exports.py`, then add
-a focused regression and native acceptance case. Shared checks, project unit tests
-and product tests still run through the common pipeline.
+Exporter options follow the [KiCad 10 CLI](https://docs.kicad.org/10.0/en/cli/cli.html). Extend
+typed settings and the exporter table in the tooling package’s `kicad_tooling/hwrepo/exports.py`,
+then add a focused regression and native acceptance case. Shared checks, project unit tests and
+product tests still run through the common pipeline.
 
 ## Approval and tag sequencing
 
@@ -127,7 +141,7 @@ and product tests still run through the common pipeline.
 4. Complete the manifest's named approval and retained evidence references; set its
    status to `approved`. Record open questions as blockers, not fictional approvals.
 5. Create an annotated source tag pointing to the earlier source commit and record
-   its name in `source_tag`. Run `tools.release check` again.
+   its name in `source_tag`. Run `kicad-team release check` again.
 6. Package and retain the exact approved bytes in your release storage.
 
 The manifest is generated after the source commit. It does not belong in the commit
@@ -148,9 +162,9 @@ a standalone board can use an authored review record retained in its release pac
 ## Package and restore
 
 ```sh
-python -B -m tools.release package --manifest build/releases/battery-review-001/manifest.json --output build/battery-review-001.zip
-python -B -m tools.release verify --archive build/battery-review-001.zip
-python -B -m tools.release restore --archive build/battery-review-001.zip --destination ../battery-review-restored
+kicad-team release package --manifest build/releases/battery-review-001/manifest.json --output build/battery-review-001.zip
+kicad-team release verify --archive build/battery-review-001.zip
+kicad-team release restore --archive build/battery-review-001.zip --destination ../battery-review-restored
 ```
 
 Packaging first verifies the candidate, retains its source Git bundle and complete

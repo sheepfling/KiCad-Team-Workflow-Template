@@ -1,7 +1,7 @@
 # Durable release storage
 
 Git stores design intent. GitHub Actions artifacts are short-lived review evidence.
-The approved standalone ZIP produced by `tools.release package` is the restorable
+The approved standalone ZIP produced by `kicad-team release package` is the restorable
 manufacturing record and belongs in access-controlled, durable storage selected by
 the adopting team.
 
@@ -22,8 +22,8 @@ shared drive path or a CI artifact URL alone does not satisfy this role.
 After upload, download the stored bytes into a new temporary location and run:
 
 ```sh
-python -B -m tools.release verify --archive /path/to/downloaded-release.zip
-python -B -m tools.release restore --archive /path/to/downloaded-release.zip --destination ../independent-restore
+kicad-team release verify --archive /path/to/downloaded-release.zip
+kicad-team release restore --archive /path/to/downloaded-release.zip --destination ../independent-restore
 ```
 
 Compare the reported `package_sha256` with the approved receipt. Perform this from a

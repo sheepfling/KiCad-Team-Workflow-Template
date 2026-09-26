@@ -45,7 +45,7 @@ When a controlled observation is needed, start from
 `templates/sourcing-snapshot.example.json` and validate it without network access:
 
 ```sh
-python -B -m tools.sourcing --snapshot release/<snapshot-id>.json
+kicad-team sourcing --snapshot release/<snapshot-id>.json
 ```
 
 The snapshot binds every offer to an existing internal part ID and makes its observed

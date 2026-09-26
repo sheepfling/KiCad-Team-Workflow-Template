@@ -6,7 +6,7 @@ same committed KiCad source as the electrical checks. They are outputs, not a
 second editable copy of the design.
 
 For a named KiCad assembly population, add `--assembly-variant 'Pilot A'` to
-`tools.visualize --project <id>`. The name must be declared in the project's
+`kicad-team visualize --project <id>`. The name must be declared in the project's
 `.kicad_pro`; the top/angled images and STEP/GLB commands then use the same
 population selection and record it in the JSON receipt. Review the fitted model
 set against the native BOM and placement file before a mechanical handoff.
@@ -26,7 +26,7 @@ set against the native BOM and placement file before a mechanical handoff.
    **other** consumer's manifest. The map command adds it to the selected
    board's manifest. If another consumer is missing it, the plan and apply
    both stop and name each manifest and exact path to add. Run the full
-   `python -B -m tools.ci` gate after the shared-library change. The
+   `kicad-team ci` gate after the shared-library change. The
    [library policy](LIBRARIES.md) gives the shared-dependency and provenance
    requirements.
 2. Use the draft-map flow below to assign explicit model paths to placed
@@ -35,8 +35,8 @@ set against the native BOM and placement file before a mechanical handoff.
 3. Run the selected native check and generate a new view:
 
    ```sh
-   python -B -m tools.visualize --project battery-board --check-models --format text
-   python -B -m tools.verify --project battery-board --depth native
+   kicad-team visualize --project battery-board --check-models --format text
+   kicad-team verify --project battery-board --depth native
    ```
 
    The model check inspects references and inventory without running a 3D export.
@@ -50,7 +50,7 @@ set against the native BOM and placement file before a mechanical handoff.
    It cannot prove that a model has the correct dimensions or even that the
    intended component is represented. If a path is missing or machine-specific,
    fix the authored footprint/board reference and manifest; do not patch an
-   exported picture. Use `tools.template diagnose --project-id battery-board`
+   exported picture. Use `kicad-team template diagnose --project-id battery-board`
    for the broader project repair queue.
 
 You can also make an assignment or adjust its scale, rotation and offset directly
@@ -67,7 +67,7 @@ an ignored draft map; the tool fills in the current board and manifest hashes,
 all unassigned references, and any candidate paths it found:
 
 ```sh
-python -B -m tools.visualize --project battery-board --init-model-map build/model-map.json
+kicad-team visualize --project battery-board --init-model-map build/model-map.json
 ```
 
 Edit the draft map to keep only the references that need a model, and enter each
@@ -96,11 +96,11 @@ vendor model's origin and redistribution rights review with the source decision.
 The tool accepts STEP/STP/IGS/IGES/WRL, but rejects IDF for this view workflow.
 
 ```sh
-python -B -m tools.visualize --project battery-board --map-models build/model-map.json
+kicad-team visualize --project battery-board --map-models build/model-map.json
 # Read board.diff and manifest.diff in the new ignored receipt, then use its locked map.
-python -B -m tools.visualize --project battery-board --map-models build/diagnostics/<receipt>/locked-model-map.json --apply
-python -B -m tools.verify --project battery-board --depth native
-python -B -m tools.visualize --project battery-board
+kicad-team visualize --project battery-board --map-models build/diagnostics/<receipt>/locked-model-map.json --apply
+kicad-team verify --project battery-board --depth native
+kicad-team visualize --project battery-board
 ```
 
 The first command is read-only and shows the exact proposed board and manifest
@@ -137,8 +137,8 @@ pin the native image with the approved model package.
 From the repository root, select one registered PCB project:
 
 ```sh
-python -B -m tools.visualize --project battery-board --format text
-python -B -m tools.visualize --project battery-board --runner container --output build/3d-review-001 --format json
+kicad-team visualize --project battery-board --format text
+kicad-team visualize --project battery-board --runner container --output build/3d-review-001 --format json
 ```
 
 The command uses an exact local KiCad CLI when available or the project's pinned Docker image

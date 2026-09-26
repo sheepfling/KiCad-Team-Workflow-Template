@@ -17,6 +17,6 @@ taking ownership of their source. The [shared training library](libraries/status
 declared dependency. `examples/catalog/` contains isolated regression catalog inputs; the live
 discovery settings and product index remain in root `catalog/`.
 
-Keep these fixtures for shared-tool tests. Disable `examples/projects` in the live
+Keep these fixtures for training and acceptance rehearsal. Disable `examples/projects` in the live
 `project_roots` and remove reference product-index entries when they should no longer
 create live/native checks. Do not turn a fixture into production source by renaming it.

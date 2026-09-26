@@ -6,8 +6,8 @@ product and generated-output checks; separately exposes changed evidence hashes;
 counts the status/expiry of deviations from an optional release manifest.
 
 ```sh
-python -B -m tools.ci --metrics
-python -B -m tools.ci --metrics --manifest release/<release-id>.json
+kicad-team ci --metrics
+kicad-team ci --metrics --manifest release/<release-id>.json
 ```
 
 The report is read-only and non-authorizing. It is a snapshot, not a historical CI

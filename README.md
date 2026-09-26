@@ -1,6 +1,7 @@
 # KiCad team workflow template
 
-A forkable repository for independently developed boards with shared automation.
+A light template for independently developed boards, with engineering guidance and
+installed [KiCad Tooling](https://github.com/sheepfling/KiCad-Tooling) for CLI and MCP automation.
 Each project keeps its KiCad source, documentation, test expectations and release
 records together. A battery board and a PWM board can be checked and released
 independently; an optional product describes how they work together.
@@ -23,17 +24,20 @@ Use [the documentation map](docs/README.md) to choose where information belongs,
 [Start here](docs/workflow/START_HERE.md) for adoption, [First board](docs/workflow/FIRST_BOARD.md)
 for the shortest working path, and [the contributor guide](docs/workflow/CONTRIBUTOR_GUIDE.md) for
 branches, review and handoff. The [worked examples](examples/README.md) use this same layout and
-provide regression fixtures for the shared tools. For grounding, startup/steady power and
-high-frequency circuit checks, follow the
+provide small, explicit training fixtures for workflow rehearsal. For grounding, startup/steady
+power and high-frequency circuit checks, follow the
 [electrical quickstart](docs/workflow/ELECTRICAL_ANALYSIS.md#quickstart): initialize pending
 requirements, capture review inputs, check tools, then verify. Use
-`python -B -m tools.electrical_charts --receipt <analysis-receipt>` to export CSV, PNG and SVG from
-saved simulations after installing `.[charts]`.
+`kicad-team electrical-charts --receipt <analysis-receipt>` to export CSV, PNG and SVG from saved
+simulations using the pinned environment below.
 
 See also the [quick reference](docs/workflow/QUICK_REFERENCE.md),
-[mechanical handoff](docs/workflow/MECHANICAL_HANDOFF.md), [metrics](docs/workflow/METRICS.md)
-and [Markdown policy](docs/workflow/MARKDOWN_POLICY.md). The [scaffold changelog](CHANGELOG.md)
-records workflow versions; these are separate from each board's revision.
+[mechanical handoff](docs/workflow/MECHANICAL_HANDOFF.md), [metrics](docs/workflow/METRICS.md) and
+[Markdown policy](docs/workflow/MARKDOWN_POLICY.md). The
+[three-repository split](docs/workflow/TOOLING_SPLIT.md) explains the ownership of
+project files, reusable Python tooling, and populated acceptance projects. The
+[scaffold changelog](CHANGELOG.md) records workflow versions; these are separate from each board's
+revision.
 
 The original scaffold uses 0BSD; adopters choose their own project terms. For a
 private company repository, use [bootstrap](docs/workflow/TEMPLATE_ADOPTION.md#bootstrap)
@@ -42,25 +46,39 @@ terms before the first commit. See [licensing and adoption](docs/workflow/LICENS
 
 ## First-run setup
 
-Install Git and Python 3.11+ (`python3` may be the executable name on macOS/Linux).
-From the repository root:
+Install Git and Python 3.11+. From the repository root, create an environment and install
+this project's exact tooling pin. On macOS/Linux:
 
 ```sh
-python -m venv .venv
-# macOS/Linux
+python3.11 -m venv .venv
 source .venv/bin/activate
-# Windows PowerShell: .venv\Scripts\Activate.ps1
-python -m pip install -e '.[dev,cad]'
-# Once in your fork, before adding designs:
-python -B -m tools.template doctor --format text
-python -B -m tools.template adopt --project-id my-hardware --format text
-python -B -m tools.template list --format text
+python -m pip install -r requirements-tooling.txt
 ```
 
-If activation is unavailable, invoke `.venv/bin/python` or
-`.venv\Scripts\python.exe` directly. Portable checks do not need KiCad after
-Python dependencies are installed. Native checks require the exact version selected
-by the project's `toolchain_id` in `catalog/toolchains.json`.
+On Windows PowerShell:
+
+```powershell
+py -3.11 -m venv .venv
+.venv\Scripts\Activate.ps1
+python -m pip install -r requirements-tooling.txt
+```
+
+If activation is unavailable, use `.venv/bin/python` and `.venv/bin/kicad-team` directly,
+or `.venv\Scripts\python.exe` and `.venv\Scripts\kicad-team.exe` on Windows.
+The requirements file installs the public tooling repository at a reviewed Git commit,
+including project checks, MCP, charts and CAD conversion support. No PyPI publication is required.
+The template itself is not a Python package. Verify the installation and initialize your fork:
+
+```sh
+kicad-team --version
+kicad-team template doctor --format text
+kicad-team template adopt --project-id my-hardware --format text
+kicad-team template list --format text
+```
+
+Portable checks do not need KiCad after the Python environment is installed.
+Native checks require the exact version selected by the project's `toolchain_id`
+in `catalog/toolchains.json`; use the exact local installation or its pinned Docker image.
 Initialization keeps examples as independent test fixtures, clears their live
 catalog entries, and names your repository. Repeating it preserves your work.
 `adopt` runs that transactional initialization and the complete portable gate in one
@@ -68,7 +86,7 @@ command. Use `init` separately when you need to review each step or before a new
 bootstrap copy has Git history.
 An empty fork passes scaffold checks and reports that no hardware was validated.
 
-For agents that connect through MCP, install the optional `.[mcp]` dependency and
+For agents that connect through MCP, the same installation provides `kicad-team-mcp`;
 follow [the local MCP setup and board walkthrough](docs/workflow/MCP.md). It exposes
 discovery, import triage, source/evidence reads and repair previews. Separate startup
 flags enable project creation, reviewed edits, checks and exports through engineering
@@ -77,8 +95,8 @@ review packaging. Source commits still use normal Git.
 ## Start a board
 
 ```sh
-python -B -m tools.template new-project --project-id battery-board --kind pcb --toolchain kicad-10.0.5 --format text
-python -B -m tools.template new-project --project-id pwm-board --kind pcb --toolchain kicad-10.0.5 --format text
+kicad-team template new-project --project-id battery-board --kind pcb --toolchain kicad-10.0.5 --format text
+kicad-team template new-project --project-id pwm-board --kind pcb --toolchain kicad-10.0.5 --format text
 ```
 
 The command creates the folder, manifest, notes and test-contract skeleton. Create and save the
@@ -88,12 +106,12 @@ into your design or overwrites a project. Discovery automatically adds each
 `projects/*/project.json` to CI. Keep projects directly under `projects/`; discovery does not
 recurse into a physical tree of nested projects. Use manifest tags for a flexible cohort and a
 registered product for a named group of related deliverables. Before native work, run
-`python -B -m tools.template doctor --native --project-id battery-board --format text`. This checks
-the board's catalogued toolchain and the runner that `tools.verify` will use.
+`kicad-team template doctor --native --project-id battery-board --format text`. This checks
+the board's catalogued toolchain and the runner that `kicad-team verify` will use.
 
 For an existing design, use the [import workflow](docs/workflow/IMPORT_WORKFLOW.md).
 Exercise imports in a temporary copy and retain each run through its PR or CI artifacts.
-For a directory of candidate designs, `tools.template scan-imports` previews
+For a directory of candidate designs, `kicad-team template scan-imports` previews
 every project without copying it; inspect the full JSON before importing each
 accepted island.
 
@@ -101,52 +119,52 @@ accepted island.
 
 ```sh
 # One selected board with a fresh ignored receipt and repair guidance
-python -B -m tools.verify --project battery-board
+kicad-team verify --project battery-board
 # Include exact native KiCad checks after source changes
-python -B -m tools.verify --project battery-board --depth native
+kicad-team verify --project battery-board --depth native
 # Every project in a registered product, or every project carrying a tag
 # The names below refer to the uninitialized template rehearsal examples.
-python -B -m tools.ci --product status-indicator-system --format text
-python -B -m tools.ci --tag status-led --format text
+kicad-team ci --product status-indicator-system --format text
+kicad-team ci --tag status-led --format text
 # Shared policy and tools, every project, all unit and project tests
-python -B -m tools.ci --format text
+kicad-team ci --format text
 # Preview automatic native CI lanes
-python -B -m tools.ci --matrix --format text
+kicad-team ci --matrix --format text
 # Lower-level pinned native check; supply a fresh output path yourself
-python -B -m tools.ci --kicad --project battery-board --output projects/battery-board/build/review-001 --format text
+kicad-team ci --kicad --project battery-board --output projects/battery-board/build/review-001 --format text
 # Shared tooling tests alone
-python -B -m unittest discover -s tests -v
 ```
 
 Use selected checks while developing a board. `--project`, `--product` and
 `--tag` can be repeated and include the union of their matches; `--exclude-tag`
 then removes matching projects. With only `--exclude-tag`, the starting set is
 all discovered projects. The full command is appropriate for changes to shared
-policy, tools or catalogs and for a deliberate repository-wide rehearsal.
+policy, tooling pins or catalogs and for a deliberate repository-wide rehearsal.
 Pull requests use changed paths to run affected project and native lanes;
-changes to shared tooling or an unrecognized path trigger the full gate. Main
+changes to tooling pins or an unrecognized path trigger the full gate. Main
 pushes exercise the full gate. From GitHub Actions, run **KiCad template acceptance**
 with the default `full` focus for a complete rehearsal, or choose `project`,
 `product` or `tag` and supply its ID or tag to check just that group. An optional
 `exclude_tag` narrows a focused manual run. A focused pass covers its declared
 scope, while a release still has its own acceptance process.
 
-See [checks and CI](docs/workflow/CHECKS_AND_CI.md) and [extending tests](tests/README.md).
-`tools.verify` defaults to a short text result and writes the full typed JSON, stage log, portable
-result, and any native/diagnostic reports in a unique ignored `build/diagnostics/` directory. Use
-`--format json` for agents and scripts, `--detail full` for every repair finding, or
-`--runner local|container` to choose one exact native runner; `auto` prefers a matching local CLI
-and otherwise uses the project's digest-pinned Docker image. When a board fails,
-`python -B -m tools.template diagnose --project-id battery-board` shows the observed issue, a repair
-action and the relevant [diagnostic guide](docs/workflow/DIAGNOSTICS.md). If an unrelated malformed
-manifest blocks that command, `tools.template rescue --project-id battery-board` provides a local
-read-only repair view. It always reports `UNVERIFIED_GLOBAL` and exits nonzero; repair discovery and
-rerun the normal gates before relying on any result. Use `--detail full` for every finding or
-`--format json` for scripts; each run saves a logged receipt under ignored `build/diagnostics/`.
-Coding agents can start with [AGENTS.md](AGENTS.md) or [CLAUDE.md](CLAUDE.md). In an uninitialized
-template checkout, select `arduino-uno-status-led`, `raspberry-pi-status-led` or `controller` for a
-bundled rehearsal. Initialization removes these examples from live discovery; shared-tool tests
-still use their independent fixture catalogs. Close KiCad before native checks.
+See [checks and CI](docs/workflow/CHECKS_AND_CI.md) and
+[extending tests](docs/workflow/PROJECT_TESTS.md). `kicad-team verify` defaults to a short text
+result and writes the full typed JSON, stage log, portable result, and any native/diagnostic reports
+in a unique ignored `build/diagnostics/` directory. Use `--format json` for agents and scripts,
+`--detail full` for every repair finding, or `--runner local|container` to choose one exact native
+runner; `auto` prefers a matching local CLI and otherwise uses the project's digest-pinned Docker
+image. When a board fails, `kicad-team template diagnose --project-id battery-board` shows the
+observed issue, a repair action and the relevant [diagnostic guide](docs/workflow/DIAGNOSTICS.md).
+If an unrelated malformed manifest blocks that command,
+`kicad-team template rescue --project-id battery-board` provides a local read-only repair view. It
+always reports `UNVERIFIED_GLOBAL` and exits nonzero; repair discovery and rerun the normal gates
+before relying on any result. Use `--detail full` for every finding or `--format json` for scripts;
+each run saves a logged receipt under ignored `build/diagnostics/`. Coding agents can start with
+[AGENTS.md](AGENTS.md) or [CLAUDE.md](CLAUDE.md). In an uninitialized template checkout, select
+`arduino-uno-status-led`, `raspberry-pi-status-led` or `controller` for a bundled rehearsal.
+Initialization removes these examples from live discovery; acceptance checks still use their
+independent fixture catalogs. Close KiCad before native checks.
 
 ## BOMs and releases
 
@@ -154,8 +172,8 @@ For a new user's parts workflow, start with your registered project ID and
 open the local assistant:
 
 ```sh
-python -B -m tools.template list --format text
-python -B -m tools.parts --project battery-board --assist
+kicad-team template list --format text
+kicad-team parts --project battery-board --assist
 ```
 
 Replace `battery-board` with an ID from the first command. The assistant can fetch an exact LCSC
@@ -179,9 +197,9 @@ disposable, and a BOM should have one authoritative editing location. See the
 After committing reviewed source, prepare a standalone candidate with Docker running:
 
 ```sh
-python -B -m tools.release prepare --project battery-board --release-id battery-review-001
-python -B -m tools.release package --manifest build/releases/battery-review-001/manifest.json --output build/battery-review-001.zip
-python -B -m tools.release restore --archive build/battery-review-001.zip --destination ../battery-review-restored
+kicad-team release prepare --project battery-board --release-id battery-review-001
+kicad-team release package --manifest build/releases/battery-review-001/manifest.json --output build/battery-review-001.zip
+kicad-team release restore --archive build/battery-review-001.zip --destination ../battery-review-restored
 ```
 
 Preparation runs portable tests and the pinned KiCad container. Packaging verifies the evidence and
@@ -194,8 +212,9 @@ requires the controls in [release readiness](docs/workflow/RELEASE_READINESS.md)
   own optional integration records and tests.
 - [Catalogs](catalog/README.md) own reusable identities, toolchains and discovery roots.
 - [Libraries](libraries/README.md) contain declared shared CAD dependencies.
-- [Tools](tools/README.md), [tests](tests/README.md) and [templates](templates/README.md)
-  implement and demonstrate the common workflow.
+- Installed [tooling](https://github.com/sheepfling/KiCad-Tooling),
+  [project tests](docs/workflow/PROJECT_TESTS.md) and [templates](templates/README.md)
+  check and demonstrate the common workflow.
 - [Generated shared views](generated/README.md) and [schemas](schemas/README.md)
   are optional local exports, ignored except for their guidance files.
 
