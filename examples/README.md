@@ -1,7 +1,20 @@
-# Reference project islands
+# Examples — training and regression fixtures
 
-These are maintained training and regression inputs, separate from adopted work.
-Their folder structure is the pattern to repeat under `projects/<id>/`.
+> [!CAUTION]
+> These files teach the workflow and exercise automated checks. They are not starter projects,
+> approved designs, part selections, fit evidence or manufacturing data. For real work in an
+> adopted repository, create a board under `projects/<id>/`; use
+> [First board](../docs/workflow/FIRST_BOARD.md) or the
+> [Import workflow](../docs/workflow/IMPORT_WORKFLOW.md). Do not rename a fixture to make it a
+> real project.
+
+The folder structure is the pattern to repeat under `projects/<id>/`. The sample requirements,
+contracts, product links and model notes belong to these rehearsals only. A passing example check
+verifies its declared fixture scope; it does not approve a real board or product.
+
+Use the folder guides before browsing each collection: [project fixtures](projects/README.md),
+[product fixtures](products/README.md), [regression catalogs](catalog/README.md) and the
+[training library](libraries/README.md).
 
 | Project                                                                    | Demonstration                                             |
 | -------------------------------------------------------------------------- | --------------------------------------------------------- |

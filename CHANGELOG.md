@@ -5,6 +5,8 @@ These versions describe the reusable workflow, independently of board and produc
 
 ## Unreleased
 
+- Mark every example collection as training-only at its folder entry point and direct real work to
+  project and product islands.
 - Retarget shared-tooling source links from a historical feature branch to the
   maintained `main` branch.
 - Distinguish solo upstream scaffold maintenance from the independent-review

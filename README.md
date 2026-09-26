@@ -1,5 +1,11 @@
 # KiCad team workflow template
 
+> [!IMPORTANT]
+> **Examples are training fixtures, not starter projects.** Do real board work under
+> `projects/<id>/` and integration work under `products/<id>/`. Use `examples/` only for a
+> deliberate rehearsal or to maintain the regression fixtures. Example circuits, part identities,
+> requirements and mechanical notes do not approve a real design, purchase, fit or manufacture.
+
 A light template for independently developed boards, with engineering guidance and
 installed [KiCad Tooling](https://github.com/sheepfling/KiCad-Tooling) for CLI and MCP automation.
 Each project keeps its KiCad source, documentation, test expectations and release
