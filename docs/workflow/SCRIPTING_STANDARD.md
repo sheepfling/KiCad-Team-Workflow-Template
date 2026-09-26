@@ -59,10 +59,12 @@ kicad-team verify --project <id>
 kicad-team ci
 ```
 
-Automation may use `python -B -m kicad_tooling.<module>`, for example
-`python -B -m kicad_tooling.ci`. The dispatcher accepts hyphenated command names such as
+Automation may use `python -I -B -m kicad_tooling.<module>`, for example
+`python -I -B -m kicad_tooling.ci`. The dispatcher accepts hyphenated command names such as
 `contract-coach`, while Python module names use underscores (`contract_coach`).
-Do not execute a package's `.py` file directly; module execution preserves import boundaries.
+Use `-I` for installed-module automation so checkout files and ambient `PYTHONPATH` cannot replace
+the pinned installation. Apply isolation to workflow bootstrap modules such as pip and venv too.
+Do not execute a package's `.py` file directly; use the normally installed module entry point.
 Pass `--root /absolute/project/path` when the current directory is not the project checkout.
 MCP uses `kicad-team-mcp --root /absolute/project/path` and fixes that root at startup.
 

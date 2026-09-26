@@ -49,7 +49,7 @@ jobs:
           cache: pip
           cache-dependency-path: requirements-tooling.txt
       - name: Install typed policy dependency
-        run: python -m pip install --disable-pip-version-check -r requirements-tooling.txt
+        run: python -I -m pip install --disable-pip-version-check -r requirements-tooling.txt
       - id: plan
         name: Plan the PR, branch diff or manual cohort
         env:
@@ -60,7 +60,7 @@ jobs:
           DISPATCH_EXCLUDE_TAG: ${{ inputs.exclude_tag || '' }}
           DISPATCH_SHARD: ${{ inputs.shard || '' }}
         run: |
-          python -B -m kicad_tooling.ci_hosted plan --event "$EVENT_NAME" --base "$BASE_SHA" \
+          python -I -B -m kicad_tooling.ci_hosted plan --event "$EVENT_NAME" --base "$BASE_SHA" \
             --focus "$DISPATCH_FOCUS" --value "$DISPATCH_VALUE" \
             --exclude-tag "$DISPATCH_EXCLUDE_TAG" --shard "$DISPATCH_SHARD"
   project-matrix:
@@ -82,13 +82,13 @@ jobs:
           cache: pip
           cache-dependency-path: requirements-tooling.txt
       - name: Install typed policy dependency
-        run: python -m pip install --disable-pip-version-check -r requirements-tooling.txt
+        run: python -I -m pip install --disable-pip-version-check -r requirements-tooling.txt
       - id: matrix
         name: Resolve digest-pinned KiCad lanes
         env:
           CHECK_SCOPE: ${{ needs.scope.outputs.scope }}
           CI_PROJECTS: ${{ needs.scope.outputs.projects }}
-        run: python -B -m kicad_tooling.ci_hosted matrix --scope "$CHECK_SCOPE" --projects "$CI_PROJECTS"
+        run: python -I -B -m kicad_tooling.ci_hosted matrix --scope "$CHECK_SCOPE" --projects "$CI_PROJECTS"
   python-tests:
     name: Portable policy (${{ matrix.os }}, Python ${{ matrix.python }})
     needs: [scope]
@@ -108,7 +108,7 @@ jobs:
           cache-dependency-path: requirements-tooling.txt
       - name: Install policy dependencies
         shell: bash
-        run: python -m pip install --disable-pip-version-check -r requirements-tooling.txt
+        run: python -I -m pip install --disable-pip-version-check -r requirements-tooling.txt
       - name: Run the planned portable policy pipeline
         if: matrix.os != 'windows-2022'
         shell: bash
@@ -118,17 +118,17 @@ jobs:
           CI_PROJECTS: ${{ needs.scope.outputs.projects }}
           DOCS_CHANGED: ${{ needs.scope.outputs.docs-changed }}
         run: |
-          python -B -m kicad_tooling.ci_hosted portable --scope "$CHECK_SCOPE" \
+          python -I -B -m kicad_tooling.ci_hosted portable --scope "$CHECK_SCOPE" \
             --projects "$CI_PROJECTS" --docs-changed "$DOCS_CHANGED" --jobs 4
       - name: Smoke test real Windows paths and CLI entry points
         if: matrix.os == 'windows-2022'
         timeout-minutes: 4
-        run: python -B -m kicad_tooling.ci_hosted windows-smoke
+        run: python -I -B -m kicad_tooling.ci_hosted windows-smoke
       - name: Export reproducible review views and schemas
         if: needs.scope.outputs.scope == 'full' && matrix.os != 'windows-2022'
-        run: python -B -m kicad_tooling.hardware generate
+        run: python -I -B -m kicad_tooling.hardware generate
       - name: Confirm generation leaves tracked source unchanged
-        run: python -B -m kicad_tooling.ci_hosted source-clean
+        run: python -I -B -m kicad_tooling.ci_hosted source-clean
       - name: Retain portable logs and generated review views
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
@@ -166,13 +166,13 @@ jobs:
           cache: pip
           cache-dependency-path: requirements-tooling.txt
       - name: Install typed policy dependency
-        run: python -m pip install --disable-pip-version-check -r requirements-tooling.txt
+        run: python -I -m pip install --disable-pip-version-check -r requirements-tooling.txt
       - name: Install declared simulator build prerequisites
         if: matrix.electrical
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential bison flex
       - name: Check pinned KiCad project and deliberate defects
         run: |
-          python -B -m kicad_tooling.ci_hosted native --project "$PROJECT_ID" \
+          python -I -B -m kicad_tooling.ci_hosted native --project "$PROJECT_ID" \
             --image "$KICAD_IMAGE" --pr-head "$PR_HEAD" --fault-probes "$FAULT_PROBES"
       - name: Retain review and failure evidence
         if: always()
@@ -201,9 +201,9 @@ jobs:
           cache: pip
           cache-dependency-path: requirements-tooling.txt
       - name: Install quality tools
-        run: python -m pip install --disable-pip-version-check -r requirements-tooling.txt
+        run: python -I -m pip install --disable-pip-version-check -r requirements-tooling.txt
       - name: Rehearse release and guarded foreign-board import
-        run: python -B -m kicad_tooling.ci_hosted release
+        run: python -I -B -m kicad_tooling.ci_hosted release
       - name: Retain release rehearsal evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
@@ -231,7 +231,7 @@ jobs:
         with:
           python-version: '3.11'
       - name: Install typed policy dependency
-        run: python -m pip install --disable-pip-version-check -r requirements-tooling.txt
+        run: python -I -m pip install --disable-pip-version-check -r requirements-tooling.txt
       - name: Reject failed, skipped, missing or cancelled prerequisites
         env:
           SCOPE_RESULT: ${{ needs.scope.result }}
@@ -241,4 +241,4 @@ jobs:
           KICAD_RESULT: ${{ needs.kicad.result }}
           HAS_PROJECTS: ${{ needs.project-matrix.outputs.has-projects }}
           RELEASE_RESULT: ${{ needs.release-rehearsal.result }}
-        run: python -B -m kicad_tooling.ci_hosted gate
+        run: python -I -B -m kicad_tooling.ci_hosted gate
