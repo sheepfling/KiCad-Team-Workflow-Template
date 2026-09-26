@@ -149,6 +149,19 @@ every model finding in text; JSON always contains the complete inventory. The ex
 images for visual review, a STEP model for mechanical CAD and a GLB model for 3D viewing. Open the
 files and inspect them; a successful command exit only means KiCad produced them.
 
+For the same logged preview wrapper on Windows, macOS or Linux, use the installed Python:
+
+```sh
+python -I -B -m kicad_tooling.ci_hosted preview --project battery-board
+```
+
+It selects an exact local KiCad CLI or the pinned Docker image by default. Use `--runner local`
+and `--cli` for an explicit executable, or `--runner container`. Supply a fresh `--output` under
+`build/` for each repeat; the default is `build/3d-preview`. Python retains stdout, stderr and
+failure receipts, preserves the renderer's exit code, and writes the GitHub summary when running
+in Actions. No Bash utilities or platform-specific virtual-environment paths are needed. Native
+KiCad or Docker must still be installed on the selected machine.
+
 For a hosted one-board run, open **Actions → KiCad 3D preview → Run workflow** and
 enter the registered PCB project ID. That manual job uses the project's pinned
 container and uploads its full receipt, including failure logs. Routine PR and

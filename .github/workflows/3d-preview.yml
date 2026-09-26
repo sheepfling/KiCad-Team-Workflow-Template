@@ -26,42 +26,12 @@ jobs:
           cache: pip
           cache-dependency-path: requirements-tooling.txt
       - name: Install policy tooling
-        run: |
-          python -I -m venv .venv
-          .venv/bin/python -I -m pip install --disable-pip-version-check -r requirements-tooling.txt
+        run: python -I -m pip install --disable-pip-version-check -r requirements-tooling.txt
       - name: Generate selected 3D preview
-        shell: bash
         timeout-minutes: 55
         env:
           PROJECT_ID: ${{ inputs.project_id }}
-        run: |
-          set -euo pipefail
-          mkdir -p build
-          set +e
-          .venv/bin/python -I -B -m kicad_tooling.visualize \
-            --project "$PROJECT_ID" --runner container \
-            --output build/3d-preview --format text \
-            > build/3d-preview.stdout.txt 2> build/3d-preview.stderr.txt
-          status=$?
-          set -e
-          mkdir -p build/3d-preview
-          mv build/3d-preview.stdout.txt build/3d-preview/cli.stdout.txt
-          mv build/3d-preview.stderr.txt build/3d-preview/cli.stderr.txt
-          cat build/3d-preview/cli.stdout.txt
-          cat build/3d-preview/cli.stderr.txt >&2
-          exit "$status"
-      - name: Show model coverage and export paths
-        if: always()
-        shell: bash
-        run: |
-          if test -f build/3d-preview/visualization.txt; then
-            {
-              echo '## KiCad 3D preview'
-              echo '```text'
-              cat build/3d-preview/visualization.txt
-              echo '```'
-            } >> "$GITHUB_STEP_SUMMARY"
-          fi
+        run: python -I -B -m kicad_tooling.ci_hosted preview --runner container
       - name: Retain 3D preview and failure evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
@@ -69,7 +39,6 @@ jobs:
           name: 3d-preview-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             build/3d-preview/
-            build/3d-preview.stdout.txt
-            build/3d-preview.stderr.txt
+            build/ci-hosted/preview/
           if-no-files-found: warn
           retention-days: 30
