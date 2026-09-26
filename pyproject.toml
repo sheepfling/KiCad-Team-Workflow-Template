@@ -27,6 +27,11 @@ check-case = true
 enabled = true
 roots = [
   "README.md",
+  "examples/README.md",
+  "examples/catalog/README.md",
+  "examples/libraries/README.md",
+  "examples/products/README.md",
+  "examples/projects/README.md",
   "examples/projects/arduino-uno-status-led/README.md",
   "examples/projects/controller/README.md",
   "examples/projects/passive-signal-reference/README.md",

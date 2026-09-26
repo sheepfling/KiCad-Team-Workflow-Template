@@ -1,9 +1,13 @@
 # Status indicator reference system
 
+**Training fixture — not an approved product or manufacturing definition.** Its assemblies,
+variants and interfaces exercise integration records. The mechanical notes are examples, not
+fit approval; its parts and wiring are not approved for purchase or construction.
+
 This optional product joins independently owned project islands. Its
 [product record](product.json) owns assembly membership, variants, harnesses,
 relationships and unresolved integration claims. Its [mechanical notes](docs/mechanical.md)
-are training references, not fit approval.
+are training references.
 
 The participating project IDs are declared in `catalog/products.json`. Add product
 `tests/test_*.py` files here for integration-specific software checks; they run in the
