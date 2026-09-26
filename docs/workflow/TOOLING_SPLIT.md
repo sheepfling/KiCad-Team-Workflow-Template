@@ -21,10 +21,11 @@ independent repository. An ordinary fork of a public repository is public.
 
 ## Installed tooling cutover
 
-This template no longer carries the shared Python package or root tooling regression suite.
-It keeps engineering notes, project/product contracts, optional island tests, template records
-and thin hosted workflows. `pyproject.toml` holds documentation-tool configuration; it does
-not make this checkout an installable Python package.
+This template no longer carries the shared Python package or root tooling regression suite. It keeps
+engineering notes, project/product contracts, optional island tests, template records and thin
+hosted workflow callers. Shared GitHub job definitions live in Tooling alongside Python.
+`pyproject.toml` holds documentation-tool configuration; it does not make this checkout an
+installable Python package.
 
 Follow the [first-run setup](../../README.md#first-run-setup):
 
@@ -48,6 +49,29 @@ product tests. Shared implementation regressions, CLI/MCP behavior comparisons a
 type checks run in the tooling repository. Retain native and end-to-end acceptance receipts in
 ignored `build/`, CI artifacts or the populated acceptance repository; do not add them to this
 template.
+
+## Shared GitHub workflows
+
+The four files in `.github/workflows/` retain triggers, manual selection menus and immutable calls
+to Tooling's reusable workflows. They contain no runner setup, package installation, verification
+commands or artifact logic. Tooling owns those jobs and the Python services behind them; see the
+[reusable CI contract](https://github.com/sheepfling/KiCad-Tooling/blob/main/docs/PROJECT_CI.md).
+
+Every job checks out **this project's source** and installs this project's
+`requirements-tooling.txt`. Results and failure logs stay in this repository's Actions run.
+No secrets need to be passed to the public workflow. Private adopters must permit these public
+reusable workflows in their Actions settings.
+
+Review both pins when upgrading: each caller's `uses: ...@<commit>` selects GitHub orchestration,
+while `requirements-tooling.txt` selects installed Python. An orchestration-only update can keep
+a compatible Python pin. Update them through a project PR and rerun acceptance; the package can
+later use an exact PyPI version without changing this arrangement.
+
+GitHub can qualify the final check name with the caller job name. During migration, inspect the
+new passing check and update branch protection plus `catalog/team-policy.json` together. Retain
+the old required check until the new gate passes. Portable checks cover Linux/macOS and Windows
+entry points; hosted native KiCad and simulator lanes run on Linux. Focus, tags and shards still
+use the installed Python planner, and logs remain under ignored `build/ci-hosted/`.
 
 ## Develop tooling beside a project
 
