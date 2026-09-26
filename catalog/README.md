@@ -16,7 +16,7 @@ Keep `examples/` for training and acceptance rehearsal. `examples/catalog/`
 contains independent reference catalog inputs used by those fixtures.
 
 The tooling package’s
-[surface catalog](https://github.com/sheepfling/KiCad-Tooling/blob/codex/tooling-split/kicad_tooling/tool-surfaces.json)
+[surface catalog](https://github.com/sheepfling/KiCad-Tooling/blob/main/kicad_tooling/tool-surfaces.json)
 tracks public CLI/MCP declarations and required core parity and explicit administrative/adapter
 exceptions. Follow the [surface inventory guide](../docs/workflow/TOOL_SURFACES.md) when either
 interface changes; the tooling repository’s regression gate rejects untracked drift.

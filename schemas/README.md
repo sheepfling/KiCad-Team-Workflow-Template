@@ -1,7 +1,7 @@
 # Generated JSON Schemas
 
 The authoritative contracts are Pydantic models in the installed tooling
-[models module](https://github.com/sheepfling/KiCad-Tooling/blob/codex/tooling-split/kicad_tooling/hwrepo/models.py).
+[models module](https://github.com/sheepfling/KiCad-Tooling/blob/main/kicad_tooling/hwrepo/models.py).
 Run `kicad-team hardware generate` to export the published input and release
 schemas here for editors or non-Python consumers. These JSON files are ignored and
 are also available as portable CI artifacts. Only this README is tracked.

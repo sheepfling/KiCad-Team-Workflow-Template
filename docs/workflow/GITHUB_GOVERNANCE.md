@@ -12,7 +12,22 @@ The default needs two people: an author and an independent reviewer; either may
 integrate. Teams can adopt stricter separation or an explicitly reviewed solo policy
 by changing that file and its rationale. Case differences cannot create extra actors.
 
-## Configure in GitHub
+## Upstream template and adopted teams
+
+The upstream template repository and an adopted engineering repository have different
+maintainer models. The upstream scaffold may have one maintainer. Its `main` branch can
+remain protected by pull requests, the required acceptance check, stale-review
+dismissal and blocked force pushes while independent approval is unavailable. This is
+a documented exception for maintaining the reusable scaffold; it does not establish
+independent review.
+
+Keep `catalog/team-policy.json` at the two-person, independent-review default shipped
+for adopters. Do not weaken that copied baseline to make the upstream repository's
+governance audit report a pass. GitHub permissions and branch rules are configured per
+repository and do not carry over to forks. When the upstream repository has a second
+real maintainer, require an approval and add `.github/CODEOWNERS` with real reviewers.
+
+## Configure GitHub for an adopted repository
 
 For the default branch, configure and verify:
 
