@@ -5,6 +5,10 @@ These versions describe the reusable workflow, independently of board and produc
 
 ## Unreleased
 
+- Retarget shared-tooling source links from a historical feature branch to the
+  maintained `main` branch.
+- Distinguish solo upstream scaffold maintenance from the independent-review
+  default for adopted engineering repositories.
 - Add a project diagnostic command that coaches import, portable CI, native KiCad
   and purchasing-BOM repairs without editing design source.
 - Include CAD dependency line numbers in portable policy findings.

@@ -107,7 +107,7 @@ select a project or tag when only part of the repository has electrical contract
    waveforms and findings, then review the limits and model scope with the engineer.
 
 The authoritative schema is `ElectricalAnalysisContract` in
-[models.py](https://github.com/sheepfling/KiCad-Tooling/blob/codex/tooling-split/kicad_tooling/hwrepo/models.py).
+[models.py](https://github.com/sheepfling/KiCad-Tooling/blob/main/kicad_tooling/hwrepo/models.py).
 `kicad-team hardware generate` exports its machine-readable schema to ignored
 `schemas/electrical-analysis-v1.schema.json`. The
 [standalone examples](../../templates/electrical/README.md) contain a complete worked JSON contract

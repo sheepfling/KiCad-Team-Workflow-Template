@@ -123,7 +123,7 @@ The template layout is the default. An optional declarative `kicad-tooling.toml`
 catalogs, scaffold inputs, workflow guides and project-creation paths. Discovery can opt into
 bounded nesting while retaining unique IDs and source ownership. CLI and MCP share that
 configuration; see the tooling
-[configuration guide](https://github.com/sheepfling/KiCad-Tooling/blob/codex/tooling-split/docs/CONFIGURATION.md).
+[configuration guide](https://github.com/sheepfling/KiCad-Tooling/blob/main/docs/CONFIGURATION.md).
 The default remains one island directly below `projects/`; tags and products group independent
 boards.
 

@@ -19,7 +19,7 @@ comparisons; the template project gate validates this checkout’s policy and is
 ## Core workflows and exceptions
 
 The versioned
-[packaged catalog](https://github.com/sheepfling/KiCad-Tooling/blob/codex/tooling-split/kicad_tooling/tool-surfaces.json)
+[packaged catalog](https://github.com/sheepfling/KiCad-Tooling/blob/main/kicad_tooling/tool-surfaces.json)
 separates three scopes:
 
 | Scope            | Acceptance requirement                                                                                                        |
