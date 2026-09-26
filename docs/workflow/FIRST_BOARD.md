@@ -9,6 +9,9 @@ requirements must come from reviewed intent; enclosure dimensions, origin, mount
 assumptions need a mechanical owner. An agent can guide the sequence and inspect evidence using
 the [MCP tools](MCP.md), but a scaffold cannot supply those decisions. Use the
 [mechanical handoff checklist](MECHANICAL_HANDOFF.md) when establishing the board interface.
+Use the [quality-gate checklist](QUALITY_GATES.md) to track connectivity, grounding, power,
+transients, frequency, parts, CAD, BOM and revision evidence. The first portable PASS does not
+mean those engineering reviews have been completed.
 
 1. Install Python 3.11+, create a virtual environment and install `requirements-tooling.txt` as
    shown in the [root setup](../../README.md#first-run-setup).
@@ -97,6 +100,10 @@ the [MCP tools](MCP.md), but a scaffold cannot supply those decisions. Use the
    preferences and generate a DigiKey upload file when the metadata is complete.
 6. Commit only authored source, push a short-lived branch and open a pull request.
    Review the exact Actions commit and retained evidence before merging.
+
+Before calling the board electrically evaluated, complete the
+[electrical setup and combined check](QUALITY_GATES.md#make-electrical-coverage-deliberate).
+Record any unassessed gate and its owner in the board notes.
 
 The first passing check establishes a development baseline. Promotion to a prototype,
 pilot or production release requires [release readiness](RELEASE_READINESS.md), real

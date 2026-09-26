@@ -251,20 +251,27 @@ do not establish physical grounding, thermal or RF acceptance.
 
 ## Hosted electrical check
 
-The manual GitHub Actions workflow **Electrical analysis** accepts a registered
-`project_id`, `ngspice_version` and the reviewed `ngspice_sha256` of that version's
-source archive. The defaults are version `47` and its recorded archive checksum.
-The simulator version must match the board contract; when changing versions,
-review and update the checksum as a pair. The workflow checks portable requirements,
-builds ngspice from the checksum-verified official source archive, runs electrical
-and native readiness checks, then calls `kicad-team ci --electrical --project <id>`.
-It retains reports, waveforms, charts, CSV data and simulator build logs even after failure.
+Normal **KiCad template acceptance** native lanes now run every declared electrical
+contract after ERC/DRC and netlist checks. A failed or pending contract fails that
+project lane. Projects without an electrical contract are logged as NOT_CONFIGURED;
+this is not electrical acceptance. The manual **Electrical analysis** workflow
+accepts only a registered `project_id` and runs the same Python electrical lane.
+Use `kicad-team ci-hosted electrical --project <id>` to reproduce it locally.
 
-This focused workflow checks declared grounding and circuit models. Run the normal
-**KiCad template acceptance** native lane for ERC/DRC as well, or use
-`kicad-team verify --depth electrical` locally to combine both. The manual electrical
-workflow does not add a required branch-protection check or change ordinary PR
-runs. Adopt those enforcement decisions through the repository's review process.
+The exact simulator version comes from `tests/electrical.json`. The tooling reuses
+that exact installed ngspice, or builds the official source after verifying its
+SHA-256. Version 47 has a bundled reviewed archive pin. For another version, record
+its reviewed `ngspice_source_sha256` in the electrical contract; an unknown version
+without a source pin fails before download. Compilation requires a C compiler,
+make, bison and flex. Simulator selection, download validation, build stages and
+failure logs live in Python under `build/ci-hosted/`; Actions only installs system
+prerequisites, calls the lane and uploads evidence.
+
+The focused workflow checks declared grounding and circuit models. Run normal
+acceptance or `kicad-team verify --depth electrical` to include ERC/DRC. Required
+branch protection remains an adopted repository setting; changing workflow code
+does not change hosted permissions. Retain reports, waveforms, charts and command
+logs with each CI run.
 
 ## Receipts and acceptance
 
@@ -278,20 +285,19 @@ truncated waveform or uncovered measurement window fails the requested analysis.
 Failed cases retain their command output; subsequent independent cases still run.
 
 Portable PASS means requirements and budgets checked. Native PASS includes the
-configured schematic-ground check. Only electrical PASS means every requested
-simulation ran and met its declared limits. Existing manufacturing/release approval
-still needs the project's engineering evidence review; electrical receipts are not
-added automatically to a release package or made a new release-policy prerequisite.
-Use the combined electrical command as an explicit review/CI gate where required,
-and retain its receipt with the board review. Bench startup, sustained thermal load,
-high-frequency measurements and physical grounding acceptance remain separate work.
+configured schematic-ground check. Electrical PASS means every requested simulation
+ran and met its declared limits. The ordinary hosted native lane now includes both.
 
-The simulator behavior is documented in the
-[ngspice manual](https://ngspice.sourceforge.io/docs.html) and the
-[KiCad simulator guide](https://docs.kicad.org/10.0/en/eeschema/eeschema.html#simulator).
+`release prepare` runs declared electrical checks from the clean source commit and
+retains their requirements, generated decks, simulator logs and waveforms. Release
+check, package, verify and restore revalidate that evidence against current source,
+models, required measurements and the retained native netlist. Relabeling a failed
+or incomplete receipt PASS cannot satisfy the gate. Restore does not execute models.
+Old candidates with declared contracts but no electrical evidence must be prepared
+again. Prototype, pilot and production releases require an electrical contract
+for each schematic-backed board; reviewed nonapplicability needs an explicit reason.
+Engineering-review candidates without a contract show NOT_CONFIGURED in review.md.
 
-The local MCP adapter exposes `export_electrical_charts(view_id, receipt)` and
-`export_electrical_chart_suite(view_id, suite)` for the same saved analysis receipts.
-Both require exports capability and write fresh ignored outputs. Install the pinned
-`charts` extra for waveform plots; CSV tables keep the original numeric precision.
-The chart status preserves missing or failed simulation evidence.
+Model success still needs engineering evidence review. Bench startup, sustained
+thermal load, high-frequency measurements and physical grounding acceptance remain
+separate work. See [release readiness](RELEASE_READINESS.md) for the complete handoff.

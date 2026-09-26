@@ -1,5 +1,9 @@
 # Working in this KiCad repository
 
+Track the [quality gates](docs/workflow/QUALITY_GATES.md) for each board. Report missing,
+not-run and review-needed stages explicitly; a portable PASS does not establish electrical,
+purchasing or release readiness. Read MCP domain statuses even when the protocol call succeeds.
+
 This file is for coding agents and engineers using an agent. Start with the
 [workflow guide](docs/workflow/START_HERE.md) and the
 [diagnostic guide](docs/workflow/DIAGNOSTICS.md). Use Python 3.11 syntax.
@@ -213,3 +217,12 @@ Read [tool surfaces](docs/workflow/TOOL_SURFACES.md) for required core parity an
 administrative/adapter exceptions. Surface inspection never runs those tests; tooling CI does.
 The template's `kicad-team ci` checks project policy, docs, generation and project/product suites.
 Neither gate grants design approval.
+
+## Electrical evidence during handoff
+
+Normal hosted native CI runs every declared electrical contract. Release preparation must retain
+passing electrical evidence for those contracts; check/package/verify/restore revalidate source,
+models, requirements, logs and waveforms. Build releases require explicit electrical applicability
+for schematic-backed boards. Do not remove a contract or mark sections not applicable merely to
+pass. For engineering review without a contract, preserve NOT_CONFIGURED in the handoff. Physical
+review and approved part selection remain human decisions; follow the quality-gate checklist.

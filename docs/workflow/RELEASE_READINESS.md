@@ -22,10 +22,24 @@ hashes the entire clean source commit, so it cannot be mistaken for a full gate.
 Run `kicad-team ci --format text` and the hosted full CI gate separately
 for repository-wide acceptance.
 
+Every declared electrical contract also runs during preparation. Install the exact approved
+ngspice on PATH, or pass `--ngspice /path/to/ngspice`. MCP uses the simulator available in its
+startup environment. Missing, pending, failed or stale declared evidence blocks the candidate.
+`review.md` lists each project's electrical coverage. Build releases require an explicit contract
+for schematic-backed boards; a section may be not applicable only with a reviewed reason.
+Engineering-review candidates without electrical contracts explicitly show NOT_CONFIGURED.
+
+The candidate retains electrical requirements, generated decks, command logs and waveforms.
+Check and restore re-evaluate the required measurements and waveform coverage, grounding against
+the retained native netlist, and source/model hashes. This verifies recorded evidence without
+rerunning the simulator or executing project scripts. Existing candidates with declared electrical
+requirements but no retained electrical evidence must be prepared again from their source commit.
+
 For a hosted rehearsal of one registered project, open **Actions → Selected release
 candidate → Run workflow** and enter its registered project ID (see
 `kicad-team template list --format text`). This manually triggered job
-prepares, checks, packages and verifies an `engineering_review` candidate from
+uses `kicad-team ci-hosted candidate --project <id> --release-id <fresh-id>` to
+prepare, check, package and verify an `engineering_review` candidate from
 the selected GitHub commit. It fetches full source history for the restorable
 Git bundle and retains its ignored evidence as a 30-day CI
 artifact. It adds no time to ordinary PR checks. Review the artifact and the

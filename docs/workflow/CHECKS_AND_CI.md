@@ -255,3 +255,14 @@ x86 image can run under Docker emulation on Apple Silicon; native Windows execut
 of these shell examples is not provided. CI keeps dependency wheels out of review
 artifacts. Its hosted job scheduling, permissions and upload remain separate from a
 local container rehearsal.
+
+## Declared electrical requirements in hosted lanes
+
+Each selected native project lane runs its declared electrical contract after KiCad checks.
+Failure blocks acceptance and retains the simulator and command evidence. An undeclared contract
+is reported NOT_CONFIGURED, never electrical PASS. The Python orchestration chooses the exact
+simulator from the project contract; Actions only installs prerequisites and retains artifacts.
+Use `kicad-team ci-hosted electrical --project <id>` for a focused reproduction, or
+`kicad-team verify --project <id> --depth electrical` for combined local checks.
+See [electrical analysis](ELECTRICAL_ANALYSIS.md) for version/source pins and
+[release readiness](RELEASE_READINESS.md) for automatic retention and replay.

@@ -2,6 +2,8 @@
 
 Use the [folder standard](REPOSITORY_STRUCTURE.md) and [authority model](AUTHORITY_MODEL.md)
 to understand what belongs with each board and what is shared.
+Use the [quality-gate checklist](QUALITY_GATES.md) to see what each check proves and which
+engineering decisions still need an owner.
 
 ## Start development
 

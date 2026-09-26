@@ -5,6 +5,39 @@ separate temporary copy of the candidate repository; keep the external designs
 untracked there. Run the commands from the candidate repository with its Python
 development environment installed.
 
+## Keep a reusable practice library
+
+For repeated experiments, keep a local `KiCad-Rehearsal/` folder outside both the
+project template and tooling repositories. Use `DUMP/` for original incoming
+archives, `sources/` for extracted snapshots and their provenance, `runs/` for
+disposable initialized project copies, and `reports/` for findings. Preserve
+licenses and source hashes. Do not edit the downloaded originals or commit
+practice projects to the template.
+
+Install the template's tooling pin into a normal Python environment. A developer
+testing a tooling update can use a separately installed wheel; record its version
+and hash so that the tested code is clear. The acquisition kit's older `tools.*`
+commands belong to the combined repository and should not be used with this split
+template. Use `kicad-team` or `python -I -m kicad_tooling` from the installed package.
+
+Point `--root` at the disposable project copy and `--source-dir` or `--source` at
+the extracted snapshot. MCP uses the same arrangement: start `kicad-team-mcp`
+with `--root /path/to/disposable-project` and
+`--import-root /path/to/extracted-snapshot`. Add `--allow-writes` for import,
+`--allow-checks` for verification and `--allow-exports` for parts and 3D evidence.
+The rehearsal library itself is not an MCP project root.
+
+Record import, portability, electrical checks, plots, parts and 3D results
+separately. A copied project can pass portability checks while diagnosis still
+asks for independent electrical requirements. Missing part identities block a
+purchasing BOM; missing models limit an otherwise successful 3D export. Keep those
+findings visible instead of turning a successful import into a design approval.
+
+The tooling repository owns the reusable corpus runner and its regression tests.
+Each run should identify both repository revisions, the installed tooling version,
+the selected source pins and the fresh receipt locations. Use a new run directory
+when comparing tooling versions so earlier evidence stays intact.
+
 ## Convert a foreign PCB before native import
 
 For a non-KiCad board file supported by KiCad's `pcb import` command (PADS,
