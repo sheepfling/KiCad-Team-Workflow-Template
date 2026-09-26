@@ -13,6 +13,8 @@ The CLI and MCP implementation comes from the public
 `requirements-tooling.txt`. Follow the [setup](README.md#first-run-setup); do not recreate a
 `tools/` package here. Shared tooling changes belong in that separate repository.
 See [tooling ownership and upgrades](docs/workflow/TOOLING_SPLIT.md).
+Shared GitHub jobs also belong in Tooling. Keep only pinned reusable-workflow callers,
+triggers and project selection controls here; review workflow and Python pins together.
 For Python automation, use the installed `kicad_tooling` modules through
 `python -I -m kicad_tooling.<module>`. Project paths select data, never imports.
 Do not patch `PYTHONPATH` or `sys.path` to locate a sibling tooling checkout;

@@ -9,6 +9,14 @@ These versions describe the reusable workflow, independently of board and produc
   and purchasing-BOM repairs without editing design source.
 - Include CAD dependency line numbers in portable policy findings.
 
+## 1.4.1 — 2026-09-26
+
+- Move shared GitHub jobs into Tooling. Keep four immutable workflow callers, project triggers
+  and manual project/product/tag/branch/shard controls in Template.
+- Retain caller-owned source, dependency pins, logs and artifacts without passing secrets.
+- Migrate the required gate to `Verification / Template acceptance` after it passes; follow the
+  [reusable CI migration](docs/workflow/TEMPLATE_ADOPTION.md#version-141-reusable-ci-migration).
+
 ## 1.4.0 — 2026-09-25
 
 - Move shared CLI/MCP implementation and regression tests to public KiCad Tooling.

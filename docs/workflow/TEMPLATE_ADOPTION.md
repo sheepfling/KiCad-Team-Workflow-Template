@@ -63,6 +63,19 @@ commit or root-license version enters the company's history. A custom root licen
 already present in the source is preserved, as are all nested and third-party
 notices. See [licensing and adoption](LICENSING.md) for the precise cleanup boundary.
 
+## Version 1.4.1 reusable CI migration
+
+Version 1.4.1 moves shared GitHub job definitions into Tooling. Follow
+`kicad-team template upgrade-plan --target-version 1.4.1`; preserve project source and approvals.
+Replace the four workflows with pinned callers and review the
+[shared workflow upgrade instructions](TOOLING_SPLIT.md#shared-github-workflows).
+
+With the default caller name, GitHub reports `Verification / Template acceptance`.
+After that replacement passes on the migration PR, update the old `Template acceptance`
+requirement in branch protection and local governance records. Preserve strict checks and all
+other controls. Do not remove the old requirement before a successful replacement exists.
+Changing the caller's `name` changes this check identity and needs the same review.
+
 ## Version 1.4.0 installed-tooling migration
 
 Version 1.4.0 separates project-owned engineering source from shared Python tooling. Existing

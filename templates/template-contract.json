@@ -1,6 +1,6 @@
 {
   "schema_version": "1",
-  "template_version": "1.4.0",
+  "template_version": "1.4.1",
   "required_paths": [
     "README.md",
     "CHANGELOG.md",

@@ -129,6 +129,18 @@
         "Retain pyproject.toml only for repository documentation configuration. Update hosted workflows to install requirements-tooling.txt; project CI verifies project policy and native lanes, while the tooling repository validates shared Python.",
         "Run project inventory, doctor, the full project portable gate, applicable native lanes and a release restore. Play-test the MCP guided loop locally, review the exact tooling pin, then update template-adoption.json to 1.4.0 after acceptance."
       ]
+    },
+    {
+      "id": "template-1.4.0-to-1.4.1",
+      "from_version": "1.4.0",
+      "to_version": "1.4.1",
+      "breaking": true,
+      "steps": [
+        "Preserve project source, requirements, catalogs, approvals and template-adoption.json. Replace the four shared job definitions with reviewed SHA-pinned calls to KiCad-Tooling reusable workflows; retain project-specific triggers and selection menus.",
+        "Review workflow pins alongside requirements-tooling.txt. Each reusable job checks out the calling repository and installs its Python pin. Allow the public reusable workflows in private-repository Actions policy; no inherited secrets are required.",
+        "Run full hosted acceptance and applicable manual lanes. With the default caller name, the final check becomes Verification / Template acceptance. After it passes, replace the old Template acceptance requirement in branch protection and project governance records; preserve strictness and every other required check.",
+        "Review retained failure logs and focused tag or shard selection. A shard does not establish full acceptance. Update template-adoption.json to 1.4.1 only after migration review."
+      ]
     }
   ]
 }
