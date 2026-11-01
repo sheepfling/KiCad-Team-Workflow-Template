@@ -13,6 +13,6 @@ permissions:
 
 jobs:
   run:
-    uses: sheepfling/KiCad-Tooling/.github/workflows/electrical-analysis.yml@683cd567942ae8bc1a4f753cf0d259808fe1ee9f
+    uses: sheepfling/KiCad-Tooling/.github/workflows/electrical-analysis.yml@5574f7965fec767284529ae263bef704cfaa7f43
     with:
       project_id: ${{ inputs.project_id }}
